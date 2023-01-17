@@ -1,0 +1,8 @@
+bin
+config
+lib
+build
+obj
+images
+.vscode
+run
