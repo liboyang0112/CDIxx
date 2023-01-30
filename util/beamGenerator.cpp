@@ -35,7 +35,7 @@ int main(int argc, char** argv )
       double r = hypot(x-row/2,y-row/2);
       //if(abs(x-row/2)<=1) continue;
       if(r<radcut) {
-        Real randm = static_cast<Real>(rand())/RAND_MAX;
+        Real randm = static_cast<Real>(rand())/double(RAND_MAX);
         //if(randm < 0.3) continue;
         rowo[y] = gaussian(x-row/2,y-row/2,rad);
       }

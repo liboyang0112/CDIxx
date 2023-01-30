@@ -1,6 +1,7 @@
 #include "cuPlotter.h"
 #include "cudaDefs.h"
 #include <cassert>
+cuPlotter plt;
 
 void cuPlotter::initcuData(size_t sz){
   if(cuCache_data) memMngr.returnCache(cuCache_data);

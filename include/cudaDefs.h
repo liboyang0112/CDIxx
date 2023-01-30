@@ -28,5 +28,14 @@ class cuMemManager : public memManager{
     cuMemManager():memManager(){};
 };
 extern cuMemManager memMngr;
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      abort();
+   }
+}
 
 #endif

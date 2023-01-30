@@ -55,24 +55,24 @@ int main(int argc, const char* argv[])
     cudaF(applyNorm)(realb, 1./intensitysum);
     monoChromo mwl(argv[1]);
     printf("init monochrom\n");
-    mwl.init(row/mwl.oversampling, col/mwl.oversampling, mynlambda, mylambdas, myspectra);
+    mwl.init(row, col, mynlambda, mylambdas, myspectra);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     cudaF(extendToComplex)(realb, complexpattern);
-    mwl.plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
-    mwl.plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
+    plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
+    plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved);
-    mwl.plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
-    mwl.plt.plotComplex(solved,REAL,0,1,"monopattern",0);
+    mwl.solveMWL(complexpattern, solved, 0, 200);
+    plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
+    plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     cudaF(getMod)(realb, solved);
-    mwl.plt.saveFloat(realb, "pattern");
+    plt.saveFloat(realb, "pattern");
     myCufftExec( *plan, complexpattern, complexpattern, CUFFT_INVERSE);
     cudaF(applyNorm)(complexpattern,1./col);
-    mwl.plt.plotComplex(complexpattern, MOD, 1, 1, "autocbroad", 1);
+    plt.plotComplex(complexpattern, MOD, 1, 1, "autocbroad", 1);
     myCufftExec( *plan, solved, complexpattern, CUFFT_INVERSE);
     cudaF(applyNorm)(complexpattern,1./col);
-    mwl.plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
+    plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
 
     return 0;
 }

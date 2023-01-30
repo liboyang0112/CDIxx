@@ -1,3 +1,6 @@
+#ifndef __EXPERIMENTCONFIG_H__
+#define __EXPERIMENTCONFIG_H__
+
 #include "readConfig.h"
 #include "cuPlotter.h"
 #define verbose(i,a) if(verbose>=i){a;}
@@ -7,7 +10,6 @@ class experimentConfig : public readConfig{
   public:
     //calculated later by init function, image size dependant
     experimentConfig(const char* configfile):readConfig(configfile){}
-    cuPlotter plt;
     Real enhancement = 0;
     Real forwardFactor = 0;
     Real fresnelFactor = 0;
@@ -37,3 +39,4 @@ class experimentConfig : public readConfig{
     void multiplyFresnelPhase_factor(void* amp, Real factor);
     void calculateParameters();
 };
+#endif

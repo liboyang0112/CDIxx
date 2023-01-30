@@ -1,3 +1,5 @@
+#ifndef __MNISTDATA_H__
+#define __MNISTDATA_H__
 #include "format.h"
 
 class mnistData{
@@ -22,3 +24,4 @@ class cuMnist : mnistData{
   cuMnist(const char* dir, int re, int r, int c);
   void cuRead(void*);
 };
+#endif

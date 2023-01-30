@@ -16,11 +16,11 @@ class cuPlotter
   void *cv_float_cache;
   void *cv_float_data; //cv_data = cv_cache->data
   Real *cuCache_float_data = 0; //cv format
-  
+
   void *cv_complex_cache;
   void *cv_complex_data; //cv_data = cv_cache->data
   void *cuCache_complex_data = 0; //cv format
-	public:
+  public:
   cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_cache(0),cv_complex_data(0),cuCache_complex_data(0){};
   void init(int rows_, int cols_);
   void initcuData(size_t sz);
@@ -38,4 +38,5 @@ class cuPlotter
   void plot(const char* label, bool islog = 0);
   ~cuPlotter();
 };
+extern cuPlotter plt;
 #endif

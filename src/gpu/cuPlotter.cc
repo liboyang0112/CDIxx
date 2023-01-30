@@ -3,6 +3,11 @@
 #include "opencv2/phase_unwrapping/histogramphaseunwrapping.hpp"
 using namespace cv;
 void cuPlotter::init(int rows_, int cols_){
+  if(cv_cache){
+    delete (Mat*)cv_cache;
+    delete (Mat*)cv_float_cache;
+    delete (Mat*)cv_complex_cache;
+  }
   rows=rows_;
   cols=cols_;
   Mat *tmp = new Mat(rows_, cols_, CV_16UC1, Scalar(0));

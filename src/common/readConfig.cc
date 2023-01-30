@@ -88,7 +88,7 @@ void readConfig::print(){
 
 #define PRINTBOOL(x,y) std::cout<<"bool: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
 #define PRINTINT(x,y) std::cout<<"int: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
-#define PRINTREAL(x,y) std::cout<<"flost: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
+#define PRINTREAL(x,y) std::cout<<"float: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
 #define PRINTSTR(x,y) std::cout<<"string: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
     BOOLVAR(PRINTBOOL)
     INTVAR(PRINTINT)
@@ -131,7 +131,7 @@ AlgoParser::AlgoParser(std::string formula){
   for(auto mult : strs){
     auto starpos = mult.find('*');
     int num = atoi(mult.substr(0, starpos).c_str());
-    std::string str = mult.substr(starpos+1,str.size()+1);
+    std::string str = mult.substr(starpos+1,mult.size()+1);
     count.push_back(num);
     if(str=="RAAR") algoList.push_back(RAAR);
     else if(str=="HIO") algoList.push_back(HIO);

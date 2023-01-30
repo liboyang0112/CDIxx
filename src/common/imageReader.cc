@@ -182,7 +182,8 @@ Mat* multiWLGenAVG(Mat* original, Mat* output, Real m, Real step, Real *spectrum
 			singletmp = fftw(mergedtmp,0,1);
 			Mat * tmpwrite = convertFromComplexToInteger(singletmp, 0 , MOD, 1,1, "", 0);
 			imwrite("cropmid.png",*tmpwrite);
-			delete tmpwrite, singletmp;
+			delete tmpwrite;
+      delete singletmp;
 		}
 		Real scale = Real(mergedtmp->rows)/(original->rows-2*im);
 		if(im == 0) {
@@ -192,7 +193,9 @@ Mat* multiWLGenAVG(Mat* original, Mat* output, Real m, Real step, Real *spectrum
 		else addWeighted(*output,1,*mergedtmp,weight*scale,0,*output);
 		delete mergedtmp;
 	}
-	delete mergedf,autocorrelation,mergedt;
+	delete mergedf;
+  delete autocorrelation;
+  delete mergedt;
 	output = fftw(output,output,1);
 	return output;
 }

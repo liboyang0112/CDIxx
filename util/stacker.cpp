@@ -69,8 +69,11 @@ int main(int argc, char** argv )
   int column = imagein[0].cols;
   Mat *bkgptr;
   try{
-    bkgptr = new Mat(row, column, format_cv, Scalar::all(stoi(argv[1])));
+    int num = stoi(argv[1]);
+    printf("create bkg image %d\n",num);
+    bkgptr = new Mat(row, column, format_cv, Scalar::all(num));
   }catch(std::invalid_argument&){
+    printf("read image %s\n",argv[1]);
     bkgptr = new Mat(imread(argv[1], IMREAD_UNCHANGED));
   }
   Mat &bkg = *bkgptr;
@@ -86,7 +89,7 @@ int main(int argc, char** argv )
   pixeltype* rowb;
   Real* rowf;
   Real* rowfi;
-  char* rowoe;
+  uchar* rowoe;
   //char* rowo;
   int tot = 0;
   Real totx = 0;
@@ -151,7 +154,7 @@ int main(int argc, char** argv )
   Mat overexposed (row/mergeDepth, column/mergeDepth, CV_8UC1, Scalar::all(0));
 
   for(int x = 0; x < row ; x++){
-    rowoe =   overexposed.ptr<char>(x/mergeDepth);
+    rowoe =   overexposed.ptr<uchar>(x/mergeDepth);
     rowf =   imagefloat.ptr<Real>(x/mergeDepth);
     rowfi =   imagefloatc.ptr<Real>(x);
     for(int y = 0; y<column; y++){
@@ -181,7 +184,8 @@ int main(int argc, char** argv )
   //imwrite("imageout1.png", *imageout[1]);
   //imwrite("imageout2.png", *imageout[2]);
   imwrite("floatimage.tiff", imagefloat);
-  plotColor("logimagemerged.png", &imagelogmerged);
+  imwrite("logimagemerged.png", imagelogmerged);
+  //plotColor("logimagemerged.png", &imagelogmerged);
   imwrite("overexposed.png", overexposed);
   return 0;
 }

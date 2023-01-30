@@ -4,8 +4,9 @@ LOCAL_LIB=lib
 LOCAL_INCLUDE=include
 LOCAL_OBJ=obj
 LOCAL_BIN=bin
-GCC=gcc-10 -Ofast
-CXX=g++-10 -g -D__CUDA__=1
+GCC=gcc-12 -Ofast
+#CXX=g++-12 -g
+CXX=clang++-14 -Wno-deprecated-declarations -g
 MPICXX=mpic++
 NVCC=nvcc -Xptxas=-O3 -g# --compiler-bindir /usr/bin/g++-10 -g -rdc=true
 
@@ -45,7 +46,7 @@ VTK_WRAP_LIB_SRC=$(wildcard src/vtk/*)
 VTK_WRAP_LIB_OBJ=$(patsubst src/vtk/%cc, ${LOCAL_OBJ}/vtk/%o, ${VTK_WRAP_LIB_SRC})
 VTK_WRAP_LIB=${LOCAL_LIB}/libvtkWrap.so
 
-LINK_FLAGS_EXT=$(shell pkg-config --libs opencv4 hdf5 tbb fftw3) -lfftw3_mpi -lcholmod -lfftw3_threads -lm -lpthread -lconfig++ -lz
+LINK_FLAGS_EXT=$(shell pkg-config --libs opencv4 hdf5 tbb fftw3) -lfftw3_mpi -lcholmod -lfftw3_threads -lm -lpthread -lconfig++ -lz -lpython3.10
 LINK_FLAGS_EXT_CU=$(shell pkg-config --libs opencv4 hdf5)
 #LINK_FLAGS+=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${CPP_LIB})
 LINK_FLAGS_CUDA_WRAP=$(patsubst ${LOCAL_LIB}/lib%.a, -l%, ${CUDA_WRAP_LIB})
@@ -80,6 +81,7 @@ print:
 	@echo torch_libs: ${TORCH_WRAP_LIB} 
 	@mkdir -p ${LOCAL_INCLUDE}
 	@mkdir -p ${LOCAL_LIB}
+	@mkdir -p ${LOCAL_BIN}
 	@mkdir -p ${LOCAL_OBJ}
 	@mkdir -p ${LOCAL_OBJ}/gpu
 	@mkdir -p ${LOCAL_OBJ}/gpu_ext
@@ -93,13 +95,13 @@ objs: ${COMMON_LIB_OBJ} ${TORCH_WRAP_LIB_OBJ} ${CUDA_WRAP_LIB_OBJ} ${CPP_EXE_OBJ
 
 
 ${LOCAL_BIN}/%_run: ${LOCAL_OBJ}/%.o
-	${CXX} $^ -o $@  ${LINK_FLAGS} ${LINK_FLAGS_EXT} ${CUDA_LIB} ${VTK_LIBS}
+	${CXX} $^ -o $@  ${LINK_FLAGS} ${CUDA_LIB} ${VTK_LIBS} ${LINK_FLAGS_EXT}
 
 ${LOCAL_BIN}/%_cu: ${LOCAL_OBJ}/%_cu.o ${LOCAL_OBJ}/%link_cu.o
 	${CXX} $^ -o $@ ${LINK_FLAGS} ${LINK_FLAGS_EXT_CU} ${CUDA_LIB} ${LINK_FLAGS_TORCH} ${VTK_LIBS} ${LINK_FLAGS_CUDA_WRAP}
 
 ${LOCAL_LIB}/lib%.so: ${LOCAL_OBJ}/%.o
-	${CXX} -shared $< -o $@ ${LINK_FLAGS_EXT} -L${LOCAL_LIB} -lreadCXI
+	${CXX} -shared $< -o $@ -L${LOCAL_LIB} -lreadCXI ${LINK_FLAGS_EXT}
 
 ${LOCAL_LIB}/libreadCXI.so: ${LOCAL_OBJ}/readCXI.o
 	${MPICXX} -shared $< -o $@ ${LINK_FLAGS_EXT}
@@ -135,7 +137,7 @@ ${CUDA_WRAP_LIB}: ${CUDA_WRAP_LIB_OBJ}# ${LOCAL_OBJ}/gpu/cudaWraplink.o
 	ar cr $@ $^
 
 ${LOCAL_OBJ}/torch/%.o: src/torch/%.cc
-	${CXX} -D_GLIBCXX_USE_CXX11_ABI=0 -c -fPIC $< ${INCLUDE_FLAGS} ${INCLUDE_FLAGS_TORCH} -o $@ # may use this with older torch version
+	g++-12 -Wno-deprecated-declarations -D_GLIBCXX_USE_CXX11_ABI=0 -c -fPIC $< ${INCLUDE_FLAGS} ${INCLUDE_FLAGS_TORCH} -o $@ # may use this with older torch version
 
 ${LOCAL_OBJ}/vtk/%.o: src/vtk/%.cc
 	${CXX} -c -fPIC $< ${INCLUDE_FLAGS} ${VTK_INCLUDE} -o $@

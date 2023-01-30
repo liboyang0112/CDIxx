@@ -1,5 +1,5 @@
 #include "experimentConfig.h"
-class monoChromo : public experimentConfig{
+class monoChromo{
   public:
     void *locplan;
     Real *spectra;  //normalized spectra
@@ -7,9 +7,11 @@ class monoChromo : public experimentConfig{
     int nlambda;
     int *rows;
     int *cols;
+    int row;
+    int column;
     monoChromo(const char* configfile);
     void init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* spectra_);
     void init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real endlambda);
-    void generateMWL(void* d_input, void* d_patternSum, void* single = 0);
-    void solveMWL(void* d_input, void* d_patternSum, void* initial = 0);
+    void generateMWL(void* d_input, void* d_patternSum, void* single = 0, Real oversampling = 2);
+    void solveMWL(void* d_input, void* d_patternSum, void* initial = 0, int nIter = 200 );
 };

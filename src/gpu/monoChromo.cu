@@ -4,12 +4,12 @@
 int nearestEven(Real x){
   return round(x/2)*2;
 }
-monoChromo::monoChromo(const char* configfile) : experimentConfig(configfile){}
+monoChromo::monoChromo(const char* configfile){}
 void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* spectra_){
   nlambda = nlambda_;
   spectra = spectra_;
-  row = nrow*oversampling;
-  column = ncol*oversampling;
+  row = nrow;
+  column = ncol;
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
@@ -22,8 +22,8 @@ void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* sp
   }
 }
 void monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real endlambda){
-  row = nrow*oversampling;
-  column = ncol*oversampling;
+  row = nrow;
+  column = ncol;
   Real currentLambda = 1;
   int currentPoint = 0;
   int jump = 1;
@@ -72,7 +72,7 @@ void monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real 
     cufftPlan2d ( &(((cufftHandle*)locplan)[i]), rows[i], cols[i], FFTformat);
   }
 }
-void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
+void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Real oversampling){
   Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
   complexFormat *d_intensity = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
   complexFormat* d_patternAmp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
@@ -85,7 +85,7 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
     cudaF(cudaConvertFO)(d_intensity);
     init_cuda_image(row, column, 65536, 1);
     cudaF(crop)(d_intensity,d_patternAmp,thisrow,thiscol);
-    cudaF(applyNorm)(d_patternAmp, sqrt(exposure*spectra[i])/sqrt(thiscol*thisrow));
+    cudaF(applyNorm)(d_patternAmp, sqrt(spectra[i])/sqrt(thiscol*thisrow));
     if(i==0) {
       cudaF(getMod2)((Real*)d_patternSum, d_patternAmp);
       if(single!=0) {
@@ -101,7 +101,7 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
   memMngr.returnCache(d_intensity);
   memMngr.returnCache(d_patternAmp);
 }
-void monoChromo::solveMWL(void* d_input, void* d_output, void* initial)
+void monoChromo::solveMWL(void* d_input, void* d_output, void* initial, int nIter)
 {
   int sz = row*column*sizeof(complexFormat);
   if(nlambda<0) printf("nlambda not initialized: %d\n",nlambda);
