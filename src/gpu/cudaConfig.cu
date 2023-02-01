@@ -1,5 +1,6 @@
 #include "cudaConfig.h"
 #include "initCuda.h"
+#include <cub/device/device_reduce.cuh>
 #include <iostream>
 using namespace std;
 void init_cuda_image(int rows, int cols, int rcolor, Real scale){
@@ -131,6 +132,37 @@ __global__  void getMod(Real* mod, complexFormat* amp){
 __global__  void getMod2(Real* mod2, complexFormat* amp){
   cudaIdx()
   mod2[index] = pow(amp[index].x,2)+pow(amp[index].y,2);
+}
+
+struct CustomSumReal
+{
+  __device__ __forceinline__
+    complexFormat operator()(const complexFormat &a, const complexFormat &b) const {
+      return {a.x+b.x,0};
+    }
+};
+
+Real findSumReal(complexFormat* d_in, int num_items)
+{
+  complexFormat *d_out = NULL;
+  d_out = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat));
+
+  void            *d_temp_storage = NULL;
+  size_t          temp_storage_bytes = 0;
+  CustomSumReal sum_op;
+  complexFormat tmp;
+  tmp.x = 0;
+  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
+  d_temp_storage = memMngr.borrowCache(temp_storage_bytes);
+
+  // Run
+  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
+  complexFormat output;
+  cudaMemcpy(&output, d_out, sizeof(complexFormat), cudaMemcpyDeviceToHost);
+
+  if (d_out) memMngr.returnCache(d_out);
+  if (d_temp_storage) memMngr.returnCache(d_temp_storage);
+  return output.x;
 }
 
 __global__ void applyMod(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel){

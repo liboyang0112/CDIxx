@@ -135,4 +135,5 @@ __global__ void createMask(Real* data, sptType* spt, bool isFrequency=0){
   }
   data[index]=spt->isInside(x,y);
 }
+Real findSumReal(complexFormat* d_in, int num_items);
 #endif

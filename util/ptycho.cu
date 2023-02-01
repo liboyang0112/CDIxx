@@ -56,36 +56,6 @@ Real findMax(complexFormat* d_in, int num_items)
   return output.x*output.x + output.y*output.y;
 }
 
-struct CustomSumReal
-{
-  __device__ __forceinline__
-    complexFormat operator()(const complexFormat &a, const complexFormat &b) const {
-      return {a.x+b.x,0};
-    }
-};
-
-Real findSumReal(complexFormat* d_in, int num_items)
-{
-  complexFormat *d_out = NULL;
-  d_out = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat));
-
-  void            *d_temp_storage = NULL;
-  size_t          temp_storage_bytes = 0;
-  CustomSumReal sum_op;
-  complexFormat tmp;
-  tmp.x = 0;
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
-  d_temp_storage = memMngr.borrowCache(temp_storage_bytes);
-
-  // Run
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
-  complexFormat output;
-  cudaMemcpy(&output, d_out, sizeof(complexFormat), cudaMemcpyDeviceToHost);
-
-  if (d_out) memMngr.returnCache(d_out);
-  if (d_temp_storage) memMngr.returnCache(d_temp_storage);
-  return output.x;
-}
 
 //#define Bits 16
 

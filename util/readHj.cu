@@ -23,8 +23,6 @@ int main(int argc, const char* argv[])
     double* spectrad = spectra.data<double>();
     double* lambdasd = lambdas.data<double>();
     printf("image size = (%d, %d), spectra size = %d\n", row, col, nlambda);
-    std::ofstream file;
-    file.open("spectra.txt", std::ios::out);
     int mynlambda = int(row*(lambdasd[nlambda-1]/lambdasd[0]-1))/2;
     Real dlambda = 2./row;
     Real* myspectra = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
@@ -45,24 +43,36 @@ int main(int argc, const char* argv[])
     }
     for(int i = 0; i < mynlambda; i++){
       myspectra[i]/=intensitysum;
+    }
+    std::ofstream file;
+    file.open("spectra.txt", std::ios::out);
+    for(int i = 0; i < mynlambda; i++){
+      //myspectra[i] = 0.01;
       file<<mylambdas[i]<<" "<<myspectra[i]<<std::endl;
     }
+    file.close();
     Real* realb = (Real*)memMngr.borrowCache(sizeof(Real)*row*col);
     double* doubleb = (double*)memMngr.useOnsite(sizeof(double)*row*col);
     cudaMemcpy(doubleb, b.data<double>(), sizeof(double)*row*col, cudaMemcpyHostToDevice);
     init_cuda_image(row, col, 65535, 1);
+    init_fft(row,col);
     cudaF(assignVal)(realb, doubleb);
     cudaF(applyNorm)(realb, 1./intensitysum);
-    monoChromo mwl(argv[1]);
+    monoChromo mwl;
     printf("init monochrom\n");
     mwl.init(row, col, mynlambda, mylambdas, myspectra);
+    plt.init(row, col);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     cudaF(extendToComplex)(realb, complexpattern);
     plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
     plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved, 0, 200);
+    mwl.solveMWL(complexpattern, solved, 0, 30, 1, 0);
+    for(int i = 0; i < mynlambda; i++){
+      myspectra[i] = 0.01;
+    }
+    mwl.solveMWL(complexpattern, solved, solved, 300, 0, 1);
     plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
     plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     cudaF(getMod)(realb, solved);
@@ -73,6 +83,11 @@ int main(int argc, const char* argv[])
     myCufftExec( *plan, solved, complexpattern, CUFFT_INVERSE);
     cudaF(applyNorm)(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
+    file.open("spectra_new.txt", std::ios::out);
+    for(int i = 0; i < mynlambda; i++){
+      file<<mylambdas[i]<<" "<<myspectra[i]<<std::endl;
+    }
+    file.close();
 
     return 0;
 }

@@ -10,7 +10,7 @@
 
 int main(int argc, char** argv){
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
-  monoChromo mwl(argv[1]);
+  monoChromo mwl;
   CDI cdi(argv[1]);
   cuMnist *mnist_dat = 0;
   int objrow;
@@ -38,9 +38,7 @@ int main(int argc, char** argv){
     intensity = readImage(cdi.common.Pattern.c_str(), objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
-  std::ofstream spectrafile;
-  spectrafile.open("spectra.txt",ios::out);
-#if 1
+#if 0
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
   Real *lambdas;
@@ -65,12 +63,14 @@ int main(int argc, char** argv){
   printf("lambda range = (%f, %f), ratio=%f", startlambda, endlambda, rate);
   rate = 1.15;
 #endif
+  std::ofstream spectrafile;
+  spectrafile.open("spectra.txt",ios::out);
   for(int i = 0; i < nlambda; i++){
     spectrafile<<lambdas[i]<<" "<<spectra[i]<<endl;
   }
   spectrafile.close();
-  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  //mwl.init(objrow, objcol, lambdas, spectra, rate);
+  //mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+  mwl.init(objrow, objcol, lambdas, spectra, rate);
   int sz = mwl.row*mwl.column*sizeof(Real);
   Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
   complexFormat *single = (complexFormat*)memMngr.borrowCache(sz*2);
@@ -113,7 +113,7 @@ int main(int argc, char** argv){
     cdi.setPattern(d_patternSum);
     init_cuda_image(objrow, objcol, 65535, 2);
     cdi.phaseRetrieve();
-    for(int i = 0; i < 10; i++){
+    for(int i = 0; i < 0; i++){
     cudaF(getMod2)(cdi.patternData, cdi.patternWave);
     cudaF(extendToComplex)(cdi.patternData, d_solved);
     cudaF(cudaConvertFO)(d_solved);
@@ -129,6 +129,11 @@ int main(int argc, char** argv){
     myCufftExec(*plan, d_solved, d_CpatternSum, CUFFT_FORWARD);
     plt.plotComplex(d_CpatternSum, MOD, 1, 2./mwl.row, ("autocsolved"+to_string(j)).c_str(), 1);
   }
+  spectrafile.open("spectra_new.txt",ios::out);
+  for(int i = 0; i < nlambda; i++){
+    spectrafile<<lambdas[i]<<" "<<spectra[i]<<endl;
+  }
+  spectrafile.close();
 
   return 0;
 }
