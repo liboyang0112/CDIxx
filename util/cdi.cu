@@ -11,11 +11,9 @@
 #include <ctime>
 #include "cudaConfig.h"
 #include "experimentConfig.h"
-#include "tvFilter.h"
 #include "cuPlotter.h"
 #include "mnistData.h"
 
-#include <cub/device/device_reduce.cuh>
 #include "cdi.h"
 
 __global__  void applyESWSupport(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length){
@@ -199,7 +197,6 @@ int main(int argc, char** argv )
     cuda_pupilAmp = (complexFormat*)memMngr.borrowCache(sz);
     if(setups.runSim) cudaMemcpy(cuda_pupilAmp, setups.objectWave, sz, cudaMemcpyDeviceToDevice);
   }
-  setups.checkAutoCorrelation();
   if(setups.doIteration) {
     if(setups.runSim && setups.domnist){
       for(int i = 0; i < setups.mnistN; i++){
@@ -213,6 +210,7 @@ int main(int argc, char** argv )
     }
     setups.saveState();
   }
+  setups.checkAutoCorrelation();
 
   //Now let's do pupil
   if(setups.dopupil){ 

@@ -1,18 +1,23 @@
 #include "cudaConfig.h"
-#include "initCuda.h"
-#include <cub/device/device_reduce.cuh>
 #include <iostream>
 using namespace std;
+static int rows_fft, cols_fft;
+static int rows_, cols_;
 void init_cuda_image(int rows, int cols, int rcolor, Real scale){
+  if(rows!=rows_ || cols!=cols_){
     cudaMemcpyToSymbol(cuda_row,&rows,sizeof(rows));
     cudaMemcpyToSymbol(cuda_column,&cols,sizeof(cols));
     Real ratio = 1./sqrt(rows*cols);
-    cudaMemcpyToSymbol(cuda_rcolor,&rcolor,sizeof(rcolor));
-    cudaMemcpyToSymbol(cuda_scale,&scale,sizeof(scale));
     numBlocks.x=(rows-1)/threadsPerBlock.x+1;
     numBlocks.y=(cols-1)/threadsPerBlock.y+1;
+    rows_ = rows;
+    cols_ = cols;
+  }
+  cudaMemcpyToSymbol(cuda_rcolor,&rcolor,sizeof(rcolor));
+  cudaMemcpyToSymbol(cuda_scale,&scale,sizeof(scale));
 };
 void init_fft(int rows, int cols){
+  if(rows!=rows_fft||cols!=cols_fft){
     if(!plan){
       plan = new cufftHandle();
       planR2C = new cufftHandle();
@@ -22,6 +27,9 @@ void init_fft(int rows, int cols){
     }
     cufftPlan2d ( plan, rows, cols, FFTformat);
     cufftPlan2d ( planR2C, rows, cols, FFTformatR2C);
+    cols_fft = cols;
+    rows_fft = rows;
+  }
 }
 __global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor){
   cudaIdx()
@@ -38,6 +46,35 @@ __global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Re
   }
   dataout[index].x = data[targetIndex].x*factor;
   dataout[index].y = -data[targetIndex].y*factor;
+}
+
+__global__ void applyConvolution(Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight)
+{
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
+  int tilewidth = kernelwidth*2+blockDim.x;
+  extern __shared__ float tile[];
+  if(threadIdx.x<blockDim.x/2+kernelwidth && threadIdx.y<blockDim.y/2+kernelheight)
+    tile[threadIdx.x*(tilewidth)+threadIdx.y]=(x>=kernelwidth && y>=kernelheight)?input[(x-kernelwidth)*cuda_column+y-kernelheight]:0;
+  if(threadIdx.x>=blockDim.x/2-kernelwidth && threadIdx.y<blockDim.y/2+kernelheight)
+    tile[(threadIdx.x+2*kernelwidth)*(tilewidth)+threadIdx.y]=(x<cuda_row-kernelwidth && y>=kernelheight)?input[(x+kernelwidth)*cuda_column+y-kernelheight]:0;
+  if(threadIdx.x<blockDim.x/2+kernelwidth && threadIdx.y>=blockDim.y/2-kernelheight)
+    tile[threadIdx.x*(tilewidth)+threadIdx.y+2*kernelheight]=(x>=kernelwidth && y<cuda_column-kernelheight)?input[(x-kernelwidth)*cuda_column+y+kernelheight]:0;
+  if(threadIdx.x>=blockDim.x/2-kernelwidth && threadIdx.y>=blockDim.y/2-kernelheight)
+    tile[(threadIdx.x+2*kernelwidth)*(tilewidth)+threadIdx.y+2*kernelheight]=(x<cuda_row-kernelwidth && y<cuda_column-kernelheight)?input[(x+kernelwidth)*cuda_column+y+kernelheight]:0;
+  if(x >= cuda_row || y >= cuda_column) return;
+  int index = x*cuda_column+y;
+  __syncthreads();
+  int Idx = (threadIdx.x)*(tilewidth) + threadIdx.y;
+  int IdxK = 0;
+  Real n_output = 0;
+  for(int x = -kernelwidth; x <= kernelwidth; x++){
+    for(int y = -kernelheight; y <= kernelheight; y++){
+      n_output+=tile[Idx++]*kernel[IdxK++];
+    }
+    Idx+=tilewidth-2*kernelheight-1;
+  }
+  output[index] = n_output;
 }
 
 __global__ void applyNorm(complexFormat* data, Real factor){
@@ -132,37 +169,6 @@ __global__  void getMod(Real* mod, complexFormat* amp){
 __global__  void getMod2(Real* mod2, complexFormat* amp){
   cudaIdx()
   mod2[index] = pow(amp[index].x,2)+pow(amp[index].y,2);
-}
-
-struct CustomSumReal
-{
-  __device__ __forceinline__
-    complexFormat operator()(const complexFormat &a, const complexFormat &b) const {
-      return {a.x+b.x,0};
-    }
-};
-
-Real findSumReal(complexFormat* d_in, int num_items)
-{
-  complexFormat *d_out = NULL;
-  d_out = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat));
-
-  void            *d_temp_storage = NULL;
-  size_t          temp_storage_bytes = 0;
-  CustomSumReal sum_op;
-  complexFormat tmp;
-  tmp.x = 0;
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
-  d_temp_storage = memMngr.borrowCache(temp_storage_bytes);
-
-  // Run
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, sum_op, tmp));
-  complexFormat output;
-  cudaMemcpy(&output, d_out, sizeof(complexFormat), cudaMemcpyDeviceToHost);
-
-  if (d_out) memMngr.returnCache(d_out);
-  if (d_temp_storage) memMngr.returnCache(d_temp_storage);
-  return output.x;
 }
 
 __global__ void applyMod(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel){

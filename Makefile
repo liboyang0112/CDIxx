@@ -6,7 +6,7 @@ LOCAL_OBJ=obj
 LOCAL_BIN=bin
 GCC=gcc-12 -Ofast
 #CXX=g++-12 -g
-CXX=clang++-14 -Wno-deprecated-declarations -g
+CXX=g++-12 -Wno-deprecated-declarations -g -O3
 MPICXX=mpic++
 NVCC=nvcc -Xptxas=-O3 -g# --compiler-bindir /usr/bin/g++-10 -g -rdc=true
 
@@ -46,16 +46,16 @@ VTK_WRAP_LIB_SRC=$(wildcard src/vtk/*)
 VTK_WRAP_LIB_OBJ=$(patsubst src/vtk/%cc, ${LOCAL_OBJ}/vtk/%o, ${VTK_WRAP_LIB_SRC})
 VTK_WRAP_LIB=${LOCAL_LIB}/libvtkWrap.so
 
-LINK_FLAGS_EXT=$(shell pkg-config --libs opencv4 hdf5 tbb fftw3) -lfftw3_mpi -lcholmod -lfftw3_threads -lm -lpthread -lconfig++ -lz -lpython3.10
+LINK_FLAGS_EXT=$(shell pkg-config --libs opencv4 hdf5 fftw3) -lfftw3_mpi -lcholmod -lfftw3_threads -lm -lpthread -lconfig++ -lz -lpython3.10
 LINK_FLAGS_EXT_CU=$(shell pkg-config --libs opencv4 hdf5)
 #LINK_FLAGS+=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${CPP_LIB})
 LINK_FLAGS_CUDA_WRAP=$(patsubst ${LOCAL_LIB}/lib%.a, -l%, ${CUDA_WRAP_LIB})
 LINK_FLAGS_CUDA_EXT=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${CUDA_EXT_LIB})
 LINK_FLAGS_TORCH_WRAP=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${TORCH_WRAP_LIB})
 LINK_FLAGS_VTK_WRAP=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${VTK_WRAP_LIB})
-LINK_FLAGS= -L${LOCAL_LIB} -lvtkWrap  -lmmio  -lcnpy -lcommon -limageReader -lsparse  -lwrite -lcudaExt -ltorchWrap -lreadCXI -lreadConfig -lmemManager 
+LINK_FLAGS=  -lvtkWrap  -lmmio  -lcnpy -lcommon -lsparse  -ltorchWrap -lreadCXI -lreadConfig -lmemManager 
 #LINK_FLAGS= -L${LOCAL_LIB} ${LINK_FLAGS_CUDA_WRAP} ${LINK_FLAGS_VTK_WRAP} $(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${COMMON_LIB} ${COMMON_C_LIB}) ${LINK_FLAGS_CUDA_EXT} -lmemManager -lreadConfig ${LINK_FLAGS_TORCH_WRAP}
-LINK_FLAGS_TORCH= -L${torch}/lib -lc10_cuda -lcaffe2_nvrtc -lshm -ltorch_cpu -ltorch_cuda_linalg -ltorch_cuda -ltorch_global_deps -ltorch_python -ltorch -lc10
+LINK_FLAGS_TORCH= -L${torch}/lib -lc10_cuda -lcaffe2_nvrtc -lshm -ltorch_cpu -ltorch_cuda_linalg -ltorch_cuda -ltorch_global_deps -ltorch_python -lc10
 VTK_INCLUDE=-I /usr/include/vtk-9.1
 VTK_LIBS=-lvtkCommonColor-9.1 -lvtkCommonCore-9.1 -lvtkCommonDataModel-9.1 -lvtkFiltersGeometry-9.1\
 				 -lvtkIOXML-9.1 -lvtkInteractionStyle-9.1 -lvtkRenderingContextOpenGL2-9.1 -lvtkRenderingCore-9.1\
@@ -67,6 +67,7 @@ INCLUDE_FLAGS_TORCH=-I${torch}/include -I${torch}/include/torch/csrc/api/include
 
 all: print
 	make -j16 objs
+	make -j16 ${LOCAL_LIB}/libreadCXI.so
 	make -j16 commonlibs
 	make -j16 cudalibs
 	make -j16 exes
@@ -95,10 +96,10 @@ objs: ${COMMON_LIB_OBJ} ${TORCH_WRAP_LIB_OBJ} ${CUDA_WRAP_LIB_OBJ} ${CPP_EXE_OBJ
 
 
 ${LOCAL_BIN}/%_run: ${LOCAL_OBJ}/%.o
-	${CXX} $^ -o $@  ${LINK_FLAGS} ${CUDA_LIB} ${VTK_LIBS} ${LINK_FLAGS_EXT}
+	${CXX} $^ -o $@ -L${LOCAL_LIB} -limageReader -lcudaExt ${LINK_FLAGS} ${CUDA_LIB} ${VTK_LIBS} ${LINK_FLAGS_EXT}
 
 ${LOCAL_BIN}/%_cu: ${LOCAL_OBJ}/%_cu.o ${LOCAL_OBJ}/%link_cu.o
-	${CXX} $^ -o $@ ${LINK_FLAGS} ${LINK_FLAGS_EXT_CU} ${CUDA_LIB} ${LINK_FLAGS_TORCH} ${VTK_LIBS} ${LINK_FLAGS_CUDA_WRAP}
+	${CXX} $^ -o $@ -L${LOCAL_LIB} ${LINK_FLAGS_CUDA_WRAP} ${LINK_FLAGS} ${LINK_FLAGS_EXT_CU} ${CUDA_LIB} ${LINK_FLAGS_TORCH} ${VTK_LIBS}
 
 ${LOCAL_LIB}/lib%.so: ${LOCAL_OBJ}/%.o
 	${CXX} -shared $< -o $@ -L${LOCAL_LIB} -lreadCXI ${LINK_FLAGS_EXT}
@@ -154,7 +155,7 @@ ${LOCAL_OBJ}/gpu/%_cu.o: src/gpu/%.cu
 
 ${LOCAL_OBJ}/gpu/%.o: src/gpu/%.cc
 	#${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
-	${CXX} -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
+	${CXX} -c $< -fPIC -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
 
 ${LOCAL_OBJ}/gpu/cudaWraplink.o: ${CUDA_WRAP_LIB_OBJ} ${CUDA_EXT_LIB_OBJ}
 	${NVCC} -Xcompiler '-fPIC' -dlink $^ -o $@

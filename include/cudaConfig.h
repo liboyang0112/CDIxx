@@ -28,6 +28,7 @@ __global__ void applyRandomPhase(complexFormat* wave, Real* beamstop, curandStat
 __global__ void multiply(complexFormat* source, complexFormat* target);
 __global__ void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
 void opticalPropagate(complexFormat* field, Real lambda, Real d, Real imagesize, int rows, int cols);
+void init_cuda_image(int rows, int cols, int rcolor=65536, Real scale=1);
 template <typename T>
 __global__ void cudaConvertFO(T* data){
   int x = blockIdx.x * blockDim.x + threadIdx.x;

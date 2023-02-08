@@ -1,8 +1,21 @@
 #include <cstdio>
 #include "memManager.h"
+#include <map>
+#include <vector>
 #include <cstdlib>
 
 ccMemManager ccmemMngr;
+
+#define memory (*(std::map<size_t, std::vector<void*>>*) memoryp)
+#define storage (*(std::map<size_t, int>*) storagep)
+#define maxstorage (*(std::map<size_t, int>*) maxstoragep)
+#define rentBook (*(std::map<void*, size_t>*) rentBookp)
+memManager::memManager(){
+  memoryp = new std::map<size_t, std::vector<void*>>();
+  storagep = new std::map<size_t, int>();
+  maxstoragep = new std::map<size_t, int>();
+  rentBookp = new std::map<void*, size_t>();
+}
 
 void* memManager::borrowCache(size_t sz){
   void *ret;

@@ -1,19 +1,15 @@
 #ifndef __MEM_MANAGER_H__
 #define __MEM_MANAGER_H__
 
-#include <unordered_map>
-#include <map>
-#include <vector>
-
 class memManager{
-  std::map<size_t, std::vector<void*>> memory;
-  std::map<size_t, int> storage;
-  std::map<size_t, int> maxstorage;
-  std::map<void*, size_t> rentBook;
+  void* memoryp;
+  void* storagep;
+  void* maxstoragep;
+  void* rentBookp;
   protected:
     virtual void c_malloc(void*&, size_t) = 0;
   public:
-    memManager(){};
+    memManager();
     void* borrowCache(size_t);
     void* borrowSame(void*);
     size_t getSize(void*);

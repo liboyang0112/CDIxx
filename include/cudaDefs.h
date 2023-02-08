@@ -1,7 +1,7 @@
 #ifndef __CUDADEFS_H__
 #define __CUDADEFS_H__
-#include "format.h"
 #include <cufft.h>
+#include "format.h"
 #include "memManager.h"
 #define cudaF(a) a<<<numBlocks,threadsPerBlock>>>
 #define cudaIdx() \
@@ -9,7 +9,6 @@ int x = blockIdx.x * blockDim.x + threadIdx.x;\
 int y = blockIdx.y * blockDim.y + threadIdx.y;\
 if(x >= cuda_row || y >= cuda_column) return;\
 int index = x*cuda_column + y;
-using complexFormat=cufftComplex;
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
 extern __device__ __constant__ Real cuda_beta_HIO;

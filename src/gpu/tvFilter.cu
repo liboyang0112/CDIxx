@@ -33,7 +33,7 @@ struct CustomSum
         return a+b;
     }
 };
-CustomSum sum_op;
+static CustomSum sum_op;
 
 template <typename T>
 __device__ T minmod(T data1, T data2){
@@ -42,34 +42,6 @@ __device__ T minmod(T data1, T data2){
   return min(data1,data2);
 }
 
-__global__ void applyConvolution(Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight)
-{
-  int x = blockIdx.x*blockDim.x + threadIdx.x;
-  int y = blockIdx.y*blockDim.y + threadIdx.y;
-  int tilewidth = kernelwidth*2+blockDim.x;
-  extern __shared__ float tile[];
-  if(threadIdx.x<blockDim.x/2+kernelwidth && threadIdx.y<blockDim.y/2+kernelheight)
-    tile[threadIdx.x*(tilewidth)+threadIdx.y]=(x>=kernelwidth && y>=kernelheight)?input[(x-kernelwidth)*cuda_column+y-kernelheight]:0;
-  if(threadIdx.x>=blockDim.x/2-kernelwidth && threadIdx.y<blockDim.y/2+kernelheight)
-    tile[(threadIdx.x+2*kernelwidth)*(tilewidth)+threadIdx.y]=(x<cuda_row-kernelwidth && y>=kernelheight)?input[(x+kernelwidth)*cuda_column+y-kernelheight]:0;
-  if(threadIdx.x<blockDim.x/2+kernelwidth && threadIdx.y>=blockDim.y/2-kernelheight)
-    tile[threadIdx.x*(tilewidth)+threadIdx.y+2*kernelheight]=(x>=kernelwidth && y<cuda_column-kernelheight)?input[(x-kernelwidth)*cuda_column+y+kernelheight]:0;
-  if(threadIdx.x>=blockDim.x/2-kernelwidth && threadIdx.y>=blockDim.y/2-kernelheight)
-    tile[(threadIdx.x+2*kernelwidth)*(tilewidth)+threadIdx.y+2*kernelheight]=(x<cuda_row-kernelwidth && y<cuda_column-kernelheight)?input[(x+kernelwidth)*cuda_column+y+kernelheight]:0;
-  if(x >= cuda_row || y >= cuda_column) return;
-  int index = x*cuda_column+y;
-  __syncthreads();
-  int Idx = (threadIdx.x)*(tilewidth) + threadIdx.y;
-  int IdxK = 0;
-  Real n_output = 0;
-  for(int x = -kernelwidth; x <= kernelwidth; x++){
-    for(int y = -kernelheight; y <= kernelheight; y++){
-      n_output+=tile[Idx++]*kernel[IdxK++];
-    }
-    Idx+=tilewidth-2*kernelheight-1;
-  }
-  output[index] = n_output;
-}
 
 template <typename T>
 __global__ void calcBracketLambda(T *srcImage, T *bracket, T* u0, T* lambdacore, T noiseLevel)

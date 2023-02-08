@@ -6,6 +6,9 @@
 #include <iostream>
 using namespace std;
 using namespace libconfig;
+#define subParsers (*(std::vector<AlgoParser*>*) subParsersp)
+#define count (*(std::vector<int>*) countp)
+#define algoList (*(std::vector<int>*) algoListp)
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
@@ -109,6 +112,9 @@ void Stringsplit(const string& str, const string& split, vector<string>& res)
 }
 
 AlgoParser::AlgoParser(std::string formula){
+  subParsersp=new std::vector<AlgoParser*>();
+  countp=new std::vector<int>();
+  algoListp=new std::vector<int>();
   remove(formula.begin(),formula.end(),' ');
   auto position = formula.find("(");
   while(position!= std::string::npos){

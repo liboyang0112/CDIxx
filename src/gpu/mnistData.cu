@@ -2,7 +2,7 @@
 #include "cudaConfig.h"
 #include "common.h"
 
-cuMnist::cuMnist(const char* dir, int re, int r, int c) : mnistData(dir, rowraw, colraw), refinement(re), row(r), col(c){
+cuMnist::cuMnist(const char* dir, int re, int r, int c) : mnistData(dir), refinement(re), row(r), col(c){
   cuRaw = memMngr.borrowCache(rowraw*colraw*sizeof(Real));
   rowrf = rowraw*refinement;
   colrf = colraw*refinement;

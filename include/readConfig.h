@@ -9,11 +9,7 @@
 
 #ifndef __CDIxxCONFIG
 #define __CDIxxCONFIG
-#include <iostream>
-#include <iomanip>
-#include <cstdlib>
 #include <libconfig.h++>
-#include <vector>
 #include "format.h"
 
 // This example reads the configuration file 'example.cfg' and displays
@@ -60,9 +56,9 @@ public:
 
 class AlgoParser{
 public:
-  std::vector<AlgoParser*> subParsers;
-  std::vector<int> count;
-  std::vector<int> algoList;
+  void* subParsersp;
+  void* countp;
+  void* algoListp;
   int nAlgo = 3;
   int currentAlgo;
   int currentCount;

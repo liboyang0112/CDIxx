@@ -2,9 +2,7 @@
 //#include "common.h"
 #include "cudaConfig.h"
 #include "experimentConfig.h"
-#include "mnistData.h"
 
-#include <cub/device/device_reduce.cuh>
 class CDI : public experimentConfig{
   public:
     CDI(const char* configfile);
@@ -13,7 +11,7 @@ class CDI : public experimentConfig{
     complexFormat* autoCorrelation = 0;
     Real* support = 0;
     rect *cuda_spt;
-    cuMnist *mnist_dat = 0;
+    void *mnist_dat = 0;
     std::string save_suffix = "";
     curandStateMRG32k3a *devstates;
     void propagatepupil(complexFormat* datain, complexFormat* dataout, bool isforward);

@@ -1,7 +1,9 @@
-#include "imageReader.h"
+#include "opencv2/opencv.hpp"
+#include "memManager.h"
 #include "readCXI.h"
 #include "common.h"
 #include "fstream"
+using namespace cv;
 using namespace std;
 Real* readImage(const char* name, int &row, int &col, bool isFrequency){
   printf("reading file: %s\n", name);

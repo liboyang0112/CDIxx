@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <fftw3.h>
 #include <vector>
 #include <fstream>
 #include <iostream>

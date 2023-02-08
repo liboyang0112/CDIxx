@@ -1,7 +1,8 @@
 #ifndef __SPARSE__
 #define __SPARSE__
 #include <map>
-#include <iostream>
+#include <cstdint>
+#include <cstdlib>
 
 class Sparse{
 public:

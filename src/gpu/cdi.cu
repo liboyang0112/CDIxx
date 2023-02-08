@@ -11,44 +11,16 @@
 #include <ctime>
 #include "cudaConfig.h"
 #include "experimentConfig.h"
-#include "tvFilter.h"
-#include "cuPlotter.h"
 #include "mnistData.h"
+//#include "tvFilter.h"
+#include "cuPlotter.h"
+#include "cub_wrap.h"
 #include "cdi.h"
 
-#include <cub/device/device_reduce.cuh>
-
-struct CustomMax
-{
-  __device__ __forceinline__
-    Real operator()(const Real &a, const Real &b) const {
-      return (b > a) ? b : a;
-    }
-};
-
-Real findMax(Real* d_in, int num_items)
-{
-  Real *d_out = (Real*)memMngr.borrowCache(sizeof(Real));
-
-  void            *d_temp_storage = NULL;
-  size_t          temp_storage_bytes = 0;
-  CustomMax max_op;
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, max_op, 0));
-  d_temp_storage = (Real*)memMngr.borrowCache(temp_storage_bytes);
-
-  // Run
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, max_op, 0));
-  Real output;
-  cudaMemcpy(&output, d_out, sizeof(Real), cudaMemcpyDeviceToHost);
-
-  memMngr.returnCache(d_out);
-  memMngr.returnCache(d_temp_storage);
-  return output;
-}
 
 //#define Bits 16
 
-Real gaussian(Real x, Real y, Real sigma){
+__device__ __host__ Real gaussian(Real x, Real y, Real sigma){
   Real r2 = pow(x,2) + pow(y,2);
   return exp(-r2/2/pow(sigma,2));
 }
@@ -263,7 +235,7 @@ void CDI::init(){
   allocateMem();
   if(useBS) createBeamStop();
   calculateParameters();
-  inittvFilter(row,column);
+  //inittvFilter(row,column);
   createSupport();
   devstates = (curandStateMRG32k3a *)memMngr.borrowCache(column * row * sizeof(curandStateMRG32k3a));
   cudaF(initRand)(devstates);
@@ -273,10 +245,10 @@ void CDI::prepareIter(){
     if(domnist){
       void* intensity = memMngr.borrowCache(row*column*sizeof(Real));
       void* phase = 0;
-      mnist_dat->cuRead(intensity);
+      ((cuMnist*)mnist_dat)->cuRead(intensity);
       if(phaseModulation) {
         phase = memMngr.borrowCache(row*column*sizeof(Real));
-        mnist_dat->cuRead(phase);
+        ((cuMnist*)mnist_dat)->cuRead(phase);
       }
       cudaF(createWaveFront)((Real*)intensity, (Real*)phase, (complexFormat*)objectWave, 1);
       memMngr.returnCache(intensity);
@@ -308,12 +280,12 @@ void CDI::prepareIter(){
   }
 }
 void CDI::checkAutoCorrelation(){
-  size_t sz = row*column*sizeof(Real);
-  auto tmp = (complexFormat*)memMngr.useOnsite(sz*2);
-  myCufftExecR2C( *planR2C, patternData, (complexFormat*)tmp);// re-use the memory allocated for pupil
-  cudaF(fillRedundantR2C)((complexFormat*)tmp, autoCorrelation, 1./sqrt(row*column));
-  plt.plotComplex(autoCorrelation, IMAG, 1, 1, "autocorrelation_imag", 1); // only positive values are shown
-  plt.plotComplex(autoCorrelation, REAL, 1, 1, "autocorrelation_real", 1); // only positive values are shown
+  size_t sz = row*column*sizeof(complexFormat);
+  auto tmp = (complexFormat*)memMngr.useOnsite(sz);
+  myCufftExecR2C( *planR2C, patternData, tmp);
+  cudaF(fillRedundantR2C)(tmp, autoCorrelation, 1./sqrt(row*column));
+  plt.plotComplex(autoCorrelation, IMAG, 1, 1, "autocorrelation_imag", 1);
+  plt.plotComplex(autoCorrelation, REAL, 1, 1, "autocorrelation_real", 1);
   plt.plotComplex(autoCorrelation, MOD, 1, 1, "autocorrelation", 1);
 }
 void CDI::createSupport(){
@@ -452,15 +424,15 @@ complexFormat* CDI::phaseRetrieve(){
         plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0);
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 1);
       }
-      if(0){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
-        takeMod2Diff<<<numBlocks,threadsPerBlock>>>(patternWave,patternData, cuda_diff, useBS? beamstop:0);
-        cudaConvertFO<<<numBlocks,threadsPerBlock>>>(cuda_diff);
-        tvFilterWrap(cuda_diff, noiseLevel, 200);
-        cudaConvertFO<<<numBlocks,threadsPerBlock>>>(cuda_diff);
-        plt.plotFloat(cuda_diff, MOD, 1, 1, ("smootheddiff"+iterstr).c_str(), 1);
-        takeMod2Sum<<<numBlocks,threadsPerBlock>>>(patternWave, cuda_diff);
-        plt.plotFloat(cuda_diff, MOD, 1, 1, ("smoothed"+iterstr).c_str(), 1);
-      }
+      //if(0){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
+      //  takeMod2Diff<<<numBlocks,threadsPerBlock>>>(patternWave,patternData, cuda_diff, useBS? beamstop:0);
+      //  cudaConvertFO<<<numBlocks,threadsPerBlock>>>(cuda_diff);
+      //  tvFilterWrap(cuda_diff, noiseLevel, 200);
+      //  cudaConvertFO<<<numBlocks,threadsPerBlock>>>(cuda_diff);
+      //  plt.plotFloat(cuda_diff, MOD, 1, 1, ("smootheddiff"+iterstr).c_str(), 1);
+      //  takeMod2Sum<<<numBlocks,threadsPerBlock>>>(patternWave, cuda_diff);
+      //  plt.plotFloat(cuda_diff, MOD, 1, 1, ("smoothed"+iterstr).c_str(), 1);
+      //}
     }
   }
   if(gaussianKernel) ccmemMngr.returnCache(gaussianKernel);

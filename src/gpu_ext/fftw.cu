@@ -23,15 +23,14 @@ Mat* fftw ( Mat* in, Mat *out, bool isforward, Real ratio)
   if(cudaData==0) {
     sz = row*column*sizeof(complexFormat);
     cudaData = (complexFormat*)memMngr.borrowCache(sz);
-    plan = new cufftHandle();
-    cufftPlan2d ( plan, row, column, FFTformat);
+    init_fft(row,column);
   }else{
     if(sz!=row*column*sizeof(complexFormat)){
       printf("reconfiguring CUFFT\n");
       sz = row*column*sizeof(complexFormat);
       memMngr.returnCache(cudaData);
       cudaData = (complexFormat*)memMngr.borrowCache(sz);
-      cufftPlan2d ( plan, row, column, FFTformat);
+      init_fft(row,column);
     }
   }
   gpuErrchk(cudaMemcpy(cudaData, in->data, sz, cudaMemcpyHostToDevice));

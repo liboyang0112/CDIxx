@@ -5,6 +5,7 @@
 
 #define float_cv_format CV_32FC
 #define VTK_TYPE VTK_FLOAT
+#define complexFormat cufftComplex
 
 #if Bits==12
 using pixeltype=uint16_t;

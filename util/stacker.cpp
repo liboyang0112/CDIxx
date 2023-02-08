@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <fftw3.h>
 #include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>

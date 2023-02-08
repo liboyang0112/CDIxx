@@ -1,6 +1,7 @@
 #include"cnpy.h"
 #include"cudaConfig.h"
 #include"format.h"
+#include"cuPlotter.h"
 #include"common.h"
 #include<complex>
 #include<cstdlib>
@@ -55,7 +56,6 @@ int main(int argc, const char* argv[])
     double* doubleb = (double*)memMngr.useOnsite(sizeof(double)*row*col);
     cudaMemcpy(doubleb, b.data<double>(), sizeof(double)*row*col, cudaMemcpyHostToDevice);
     init_cuda_image(row, col, 65535, 1);
-    init_fft(row,col);
     cudaF(assignVal)(realb, doubleb);
     cudaF(applyNorm)(realb, 1./intensitysum);
     monoChromo mwl;
@@ -68,11 +68,11 @@ int main(int argc, const char* argv[])
     plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
     plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved, 0, 30, 1, 0);
+    mwl.solveMWL(complexpattern, solved, 1, 200, 1, 0);
     for(int i = 0; i < mynlambda; i++){
       myspectra[i] = 0.01;
     }
-    mwl.solveMWL(complexpattern, solved, solved, 300, 0, 1);
+    mwl.solveMWL(complexpattern, solved, 0, 1000, 0, 1);
     plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
     plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     cudaF(getMod)(realb, solved);
