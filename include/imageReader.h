@@ -1,7 +1,7 @@
-#include <common.h>
 #include "cuPlotter.h"
 #include "opencv2/opencv.hpp"
 
+using namespace std;
 using namespace cv;
 Mat* extend( Mat &src , Real ratio, Real val = 0);
 static bool opencv_reverted = 0;

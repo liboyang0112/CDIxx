@@ -1,6 +1,4 @@
-//#include <libconfig.h++>
-//#include "common.h"
-#include "cudaConfig.h"
+#include "cudaDefs.h"
 #include "experimentConfig.h"
 
 class CDI : public experimentConfig{

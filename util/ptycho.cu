@@ -395,7 +395,7 @@ class ptycho : public experimentConfig{
       plt.plotComplex(pupilpatternWave, MOD2, 0, 1., "ptycho_probe_afterIter", 0);
       init_cuda_image(row_O,column_O,rcolor,1./exposure);
       plt.init(row_O, column_O);
-      plt.plotComplex(objectWave, MOD2, 0, 0.2, "ptycho_afterIter", 0);
+      plt.plotComplex(objectWave, MOD2, 0, 0.1, "ptycho_afterIter", 0);
       plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase", 0);
     }
     void readPattern(){

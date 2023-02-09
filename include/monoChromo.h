@@ -2,6 +2,9 @@
 class monoChromo{
   public:
     void *locplan;
+    void *gs;
+    void *gr;
+    void *crlt_gs_gr;
     Real *spectra;  //normalized spectra
     Real *lambdas;  //normalized lambdas, 1 is the shortest
     int nlambda;
