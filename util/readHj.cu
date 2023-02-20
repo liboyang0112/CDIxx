@@ -6,6 +6,8 @@
 #include<complex>
 #include<cstdlib>
 #include<iostream>
+#include<random>
+#include<chrono>
 #include<map>
 #include<string>
 #include<fstream>
@@ -24,9 +26,10 @@ int main(int argc, const char* argv[])
     double* spectrad = spectra.data<double>();
     double* lambdasd = lambdas.data<double>();
     printf("image size = (%d, %d), spectra size = %d\n", row, col, nlambda);
-    int mynlambda = int(row*(lambdasd[nlambda-1]/lambdasd[0]-1))/2;
-    Real dlambda = 2./row;
+    int mynlambda = int(row*(lambdasd[nlambda-1]/lambdasd[0]-1))/2/3;
+    Real dlambda = 2./row*3;
     Real* myspectra = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
+    Real* myspectra1 = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
     Real* mylambdas = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
     Real nextlmd = 1;
     int ilmd = 0;
@@ -47,8 +50,11 @@ int main(int argc, const char* argv[])
     }
     std::ofstream file;
     file.open("spectra.txt", std::ios::out);
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine generator(seed);
+    std::normal_distribution<double> distribution(0.0, 1.);
     for(int i = 0; i < mynlambda; i++){
-      //myspectra[i] = 0.01;
+      //myspectra[i]+= distribution(generator)*0.002;
       file<<mylambdas[i]<<" "<<myspectra[i]<<std::endl;
     }
     file.close();
@@ -68,11 +74,29 @@ int main(int argc, const char* argv[])
     plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
     plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved, 1, 200, 1, 0);
+    mwl.solveMWL(complexpattern, solved, 1, 20, 1, 0);
     for(int i = 0; i < mynlambda; i++){
-      myspectra[i] = 0.01;
+      myspectra[i] = 1./mynlambda;
     }
-    mwl.solveMWL(complexpattern, solved, 0, 1000, 0, 1);
+    //mwl.solveMWL(complexpattern, solved, 0, 1000, 0, 1);
+
+    //myspectra = mwl.spectra;
+    //for(int i = 0; i < mynlambda; i++){
+    //  myspectra1[i] = 0;
+    //  for(int j = -2; j < 3; j ++){
+    //    if(i+j >= 0 && i+j < mynlambda)
+    //    myspectra1[i] += myspectra[i+j]/5;
+    //  }
+    //}
+    //for(int i = 0; i < mynlambda; i++){
+    //  myspectra[i] = 0;
+    //  for(int j = -2; j < 3; j ++){
+    //    if(i+j >= 0 && i+j < mynlambda){
+    //      myspectra[i] += myspectra1[i+j]/5;
+    //    }
+    //  }
+    //}
+    //mwl.solveMWL(complexpattern, solved, 1, 500, 1, 0);
     plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
     plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     cudaF(getMod)(realb, solved);
@@ -83,10 +107,7 @@ int main(int argc, const char* argv[])
     myCufftExec( *plan, solved, complexpattern, CUFFT_INVERSE);
     cudaF(applyNorm)(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
-    file.open("spectra_new.txt", std::ios::out);
-    for(int i = 0; i < mynlambda; i++){
-      file<<mylambdas[i]<<" "<<myspectra[i]<<std::endl;
-    }
+    mwl.writeSpectra("spectra_new.txt");
     file.close();
 
     return 0;

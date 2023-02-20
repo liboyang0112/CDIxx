@@ -21,12 +21,12 @@ void cuPlotter::init(int rows_, int cols_){
   cv_complex_data = tmpcomplex->data;
   initcuData(rows*cols);
 }
-void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog){
-  cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog);
+void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, islog);
 }
-void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog){
-  cuPlotter::processFloatData(cudaData,m,isFrequency,decay,islog);
+void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  cuPlotter::processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, islog);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
@@ -38,14 +38,9 @@ void cuPlotter::saveComplex(void* cudaData, const char* label){
 void cuPlotter::saveFloat(void* cudaData, const char* label){
   saveFloatData(cudaData);
   imwrite(std::string(label)+".tiff",*((Mat*)cv_float_cache));
-      /*
-  FileStorage fs(label,FileStorage::WRITE);
-  fs<<"data"<<*((Mat*)cv_float_cache);
-  fs.release();
-  */
 }
-void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog){
-  cuPlotter::processPhaseData(cudaData,m,isFrequency,decay);
+void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  cuPlotter::processPhaseData(cudaData,m,isFrequency,decay, isFlip);
   cv::phase_unwrapping::HistogramPhaseUnwrapping::Params pars;
   pars.height = cols;
   pars.width = rows;

@@ -1,4 +1,5 @@
 #include "imageReader.h"
+#include "opencv2/opencv.hpp"
 #include "matrixGen.h"
 #include "sparse.h"
 #include "fftw.h"
@@ -131,6 +132,92 @@ Mat* convertFromIntegerToReal(Mat &image, Mat* cache, bool isFrequency, const ch
   }
   printf("total intensity %s: %f\n",label, tot);
   return cache;
+}
+Mat* convertFromRealToInteger(Mat *fftwImage, Mat* opencvImage, mode m, bool isFrequency, Real decay, const char* label,bool islog){
+  pixeltype* rowo;
+  Real* rowp;
+  int row = fftwImage->rows;
+  int column = fftwImage->cols;
+  if(!opencvImage) opencvImage = new Mat(row,column,format_cv);
+  Real tot = 0;
+  int tot1 = 0;
+  Real max = 0;
+  for(int x = 0; x < row ; x++){
+    int targetx = x;
+    if(isFrequency) targetx = x<row/2?x+row/2:(x-row/2);
+    rowo = opencvImage->ptr<pixeltype>(targetx);
+    rowp = fftwImage->ptr<Real>(x);
+    for(int y = 0; y<column; y++){
+      Real target = getVal(m, rowp[y]);
+      tot += target;
+      if(max < target) max = target;
+      if(islog){
+        if(target!=0)
+          target = log2(target)*rcolor/log2(rcolor)+rcolor;
+	        if(target < 0) target = 0;
+      }
+      else target*=rcolor*decay;
+      if(target<0) target = -target;
+
+      if(target>=rcolor) {
+	      //printf("larger than maximum of %s png %f\n",label, target);
+	      target=rcolor-1;
+	      //target=0;
+      }
+      int targety = y;
+      if(isFrequency) targety = y<column/2?y+column/2:(y-column/2);
+      rowo[targety] = floor(target);
+      tot1+=rowo[targety];
+      //if(opencv_reverted) rowp[targety] = rcolor - 1 - rowp[targety];
+      //rowp[targety] = rcolor - 1 - rowp[targety];
+    }
+  }
+  printf("total intensity %s: raw average %4.2e, image average: %d, max: %f\n", label, tot/row/column, tot1/row/column, max);
+  return opencvImage;
+}
+
+
+Mat* convertFromComplexToInteger(Mat *fftwImage, Mat* opencvImage, mode m, bool isFrequency, Real decay, const char* label,bool islog){
+  pixeltype* rowo;
+  fftw_format* rowp;
+  int row = fftwImage->rows;
+  int column = fftwImage->cols;
+  if(!opencvImage) opencvImage = new Mat(row,column,format_cv);
+  Real tot = 0;
+  int tot1 = 0;
+  Real max = 0;
+  for(int x = 0; x < row ; x++){
+    int targetx = x;
+    if(isFrequency) targetx = x<row/2?x+row/2:(x-row/2);
+    rowo = opencvImage->ptr<pixeltype>(targetx);
+    rowp = fftwImage->ptr<fftw_format>(x);
+    for(int y = 0; y<column; y++){
+      Real target = getVal(m, rowp[y])*decay;
+      tot += target;
+      if(max < target) max = target;
+      if(islog){
+        if(target!=0)
+          target = log2(target)*rcolor/log2(rcolor)+rcolor;
+	        if(target < 0) target = 0;
+      }
+      else target*=rcolor;
+      if(target<0) target = -target;
+
+      if(target>=rcolor) {
+	      //printf("larger than maximum of %s png %f\n",label, target);
+	      target=rcolor-1;
+	      //target=0;
+      }
+      int targety = y;
+      if(isFrequency) targety = y<column/2?y+column/2:(y-column/2);
+      rowo[targety] = floor(target);
+      tot1+=rowo[targety];
+      //if(opencv_reverted) rowp[targety] = rcolor - 1 - rowp[targety];
+      //rowp[targety] = rcolor - 1 - rowp[targety];
+    }
+  }
+  printf("total intensity %s: raw average %4.2e, image average: %d, max: %f\n", label, tot/row/column, tot1/row/column, max);
+  return opencvImage;
 }
 
 Mat* multiWLGen(Mat* original, Mat* output, Real m, Real step, Real dphilambda, Real *spectrum){ //original image, ratio between long lambda and short lambda.

@@ -24,11 +24,14 @@ __global__ void initRand(curandStateMRG32k3a *state);
 __global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
 __global__ void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
 __global__ void add(complexFormat* a, complexFormat* b, Real c = 1);
+__global__ void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
 __global__ void applyRandomPhase(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
 __global__ void multiply(complexFormat* source, complexFormat* target);
+__global__ void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 __global__ void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
 void opticalPropagate(complexFormat* field, Real lambda, Real d, Real imagesize, int rows, int cols);
 void init_cuda_image(int rows, int cols, int rcolor=65536, Real scale=1);
+void init_fft(int rows, int cols);
 template <typename T>
 __global__ void cudaConvertFO(T* data){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -136,5 +139,4 @@ __global__ void createMask(Real* data, sptType* spt, bool isFrequency=0){
   }
   data[index]=spt->isInside(x,y);
 }
-Real findSumReal(complexFormat* d_in, int num_items);
 #endif

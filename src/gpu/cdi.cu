@@ -338,7 +338,7 @@ __global__ void applySupport(complexFormat *gkp1, complexFormat *gkprime, Algori
   complexFormat &gkprimedata = gkprime[index];
   if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,cuda_beta_HIO);
   else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
-  //else if(algo==HIO) ApplyPOSHIOSupport(inside,gkp1data,gkprimedata,cuda_beta_HIO);
+  else if(algo==POSHIO) ApplyPOSHIOSupport(inside,gkp1data,gkprimedata,cuda_beta_HIO);
   else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,cuda_beta_HIO);
   if(fresnelFactor>1e-4 && iter < 400) {
     if(inside){
@@ -420,9 +420,9 @@ complexFormat* CDI::phaseRetrieve(){
     if(iter%100==0) {
       std::string iterstr = to_string(iter);
       if(saveIter){
-        plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+iterstr).c_str(), 0);
-        plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0);
-        plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 1);
+        plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), isFlip);
       }
       //if(0){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
       //  takeMod2Diff<<<numBlocks,threadsPerBlock>>>(patternWave,patternData, cuda_diff, useBS? beamstop:0);
@@ -437,17 +437,17 @@ complexFormat* CDI::phaseRetrieve(){
   }
   if(gaussianKernel) ccmemMngr.returnCache(gaussianKernel);
   if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
-  verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1))
+  verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, isFlip))
     if(verbose >= 4){
       cudaF(cudaConvertFO)((complexFormat*)cuda_gkp1, cuda_gkprime);
       propagate(cuda_gkprime, cuda_gkprime, 1);
-      plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0);
+      plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, isFlip);
     }
   applyMod<<<numBlocks,threadsPerBlock>>>(patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
-  plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0);
-  plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0);
+  plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
+  plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   if(isFresnel) multiplyFresnelPhase(cuda_gkp1, -d);
-  plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0);
+  plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
   memMngr.returnCache(cuda_diff);

@@ -7,7 +7,6 @@ void init_cuda_image(int rows, int cols, int rcolor, Real scale){
   if(rows!=rows_ || cols!=cols_){
     cudaMemcpyToSymbol(cuda_row,&rows,sizeof(rows));
     cudaMemcpyToSymbol(cuda_column,&cols,sizeof(cols));
-    Real ratio = 1./sqrt(rows*cols);
     numBlocks.x=(rows-1)/threadsPerBlock.x+1;
     numBlocks.y=(cols-1)/threadsPerBlock.y+1;
     rows_ = rows;
@@ -81,6 +80,10 @@ __global__ void applyNorm(complexFormat* data, Real factor){
   cudaIdx()
   data[index].x*=factor;
   data[index].y*=factor;
+}
+__global__ void multiplyReal(Real* store, complexFormat* src, complexFormat* target){
+  cudaIdx();
+  store[index] = src[index].x*target[index].x;
 }
 
 __global__ void multiply(complexFormat* src, complexFormat* target){

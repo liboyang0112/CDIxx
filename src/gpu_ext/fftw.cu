@@ -2,8 +2,7 @@
 #include "cudaConfig.h"
 #include <cufftw.h>
 #include <iostream>
-#include "opencv2/imgproc.hpp"
-#include "common.h"
+#include "fftw.h"
 using namespace cv;
 using namespace std;
 

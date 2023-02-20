@@ -1,5 +1,6 @@
 #include <iostream>
 #include "imageReader.h"
+#include "opencv2/imgcodecs.hpp"
 #include <vector>
 #include "common.h"
 #include "fftw.h"

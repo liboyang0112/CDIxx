@@ -29,12 +29,12 @@ class cuPlotter
   void saveComplex(void* cudaData, const char* label= "default");  //call saveData
   void saveFloatData(void* cudaData);
   void saveComplexData(void* cudaData);
-  void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0);  //call processData
-  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0);
-  void plotPhase(void* cudaData, const mode m=PHASERAD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0); //phase unwrapping
-  void processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0); //calculate using cuCache_data and copy data to cv_data
-  void processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0); //calculate using cuCache_data and copy data to cv_data
-  void processPhaseData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1);
+  void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0);  //call processData
+  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0);
+  void plotPhase(void* cudaData, const mode m=PHASERAD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0); //phase unwrapping
+  void processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
+  void processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
+  void processPhaseData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool isFlip = 0);
   void plot(const char* label, bool islog = 0);
   ~cuPlotter();
 };

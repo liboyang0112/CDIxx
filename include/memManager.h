@@ -1,5 +1,6 @@
 #ifndef __MEM_MANAGER_H__
 #define __MEM_MANAGER_H__
+#include <stddef.h>
 
 class memManager{
   void* memoryp;
