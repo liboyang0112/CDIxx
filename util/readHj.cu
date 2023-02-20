@@ -74,11 +74,11 @@ int main(int argc, const char* argv[])
     plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
     plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved, 1, 20, 1, 0);
+    mwl.solveMWL(complexpattern, solved, 1, 200, 1, 0);
     for(int i = 0; i < mynlambda; i++){
       myspectra[i] = 1./mynlambda;
     }
-    //mwl.solveMWL(complexpattern, solved, 0, 1000, 0, 1);
+    mwl.solveMWL(complexpattern, solved, 0, 1000, 0, 1);
 
     //myspectra = mwl.spectra;
     //for(int i = 0; i < mynlambda; i++){

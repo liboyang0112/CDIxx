@@ -3,14 +3,13 @@
 #include "memManager.h"
 
 Real* Fit(int n, void** vectors, void* right, Real (*innerProd)(void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm){
-  Real *ai = (Real*)ccmemMngr.borrowCache(n*sizeof(Real));
-  double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double *prods = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double *grads = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double *lambdas = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double *norms = (double*)ccmemMngr.borrowCache(n*sizeof(double));
-  double **matrix = (double**)ccmemMngr.borrowCache(n*sizeof(double*));
+  Real *ai = (Real*)ccmemMngr.borrowCache(n*sizeof(Real));  //output
+  double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); //orthogalized ai
+  double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double));  //normalization of each vector
+  double *prods = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // b_i without positive constraints
+  double *grads = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // gradiants
+  double *lambdas = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // lagrangian multiplier
+  double **matrix = (double**)ccmemMngr.borrowCache(n*sizeof(double*));  // b_i = M_ij*a_j
   void **orthedVector = (void**)ccmemMngr.borrowCache(n*sizeof(void*));
   memset(lambdas, 0, n*sizeof(double));
   memset(ai, 0, n*sizeof(Real));
@@ -40,12 +39,12 @@ Real* Fit(int n, void** vectors, void* right, Real (*innerProd)(void*, void*), v
     //  printf("norm is negative, this is impossible, please check!\n");
     //  abort();
     //}
-    norms[i] = sqrt(innerProd(orthedVector[i],orthedVector[i]));
-    matrix[i][i] = 1./norms[i];
+    double norms = sqrt(innerProd(orthedVector[i],orthedVector[i]));
+    matrix[i][i] = 1./norms;
     if(maxnorm < matrix[i][i]) maxnorm = matrix[i][i];
-    mult(orthedVector[i], 1./norms[i]);
+    mult(orthedVector[i], 1./norms);
     for(int j = 0; j < i; j++){
-      matrix[i][j] /= norms[i];
+      matrix[i][j] /= norms;
     }
   }
 
