@@ -20,6 +20,7 @@ extern __device__ __constant__ int cuda_totalIntensity;
 extern __device__ __constant__ Real cuda_threshold;
 extern complexFormat *cudaData;
 extern cufftHandle *plan, *planR2C;
+void init_cuda_image(int rows, int cols, int rcolor=65536, Real scale=1);
 
 class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);

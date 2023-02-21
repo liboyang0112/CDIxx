@@ -26,8 +26,9 @@ int main(int argc, const char* argv[])
     double* spectrad = spectra.data<double>();
     double* lambdasd = lambdas.data<double>();
     printf("image size = (%d, %d), spectra size = %d\n", row, col, nlambda);
-    int mynlambda = int(row*(lambdasd[nlambda-1]/lambdasd[0]-1))/2/3;
-    Real dlambda = 2./row*3;
+    int jump = 10;
+    int mynlambda = int(row*(lambdasd[nlambda-1]/lambdasd[0]-1))/2/jump;
+    Real dlambda = 2./row*jump;
     Real* myspectra = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
     Real* myspectra1 = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
     Real* mylambdas = (Real*)ccmemMngr.borrowCache(sizeof(Real)*mynlambda);
@@ -63,7 +64,7 @@ int main(int argc, const char* argv[])
     cudaMemcpy(doubleb, b.data<double>(), sizeof(double)*row*col, cudaMemcpyHostToDevice);
     init_cuda_image(row, col, 65535, 1);
     cudaF(assignVal)(realb, doubleb);
-    cudaF(applyNorm)(realb, 1./intensitysum);
+    cudaF(applyNorm)(realb, 1./6553500);
     monoChromo mwl;
     printf("init monochrom\n");
     mwl.init(row, col, mynlambda, mylambdas, myspectra);

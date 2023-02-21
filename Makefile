@@ -34,9 +34,14 @@ CUDA_WRAP_LIB_SRC=$(wildcard src/gpu/*)
 CUDA_WRAP_LIB_OBJ=$(patsubst src/gpu/%cc, ${LOCAL_OBJ}/gpu/%o, $(patsubst src/gpu/%.cu, ${LOCAL_OBJ}/gpu/%_cu.o, ${CUDA_WRAP_LIB_SRC}))
 CUDA_WRAP_LIB=${LOCAL_LIB}/libcudaWrap.a
 
+CUDA_COMMON_LIB_SRC=$(wildcard src/gpu_common/*)
+CUDA_COMMON_LIB_OBJ=$(patsubst src/gpu_common/%cc, ${LOCAL_OBJ}/gpu_common/%o, $(patsubst src/gpu_common/%.cu, ${LOCAL_OBJ}/gpu_common/%_cu.o, ${CUDA_COMMON_LIB_SRC}))
+CUDA_COMMON_LIB=${LOCAL_LIB}/libcudaCommon.a
+
 CUDA_EXT_LIB_SRC=$(wildcard src/gpu_ext/*)
 CUDA_EXT_LIB_OBJ=$(patsubst src/gpu_ext/%cc, ${LOCAL_OBJ}/gpu_ext/%o, $(patsubst src/gpu_ext/%.cu, ${LOCAL_OBJ}/gpu_ext/%_cu.o, ${CUDA_EXT_LIB_SRC}))
 CUDA_EXT_LIB=${LOCAL_LIB}/libcudaExt.so
+CUDA_EXT_LIBA=${LOCAL_LIB}/libcudaExta.a
 
 TORCH_WRAP_LIB_SRC=$(wildcard src/torch/*)
 TORCH_WRAP_LIB_OBJ=$(patsubst src/torch/%cc, ${LOCAL_OBJ}/torch/%o, ${TORCH_WRAP_LIB_SRC})
@@ -50,10 +55,12 @@ LINK_FLAGS_EXT=$(shell pkg-config --libs opencv4 hdf5 fftw3) -lfftw3_mpi -lcholm
 LINK_FLAGS_EXT_CU=$(shell pkg-config --libs opencv4 hdf5)
 #LINK_FLAGS+=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${CPP_LIB})
 LINK_FLAGS_CUDA_WRAP=$(patsubst ${LOCAL_LIB}/lib%.a, -l%, ${CUDA_WRAP_LIB})
+LINK_FLAGS_CUDA_COMMON=$(patsubst ${LOCAL_LIB}/lib%.a, -l%, ${CUDA_COMMON_LIB})
 LINK_FLAGS_CUDA_EXT=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${CUDA_EXT_LIB})
+LINK_FLAGS_CUDA_EXTA=$(patsubst ${LOCAL_LIB}/lib%.a, -l%, ${CUDA_EXT_LIBA})
 LINK_FLAGS_TORCH_WRAP=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${TORCH_WRAP_LIB})
 LINK_FLAGS_VTK_WRAP=$(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${VTK_WRAP_LIB})
-LINK_FLAGS=  -lvtkWrap  -lmmio  -lcnpy -lcommon -lsparse  -ltorchWrap -lreadCXI -lreadConfig -lorthFitter -lmemManager
+LINK_FLAGS=  -lvtkWrap  -lmmio  -lcnpy -lcommon -lsparse  -ltorchWrap -lreadCXI -lreadConfig -lmemManager
 #LINK_FLAGS= -L${LOCAL_LIB} ${LINK_FLAGS_CUDA_WRAP} ${LINK_FLAGS_VTK_WRAP} $(patsubst ${LOCAL_LIB}/lib%.so, -l%, ${COMMON_LIB} ${COMMON_C_LIB}) ${LINK_FLAGS_CUDA_EXT} -lmemManager -lreadConfig ${LINK_FLAGS_TORCH_WRAP}
 LINK_FLAGS_TORCH= -L${torch}/lib -lc10_cuda -lcaffe2_nvrtc -lshm -ltorch_cpu -ltorch_cuda_linalg -ltorch_cuda -ltorch_global_deps -ltorch_python -lc10
 VTK_INCLUDE=-I /usr/include/vtk-9.1
@@ -85,21 +92,22 @@ print:
 	@mkdir -p ${LOCAL_BIN}
 	@mkdir -p ${LOCAL_OBJ}
 	@mkdir -p ${LOCAL_OBJ}/gpu
+	@mkdir -p ${LOCAL_OBJ}/gpu_common
 	@mkdir -p ${LOCAL_OBJ}/gpu_ext
 	@mkdir -p ${LOCAL_OBJ}/torch
 	@mkdir -p ${LOCAL_OBJ}/vtk
 
 exes: ${CPP_EXE_RUN} ${CUDA_EXE_RUN}
-cudalibs: ${CUDA_WRAP_LIB} ${TORCH_WRAP_LIB} ${VTK_WRAP_LIB} ${CUDA_EXT_LIB}
+cudalibs: ${CUDA_WRAP_LIB} ${TORCH_WRAP_LIB} ${VTK_WRAP_LIB} ${CUDA_EXT_LIB} ${CUDA_COMMON_LIB} ${CUDA_EXT_LIBA}
 commonlibs: ${COMMON_C_LIB} ${COMMON_LIB} 
-objs: ${COMMON_LIB_OBJ} ${TORCH_WRAP_LIB_OBJ} ${CUDA_WRAP_LIB_OBJ} ${CPP_EXE_OBJ} ${COMMON_C_LIB_OBJ} ${CUDA_EXE_OBJ} ${CUDA_EXT_LIB_OBJ}
+objs: ${COMMON_LIB_OBJ} ${TORCH_WRAP_LIB_OBJ} ${CUDA_WRAP_LIB_OBJ} ${CPP_EXE_OBJ} ${COMMON_C_LIB_OBJ} ${CUDA_EXE_OBJ} ${CUDA_EXT_LIB_OBJ} ${CUDA_COMMON_LIB_OBJ}
 
 
 ${LOCAL_BIN}/%_run: ${LOCAL_OBJ}/%.o
-	${CXX} $^ -o $@ -L${LOCAL_LIB} -limageReader -lcudaExt ${LINK_FLAGS} ${CUDA_LIB} ${VTK_LIBS} ${LINK_FLAGS_EXT}
+	${CXX} $^ -o $@ -L${LOCAL_LIB} -limageReader -lorthFitter -lcudaExt ${LINK_FLAGS} ${CUDA_LIB} ${VTK_LIBS} ${LINK_FLAGS_EXT}
 
 ${LOCAL_BIN}/%_cu: ${LOCAL_OBJ}/%_cu.o ${LOCAL_OBJ}/%link_cu.o
-	${CXX} $^ -o $@ -L${LOCAL_LIB} ${LINK_FLAGS_CUDA_WRAP} ${LINK_FLAGS} ${LINK_FLAGS_EXT_CU} ${CUDA_LIB} ${LINK_FLAGS_TORCH} ${VTK_LIBS}
+	${CXX} $^ -o $@ -L${LOCAL_LIB} ${LINK_FLAGS_CUDA_WRAP}  -lorthFitter -lcudaExta ${LINK_FLAGS} ${LINK_FLAGS_EXT_CU} ${CUDA_LIB} ${LINK_FLAGS_TORCH} ${VTK_LIBS}
 
 ${LOCAL_LIB}/lib%.so: ${LOCAL_OBJ}/%.o
 	${CXX} -shared $< -o $@ -L${LOCAL_LIB} -lreadCXI ${LINK_FLAGS_EXT}
@@ -116,7 +124,7 @@ ${LOCAL_OBJ}/%.o: util/%.cc
 ${LOCAL_OBJ}/%_cu.o: util/%.cu
 	${NVCC} -rdc=true -c $< $(patsubst -pthread%, %, ${INCLUDE_FLAGS}) -o $@
 
-${LOCAL_OBJ}/%link_cu.o: ${LOCAL_OBJ}/%_cu.o ${CUDA_WRAP_LIB_OBJ}
+${LOCAL_OBJ}/%link_cu.o: ${LOCAL_OBJ}/%_cu.o ${CUDA_WRAP_LIB_OBJ} ${CUDA_COMMON_LIB_OBJ} ${CUDA_EXT_LIB_OBJ}
 	${NVCC} -dlink $^ -o $@
 
 ${LOCAL_OBJ}/%.o: util/%.cpp
@@ -131,10 +139,16 @@ ${TORCH_WRAP_LIB}: ${TORCH_WRAP_LIB_OBJ}
 ${VTK_WRAP_LIB}: ${VTK_WRAP_LIB_OBJ}
 	${CXX} -shared $^ -o $@ ${VTK_LIBS}
 
-${LOCAL_LIB}/libcudaExt.so: ${CUDA_EXT_LIB_OBJ} ${LOCAL_OBJ}/gpu/cudaWraplink.o
-	${CXX}  -shared -o $@ $^ -L${LOCAL_LIB} -lsparse ${CUDA_LIB} ${LINK_FLAGS_EXT} ${CUDA_WRAP_LIB}
+${CUDA_EXT_LIB}: ${CUDA_EXT_LIB_OBJ} ${LOCAL_OBJ}/gpu/cudaExtlink.o
+	${CXX}  -shared -o $@ $^ -L${LOCAL_LIB} -lsparse ${CUDA_LIB} ${LINK_FLAGS_EXT} ${LINK_FLAGS_CUDA_COMMON}
 
-${CUDA_WRAP_LIB}: ${CUDA_WRAP_LIB_OBJ}# ${LOCAL_OBJ}/gpu/cudaWraplink.o
+${CUDA_EXT_LIBA}: ${CUDA_EXT_LIB_OBJ}
+	ar cr $@ $^
+
+${CUDA_COMMON_LIB}: ${CUDA_COMMON_LIB_OBJ}
+	ar cr $@ $^
+
+${CUDA_WRAP_LIB}: ${CUDA_WRAP_LIB_OBJ} ${CUDA_COMMON_LIB_OBJ}
 	ar cr $@ $^
 
 ${LOCAL_OBJ}/torch/%.o: src/torch/%.cc
@@ -146,19 +160,23 @@ ${LOCAL_OBJ}/vtk/%.o: src/vtk/%.cc
 ${LOCAL_OBJ}/gpu_ext/%_cu.o: src/gpu_ext/%.cu
 	${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
 
+${LOCAL_OBJ}/gpu_common/%_cu.o: src/gpu_common/%.cu
+	${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
+
 #${LOCAL_OBJ}/gpu_ext/cudaExtlink.o: 
 #	${NVCC} -Xcompiler '-fPIC' -dlink $^ -o $@
 
 ${LOCAL_OBJ}/gpu/%_cu.o: src/gpu/%.cu
 	@#${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
-	${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
+	${NVCC} -rdc=true -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
 
 ${LOCAL_OBJ}/gpu/%.o: src/gpu/%.cc
 	@#${NVCC} -rdc=true -Xcompiler '-fPIC' -c $< -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
 	${CXX} -c $< -fPIC -o $@ $(patsubst -pthread%, %, ${INCLUDE_FLAGS})
 
-${LOCAL_OBJ}/gpu/cudaWraplink.o: ${CUDA_WRAP_LIB_OBJ} ${CUDA_EXT_LIB_OBJ}
+${LOCAL_OBJ}/gpu/cudaExtlink.o: ${CUDA_COMMON_LIB_OBJ} ${CUDA_EXT_LIB_OBJ}
 	${NVCC} -Xcompiler '-fPIC' -dlink $^ -o $@
-	@#${NVCC} -dlink $^ -o $@
+${LOCAL_OBJ}/gpu/cudaWraplink.o: ${CUDA_WRAP_LIB_OBJ} ${CUDA_COMMON_LIB_OBJ} ${CUDA_EXT_LIB_OBJ}
+	${NVCC} -Xcompiler '-fPIC' -dlink $^ -o $@
 clean:
 	rm -r lib/* obj/* bin/*

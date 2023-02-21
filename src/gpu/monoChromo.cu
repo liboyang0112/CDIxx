@@ -36,7 +36,7 @@ void monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real 
   column = ncol;
   Real currentLambda = 1;
   int currentPoint = 0;
-  int jump = 3;
+  int jump = 10;
   Real stepsize = 2./row*jump;
   nlambda = (endlambda-1)/stepsize+1;
   spectra = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
@@ -209,7 +209,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       cudaF(cudaConvertFO)(fftb);
     }
     if(gs) 
-      cudaMemcpy(gs[0], d_input, sz, cudaMemcpyDeviceToDevice);
+      cudaMemcpy(gs[0], d_output, sz, cudaMemcpyDeviceToDevice);
     cudaMemcpy(deltab, d_input, sz, cudaMemcpyDeviceToDevice);
     cudaF(add)(deltab, (complexFormat*)d_output, -spectra[0]);
     if(updateAIter) {
@@ -260,9 +260,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
     }
     if(useOrth&&!updateX){
-      Real* out = Fit(nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1);
-      ccmemMngr.returnCache(spectra);
-      spectra = out;
+      Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1);
+      init_cuda_image(row, column, 65536, 1);
       break;
     }
     if(updateAIter){

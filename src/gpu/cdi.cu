@@ -407,7 +407,7 @@ complexFormat* CDI::phaseRetrieve(){
         threshold*=shrinkThreshold;
         cudaMemcpyToSymbol(cuda_threshold, &threshold, sizeof(threshold));
 
-        if(gaussianSigma>1.5) {
+        if(gaussianSigma>0.9) {
           gaussianSigma*=0.99;
         }
       }

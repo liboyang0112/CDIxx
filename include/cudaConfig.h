@@ -30,7 +30,6 @@ __global__ void multiply(complexFormat* source, complexFormat* target);
 __global__ void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 __global__ void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
 void opticalPropagate(complexFormat* field, Real lambda, Real d, Real imagesize, int rows, int cols);
-void init_cuda_image(int rows, int cols, int rcolor=65536, Real scale=1);
 void init_fft(int rows, int cols);
 template <typename T>
 __global__ void cudaConvertFO(T* data){

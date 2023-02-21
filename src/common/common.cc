@@ -70,7 +70,7 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   std::vector<Real> ccd_lambda;
   std::vector<Real> ccd_rate;
   std::ifstream file_spectrum, file_ccd_response;
-  Real threshold = 5e-3;
+  Real threshold = 1e-3;
   file_spectrum.open(fspectrum);
   file_ccd_response.open(ccd_response);
   Real lambda, val, maxval;

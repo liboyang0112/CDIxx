@@ -2,19 +2,6 @@
 #include <iostream>
 using namespace std;
 static int rows_fft, cols_fft;
-static int rows_, cols_;
-void init_cuda_image(int rows, int cols, int rcolor, Real scale){
-  if(rows!=rows_ || cols!=cols_){
-    cudaMemcpyToSymbol(cuda_row,&rows,sizeof(rows));
-    cudaMemcpyToSymbol(cuda_column,&cols,sizeof(cols));
-    numBlocks.x=(rows-1)/threadsPerBlock.x+1;
-    numBlocks.y=(cols-1)/threadsPerBlock.y+1;
-    rows_ = rows;
-    cols_ = cols;
-  }
-  cudaMemcpyToSymbol(cuda_rcolor,&rcolor,sizeof(rcolor));
-  cudaMemcpyToSymbol(cuda_scale,&scale,sizeof(scale));
-};
 void init_fft(int rows, int cols){
   if(rows!=rows_fft||cols!=cols_fft){
     if(!plan){
