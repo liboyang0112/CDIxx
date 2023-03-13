@@ -1,4 +1,4 @@
-#include "cudaDefs.h"
+#include "cudaConfig.h"
 #include "experimentConfig.h"
 
 class CDI : public experimentConfig{

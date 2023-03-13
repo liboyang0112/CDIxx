@@ -17,7 +17,7 @@ void init_fft(int rows, int cols){
     rows_fft = rows;
   }
 }
-__global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor){
+__global__ void fillRedundantR2C(cudaVars* vars, complexFormat* data, complexFormat* dataout, Real factor){
   cudaIdx()
   int targetIndex = x*(cuda_column/2+1)+y;
   if(y <= cuda_column/2) {
@@ -34,10 +34,12 @@ __global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Re
   dataout[index].y = -data[targetIndex].y*factor;
 }
 
-__global__ void applyConvolution(Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight)
+__global__ void applyConvolution(cudaVars* vars, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight)
 {
   int x = blockIdx.x*blockDim.x + threadIdx.x;
   int y = blockIdx.y*blockDim.y + threadIdx.y;
+  int cuda_row = vars->rows;
+  int cuda_column = vars->cols;
   int tilewidth = kernelwidth*2+blockDim.x;
   extern __shared__ float tile[];
   if(threadIdx.x<blockDim.x/2+kernelwidth && threadIdx.y<blockDim.y/2+kernelheight)
@@ -63,51 +65,51 @@ __global__ void applyConvolution(Real *input, Real *output, Real* kernel, int ke
   output[index] = n_output;
 }
 
-__global__ void applyNorm(complexFormat* data, Real factor){
+__global__ void applyNorm(cudaVars* vars, complexFormat* data, Real factor){
   cudaIdx()
   data[index].x*=factor;
   data[index].y*=factor;
 }
-__global__ void multiplyReal(Real* store, complexFormat* src, complexFormat* target){
+__global__ void multiplyReal(cudaVars* vars, Real* store, complexFormat* src, complexFormat* target){
   cudaIdx();
   store[index] = src[index].x*target[index].x;
 }
 
-__global__ void multiply(complexFormat* src, complexFormat* target){
+__global__ void multiply(cudaVars* vars, complexFormat* src, complexFormat* target){
   cudaIdx()
   src[index] = cuCmulf(src[index], target[index]);
 }
-__global__ void forcePositive(complexFormat* a){
+__global__ void forcePositive(cudaVars* vars, complexFormat* a){
   cudaIdx()
   if(a[index].x<0) a[index].x=0;
   a[index].y = 0;
 }
 
-__global__ void multiply(complexFormat* store, complexFormat* src, complexFormat* target){
+__global__ void multiply(cudaVars* vars, complexFormat* store, complexFormat* src, complexFormat* target){
   cudaIdx()
   store[index] = cuCmulf(src[index], target[index]);
 }
 
-__global__ void extendToComplex(Real* a, complexFormat* b){
+__global__ void extendToComplex(cudaVars* vars, Real* a, complexFormat* b){
   cudaIdx()
   b[index].x = a[index];
   b[index].y = 0;
 }
 
-__global__ void applyNorm(Real* data, Real factor){
+__global__ void applyNorm(cudaVars* vars, Real* data, Real factor){
   cudaIdx()
   data[index]*=factor;
 }
-__global__ void add(Real* a, Real* b, Real c){
+__global__ void add(cudaVars* vars, Real* a, Real* b, Real c){
   cudaIdx()
   a[index]+=b[index]*c;
 }
 
-__global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col){
+__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty){
   cudaIdx()
-  int marginx = (cuda_row-row)/2;
-  int marginy = (cuda_column-col)/2;
-  if(x<marginx || x >= cuda_row-marginx || y < marginy || y >= cuda_column-marginy){
+  int marginx = (cuda_row-row)/2+shiftx;
+  int marginy = (cuda_column-col)/2+shifty;
+  if(x<marginx || x >= marginx+row || y < marginy || y >= marginy+col){
     objectWave[index].x = objectWave[index].y = 0;
     return;
   }
@@ -118,11 +120,11 @@ __global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat*
   objectWave[index].y = mod*sin(phase);
 }
 
-__global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling){
+__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx, Real shifty){
   cudaIdx()
   Real marginratio = (1-1./oversampling)/2;
-  int marginx = marginratio*cuda_row;
-  int marginy = marginratio*cuda_column;
+  int marginx = (marginratio+shiftx)*cuda_row;
+  int marginy = (marginratio+shifty)*cuda_column;
   if(x<marginx || x >= cuda_row-marginx || y < marginy || y >= cuda_column-marginy){
     objectWave[index].x = objectWave[index].y = 0;
     return;
@@ -134,36 +136,40 @@ __global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat*
   objectWave[index].y = mod*sin(phase);
 }
 
-__global__ void initRand(curandStateMRG32k3a *state){
+__global__ void initRand(cudaVars* vars, curandStateMRG32k3a *state, unsigned long long seed){
+  cudaIdx()
+  curand_init(seed,index,0,&state[index]);
+}
+
+__global__ void applyPoissonNoise_WO(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale){
+  cudaIdx()
+  if(scale==0) scale = vars->scale;
+  wave[index]=scale*(int(wave[index]*vars->rcolor/scale) + curand_poisson(&state[index], noiseLevel)-noiseLevel)/vars->rcolor;
+}
+
+__global__ void applyPoissonNoise(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale){
   cudaIdx()
   curand_init(1,index,0,&state[index]);
+  if(scale==0) scale = vars->scale;
+  wave[index]+=scale*(curand_poisson(&state[index], noiseLevel)-noiseLevel)/vars->rcolor;
 }
 
-__global__ void applyPoissonNoise_WO(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale){
-  cudaIdx()
-  if(scale==0) scale = cuda_scale;
-  wave[index]=scale*(int(wave[index]*cuda_rcolor/scale) + curand_poisson(&state[index], noiseLevel)-noiseLevel)/cuda_rcolor;
-}
-
-__global__ void applyPoissonNoise(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale){
-  cudaIdx()
-  curand_init(1,index,0,&state[index]);
-  if(scale==0) scale = cuda_scale;
-  wave[index]+=scale*(curand_poisson(&state[index], noiseLevel)-noiseLevel)/cuda_rcolor;
-}
-
-__global__  void getMod(Real* mod, complexFormat* amp){
+__global__ void getMod(cudaVars* vars, Real* mod, complexFormat* amp){
   cudaIdx()
   mod[index] = cuCabsf(amp[index]);
 }
-__global__  void getMod2(Real* mod2, complexFormat* amp){
+__global__ void getReal(cudaVars* vars, Real* mod, complexFormat* amp){
+  cudaIdx()
+  mod[index] = amp[index].x;
+}
+__global__ void getMod2(cudaVars* vars, Real* mod2, complexFormat* amp){
   cudaIdx()
   mod2[index] = pow(amp[index].x,2)+pow(amp[index].y,2);
 }
 
-__global__ void applyMod(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel){
+__global__ void applyMod(cudaVars* vars, complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel){
   cudaIdx()
-  Real maximum = cuda_scale*0.95;
+  Real maximum = vars->scale*0.95;
   Real mod2 = target[index];
   if(mod2<0) mod2=0;
   if(loose && bs && bs[index]>0.5) {
@@ -171,7 +177,7 @@ __global__ void applyMod(complexFormat* source, Real* target, Real *bs, bool loo
     //else mod2 = maximum+1;
     return;
   }
-  Real tolerance = 1./cuda_rcolor*cuda_scale+1.5*sqrtf(noiseLevel)/cuda_rcolor; // fluctuation caused by bit depth and noise
+  Real tolerance = (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
   complexFormat sourcedata = source[index];
   Real ratiox = 1;
   Real ratioy = 1;
@@ -193,15 +199,15 @@ __global__ void applyMod(complexFormat* source, Real* target, Real *bs, bool loo
   source[index].x = ratiox*sourcedata.x;
   source[index].y = ratioy*sourcedata.y;
 }
-__global__ void add(complexFormat* a, complexFormat* b, Real c ){
+__global__ void add(cudaVars* vars, complexFormat* a, complexFormat* b, Real c ){
   cudaIdx()
   a[index].x+=b[index].x*c;
   a[index].y+=b[index].y*c;
 }
-__global__ void applyRandomPhase(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state){
+__global__ void applyRandomPhase(cudaVars* vars, complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state){
   cudaIdx()
   complexFormat tmp = wave[index];
-  if(beamstop && beamstop[index]>cuda_threshold) {
+  if(beamstop && beamstop[index]>vars->threshold) {
     tmp.x = tmp.y = 0;
   }
   else{

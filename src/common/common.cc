@@ -5,7 +5,7 @@
 #include "fstream"
 using namespace cv;
 using namespace std;
-Real* readImage(const char* name, int &row, int &col, bool isFrequency){
+Real* readImage(const char* name, int &row, int &col){
   printf("reading file: %s\n", name);
   Real *data;
   if(string(name).find(".cxi")!=string::npos){

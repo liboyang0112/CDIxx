@@ -38,4 +38,6 @@ class experimentConfig : public readConfig{
     void multiplyFresnelPhase_factor(void* amp, Real factor);
     void calculateParameters();
 };
+void angularSpectrumPropagate(void* field, Real imagesize_over_lambda, Real z_over_lambda);
+void opticalPropagate(void* field, Real lambda, Real d, Real imagesize);
 #endif

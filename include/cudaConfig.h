@@ -8,33 +8,35 @@
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
 #define myCufftExecR2C cufftExecR2C
-__global__ void forcePositive(complexFormat* a);
-__global__ void add(Real* a, Real* b, Real c = 1);
-__global__ void extendToComplex(Real* a, complexFormat* b);
-__global__ void applyNorm(complexFormat* data, Real factor);
-__global__ void applyNorm(Real* data, Real factor);
-__global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling);
-__global__ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col);
-__global__ void applyConvolution(Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
-__global__ void getMod(Real* mod, complexFormat* amp);
-__global__ void getMod2(Real* mod, complexFormat* amp);
-__global__ void applyPoissonNoise(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-__global__ void applyPoissonNoise_WO(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-__global__ void initRand(curandStateMRG32k3a *state);
-__global__ void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
-__global__ void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
-__global__ void add(complexFormat* a, complexFormat* b, Real c = 1);
-__global__ void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
-__global__ void applyRandomPhase(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
-__global__ void multiply(complexFormat* source, complexFormat* target);
-__global__ void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
-__global__ void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
-void opticalPropagate(complexFormat* field, Real lambda, Real d, Real imagesize, int rows, int cols);
+__global__ void forcePositive(cudaVars* vars, complexFormat* a);
+__global__ void add(cudaVars* vars, Real* a, Real* b, Real c = 1);
+__global__ void extendToComplex(cudaVars* vars, Real* a, complexFormat* b);
+__global__ void applyNorm(cudaVars* vars, complexFormat* data, Real factor);
+__global__ void applyNorm(cudaVars* vars, Real* data, Real factor);
+__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0);
+__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0);
+__global__ void applyConvolution(cudaVars* vars, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
+__global__ void getMod(cudaVars* vars, Real* mod, complexFormat* amp);
+__global__ void getReal(cudaVars* vars, Real* mod, complexFormat* amp);
+__global__ void getMod2(cudaVars* vars, Real* mod, complexFormat* amp);
+__global__ void applyPoissonNoise(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
+__global__ void applyPoissonNoise_WO(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
+__global__ void initRand(cudaVars* vars, curandStateMRG32k3a *state,unsigned long long seed);
+__global__ void fillRedundantR2C(cudaVars* vars, complexFormat* data, complexFormat* dataout, Real factor);
+__global__ void applyMod(cudaVars* vars, complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
+__global__ void add(cudaVars* vars, complexFormat* a, complexFormat* b, Real c = 1);
+__global__ void add(cudaVars* vars, complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
+__global__ void applyRandomPhase(cudaVars* vars, complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
+__global__ void multiply(cudaVars* vars, complexFormat* source, complexFormat* target);
+__global__ void multiplyReal(cudaVars* vars, Real* store, complexFormat* source, complexFormat* target);
+__global__ void multiply(cudaVars* vars, complexFormat* store, complexFormat* source, complexFormat* target);
 void init_fft(int rows, int cols);
 template <typename T>
-__global__ void cudaConvertFO(T* data){
+__global__ void cudaConvertFO(cudaVars* vars, T* data){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
+  int cuda_row = vars->rows;
+  int cuda_column = vars->cols;
   if(x >= (cuda_row>>1) || y >= cuda_column) return;
   int index = x*cuda_column + y;
   int indexp = (x+(cuda_row>>1))*cuda_column + (y >= (cuda_column>>1)? y-(cuda_column>>1): (y+(cuda_column>>1)));
@@ -44,9 +46,11 @@ __global__ void cudaConvertFO(T* data){
 }
 
 template <typename T>
-__global__ void cudaConvertFO(T* data, T* out){
+__global__ void cudaConvertFO(cudaVars* vars, T* data, T* out){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
+  int cuda_row = vars->rows;
+  int cuda_column = vars->cols;
   if(x >= (cuda_row>>1) || y >= cuda_column) return;
   int index = x*cuda_column + y;
   int indexp = (x+(cuda_row>>1))*cuda_column + (y >= (cuda_column>>1)? y-(cuda_column>>1): (y+(cuda_column>>1)));
@@ -56,30 +60,36 @@ __global__ void cudaConvertFO(T* data, T* out){
 }
 
 template <typename T>
-__global__ void zeroEdge(T* a, int n){
+__global__ void zeroEdge(cudaVars* vars, T* a, int n){
   cudaIdx()
   if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
     a[index] = T();
 }
 
 template <typename T1, typename T2>
-__global__ void assignVal(T1* out, T2* input){
+__global__ void assignVal(cudaVars* vars, T1* out, T2* input){
   cudaIdx()
 	out[index] = input[index];
 }
 
 template <typename T>
-__global__ void crop(T* src, T* dest, int row, int col){
+__global__ void crop(cudaVars* vars, T* src, T* dest, int row, int col){
   cudaIdx()
 	int targetindex = (x+(row-cuda_row)/2)*col + y+(col-cuda_column)/2;
 	dest[index] = src[targetindex];
 }
+template <typename T>
+__global__ void crop(cudaVars* vars, T* src, T* dest, int row, int col, Real midx, Real midy){
+  cudaIdx()
+	int targetindex = (x+(row-cuda_row)/2+int(row*midx))*col + y+(col-cuda_column)/2+int(col*midy);
+	dest[index] = src[targetindex];
+}
 
 template <typename T>
-__global__ void pad(T* src, T* dest, int row, int col){
+__global__ void pad(cudaVars* vars, T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0){
   cudaIdx()
-	int marginx = (cuda_row-row)/2;
-	int marginy = (cuda_column-col)/2;
+	int marginx = (cuda_row-row)/2+shiftx;
+	int marginy = (cuda_column-col)/2+shifty;
 	if(x < marginx || x >= row+marginx || y < marginy || y >= col+marginy){
 		dest[index] = T();
 		return;
@@ -89,7 +99,7 @@ __global__ void pad(T* src, T* dest, int row, int col){
 }
 
 template <typename T>
-__global__ void refine(T* src, T* dest, int refinement){
+__global__ void refine(cudaVars* vars, T* src, T* dest, int refinement){
   cudaIdx()
 	int indexlu = (x/refinement)*(cuda_row/refinement) + y/refinement;
 	int indexld = (x/refinement)*(cuda_row/refinement) + y/refinement+1;
@@ -128,7 +138,7 @@ class C_circle{
     }
 };
 template <typename sptType>
-__global__ void createMask(Real* data, sptType* spt, bool isFrequency=0){
+__global__ void createMask(cudaVars* vars, Real* data, sptType* spt, bool isFrequency=0){
   cudaIdx()
   if(isFrequency){
     if(x>=cuda_row/2) x-=cuda_row/2;

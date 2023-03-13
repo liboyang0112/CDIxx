@@ -36,7 +36,7 @@ __device__ Real cugetVal(mode m, Real &data){
 }
 
 template <typename T>
-__global__ void process(void* cudaData, pixeltype* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0){
+__global__ void process(cudaVars* vars, void* cudaData, pixeltype* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0){
   cudaIdx()
   int halfrow = cuda_row>>1;
   int halfcol = cuda_column>>1;
@@ -54,10 +54,10 @@ __global__ void process(void* cudaData, pixeltype* cache, mode m, bool isFrequen
   if(target < 0) target = 0;
   if(islog){
     if(target!=0)
-      target = log2f(target)*cuda_rcolor/log2f(cuda_rcolor)+cuda_rcolor;
-  }else target*=cuda_rcolor;
-  if(target>=cuda_rcolor) {
-    target=cuda_rcolor-1;
+      target = log2f(target)*vars->rcolor/log2f(vars->rcolor)+vars->rcolor;
+  }else target*=vars->rcolor;
+  if(target>=vars->rcolor) {
+    target=vars->rcolor-1;
   }
   if(target!=target) {
  //   printf("ERROR: target is NAN\n");
@@ -65,7 +65,7 @@ __global__ void process(void* cudaData, pixeltype* cache, mode m, bool isFrequen
   }
   cache[targetx*cuda_column+targety] = floor(target);
 }
-__global__ void getPhase(void* cudaData, Real* cache, mode m, bool isFrequency=0, Real decay = 1, bool isFlip = 0){
+__global__ void getPhase(cudaVars* vars, void* cudaData, Real* cache, mode m, bool isFrequency=0, Real decay = 1, bool isFlip = 0){
   cudaIdx()
   int halfrow = cuda_row>>1;
   int halfcol = cuda_column>>1;
@@ -82,7 +82,7 @@ __global__ void getPhase(void* cudaData, Real* cache, mode m, bool isFrequency=0
 }
 
 void cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){
-  cudaF(getPhase)(cudaData, (Real*)cuCache_float_data, m, isFrequency, decay, isFlip);
+  cudaF(getPhase,cudaData, (Real*)cuCache_float_data, m, isFrequency, decay, isFlip);
   cudaMemcpy(cv_float_data, cuCache_float_data,rows*cols*sizeof(Real), cudaMemcpyDeviceToHost); 
 };
 
@@ -93,10 +93,10 @@ void cuPlotter::saveComplexData(void* cudaData){
   cudaMemcpy(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat), cudaMemcpyDeviceToHost); 
 };
 void cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
-  cudaF(process<Real>)(cudaData, cuCache_data, m, isFrequency, decay, islog, isFlip);
+  cudaF(process<Real>,cudaData, cuCache_data, m, isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
 };
 void cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
-  cudaF(process<complexFormat>)(cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
+  cudaF(process<complexFormat>,cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
 };

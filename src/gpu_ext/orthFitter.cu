@@ -1,26 +1,26 @@
 #include "cudaDefs.h"
 
-__global__ void calcLambdas(double* lambdas, double step_lambda, double* matrix, double* bi){
+__global__ void calcLambdas(cudaVars* vars, double* lambdas, double step_lambda, double* matrix, double* bi){
   int y = blockIdx.x * blockDim.x + threadIdx.x;
-  if(y >= cuda_row) return;
+  if(y >= vars->rows) return;
   double tmp = lambdas[y];
-  for(int x = y; x < cuda_row; x++){
+  for(int x = y; x < vars->rows; x++){
     tmp -= step_lambda*matrix[x*(x+1)/2+y]*bi[x];
   }
   if(tmp < 0) tmp = 0;
   lambdas[y] = tmp;
 }
-__global__ void calcGrads(double* grads, double* matrix, double* lambdas){
+__global__ void calcGrads(cudaVars* vars, double* grads, double* matrix, double* lambdas){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
-  if(x >= cuda_row) return;
+  if(x >= vars->rows) return;
   grads[x] = 0;
   for(int y = 0; y <= x; y++){
     grads[x] -= matrix[x*(x+1)/2+y]*lambdas[y];
   }
 }
-__global__ void calcbi(double* bi, double* grads, double* prods, double step_bi){
+__global__ void calcbi(cudaVars* vars, double* bi, double* grads, double* prods, double step_bi){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
-  if(x >= cuda_row) return;
+  if(x >= vars->rows) return;
   bi[x] -= step_bi*(2*(bi[x]-prods[x])+grads[x]);
 }
 void runIter_cu(int n, int niter, int niter1, Real step_lambda, Real step_bi, double* bi, double* prods, double* matrix){
@@ -41,10 +41,10 @@ void runIter_cu(int n, int niter, int niter1, Real step_lambda, Real step_bi, do
   dim3 nblk;
   nblk.x = ceil(Real(n)/nthd.x);
   for(int iter = 0; iter < niter; iter++){
-    calcLambdas<<<nblk,nthd>>>(lambdas, step_lambda, d_matrix, d_bi);
-    calcGrads<<<nblk,nthd>>>(grads, d_matrix, lambdas);
+    calcLambdas<<<nblk,nthd>>>(cudaVar, lambdas, step_lambda, d_matrix, d_bi);
+    calcGrads<<<nblk,nthd>>>(cudaVar, grads, d_matrix, lambdas);
     for(int iter1 = 0; iter1 < niter1; iter1 ++){
-      calcbi<<<nblk,nthd>>>(d_bi, grads, d_prods, step_bi);
+      calcbi<<<nblk,nthd>>>(cudaVar, d_bi, grads, d_prods, step_bi);
     }
   }
   cudaMemcpy(bi,d_bi,sz,cudaMemcpyDeviceToHost);

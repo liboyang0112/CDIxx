@@ -17,8 +17,8 @@
 #include "cuPlotter.h"
 #include "cub_wrap.h"
 
-#define ALPHA 0.2
-#define BETA 1
+#define ALPHA 0.5
+#define BETA 0.5
 #define DELTA 1e-3
 #define GAMMA 0.5
 
@@ -29,13 +29,13 @@
 __device__ __host__ Real gaussian(Real x, Real y, Real sigma);
 
 Real gaussian_norm(Real x, Real y, Real sigma);
-__global__ void applySupport(Real* image, Real* support){
+__global__ void applySupport(cudaVars* vars, Real* image, Real* support){
   cudaIdx();
-  if(support[index] > cuda_threshold) image[index] = 0;
+  if(support[index] > vars->threshold) image[index] = 0;
 }
 
 
-__global__ void multiplyProbe(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0){
+__global__ void multiplyProbe(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0){
   cudaIdx();
   complexFormat tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -44,7 +44,7 @@ __global__ void multiplyProbe(complexFormat* object, complexFormat* probe, compl
   U[index] = cuCmulf(probe[index], tmp);
 }
 
-__global__ void getWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window){
+__global__ void getWindow(cudaVars* vars, complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window){
   cudaIdx();
   complexFormat tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -52,7 +52,7 @@ __global__ void getWindow(complexFormat* object, int shiftx, int shifty, int obj
   window[index] = tmp;
 }
 
-__global__ void updateWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window){
+__global__ void updateWindow(cudaVars* vars, complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window){
   cudaIdx();
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
   object[(x+shiftx)*objcol+y+shifty] = window[index];
@@ -75,12 +75,12 @@ __device__ void rPIE(complexFormat &target, complexFormat source, complexFormat 
   target.y -= source.y*denom;
 }
 
-__global__ void updateObject(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe){
+__global__ void updateObject(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe){
   cudaIdx()
   rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 }
 
-__global__ void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj){
+__global__ void updateObjectAndProbe(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj){
   cudaIdx()
   complexFormat objectdat= object[index];
   complexFormat diff= U[index];
@@ -88,14 +88,14 @@ __global__ void updateObjectAndProbe(complexFormat* object, complexFormat* probe
   rPIE(probe[index], objectdat, diff, mod2maxObj, BETA);
 }
 
-__global__ void random(complexFormat* object, curandStateMRG32k3a *state){
+__global__ void random(cudaVars* vars, complexFormat* object, curandStateMRG32k3a *state){
   cudaIdx()
   curand_init(1,index,0,&state[index]);
   object[index].x = curand_uniform(&state[index]);
   object[index].y = curand_uniform(&state[index]);
 }
 
-__global__ void pupilFunc(complexFormat* object){
+__global__ void pupilFunc(cudaVars* vars, complexFormat* object){
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
@@ -103,30 +103,26 @@ __global__ void pupilFunc(complexFormat* object){
   object[index].y = 0;
 }
 
-__global__ void multiplyShift(complexFormat* object, Real shiftx, Real shifty){
+__global__ void multiplyShift(cudaVars* vars, complexFormat* object, Real shiftx, Real shifty){
   cudaIdx();
   Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
   complexFormat tmp = {cos(phi),sin(phi)};
   object[index] = cuCmulf(object[index],tmp);
 }
 
-__global__ void multiplyx(complexFormat* object){
+__global__ void multiplyx(cudaVars* vars, complexFormat* object){
   cudaIdx();
-  //object[index].x *= Real(x)/cuda_row;
-  //object[index].y *= Real(x)/cuda_row;
   object[index].x *= Real(x)/cuda_row-0.5;
   object[index].y *= Real(x)/cuda_row-0.5;
 }
 
-__global__ void multiplyy(complexFormat* object){
+__global__ void multiplyy(cudaVars* vars, complexFormat* object){
   cudaIdx();
-  //object[index].x *= Real(y)/cuda_row;
-  //object[index].y *= Real(y)/cuda_row;
   object[index].x *= Real(y)/cuda_row-0.5;
   object[index].y *= Real(y)/cuda_row-0.5;
 }
 
-__global__ void calcPartial(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop){
+__global__ void calcPartial(cudaVars* vars, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop){
   cudaIdx();
   if(beamstop[index] > 0.5){
     object[index].x = 0;
@@ -151,11 +147,11 @@ __global__ void calcPartial(complexFormat* object, complexFormat* Fn, Real* patt
 
 void shiftWave(complexFormat* wave, int npix, Real shiftx, Real shifty){
   myCufftExec( *plan, wave, wave, CUFFT_FORWARD);
-  cudaF(cudaConvertFO)(wave);
-  cudaF(multiplyShift)(wave, shiftx, shifty);
-  cudaF(cudaConvertFO)(wave);
+  cudaF(cudaConvertFO,wave);
+  cudaF(multiplyShift,wave, shiftx, shifty);
+  cudaF(cudaConvertFO,wave);
   myCufftExec( *plan, wave, wave, CUFFT_INVERSE);
-  cudaF(applyNorm)(wave, 1./npix);
+  cudaF(applyNorm,wave, 1./npix);
 }
 
 class ptycho : public experimentConfig{
@@ -188,7 +184,12 @@ class ptycho : public experimentConfig{
       memset(patterns, 0, scanx*scany*sizeof(Real*)/sizeof(char));
       printf("initializing cuda image\n");
       init_cuda_image(row_O,column_O,rcolor,1./exposure);
-      cudaF(initRand)(devstates);
+      unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+      cudaF(initRand,devstates,seed);
+      shiftx = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
+      shifty = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
+      memset(shiftx, 0, scanx*scany*sizeof(Real)/sizeof(char));
+      memset(shifty, 0, scanx*scany*sizeof(Real)/sizeof(char));
       if(positionUncertainty > 1e-4){
         initPosition();
       }
@@ -210,7 +211,7 @@ class ptycho : public experimentConfig{
       int row_tmp=row*oversampling;
       int column_tmp=column*oversampling;
       allocateMem();
-      cudaF(createWaveFront)(d_object_intensity, d_object_phase, (complexFormat*)objectWave, 1);
+      cudaF(createWaveFront,d_object_intensity, d_object_phase, (complexFormat*)objectWave, 1);
       memMngr.returnCache(d_object_intensity);
       memMngr.returnCache(d_object_phase);
       verbose(2,
@@ -232,17 +233,18 @@ class ptycho : public experimentConfig{
       }
       pupilobjectWave = (complexFormat*)memMngr.borrowCache(row_tmp*column_tmp*sizeof(complexFormat));
       init_cuda_image(row_tmp,column_tmp,rcolor, 1./exposure);
-      cudaF(createWaveFront)(d_intensity, d_phase, (complexFormat*)pupilobjectWave, oversampling);
+      cudaF(createWaveFront,d_intensity, d_phase, (complexFormat*)pupilobjectWave, oversampling);
       memMngr.returnCache(d_intensity);
       if(d_phase) memMngr.returnCache(d_phase);
       plt.init(row_tmp,column_tmp);
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilIntensity", 0);
       init_fft(row_tmp,column_tmp);
-      opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling, row_tmp, column_tmp);
+      opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling); //granularity changes
+      //angularSpectrumPropagate((complexFormat*)pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda); //granularity is the same
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilPattern", 0);
       init_cuda_image(row,column,rcolor, 1./exposure);
       init_fft(row,column);
-      cudaF(crop)((complexFormat*)pupilobjectWave, (complexFormat*)pupilpatternWave, row_tmp, column_tmp);
+      cudaF(crop,(complexFormat*)pupilobjectWave, (complexFormat*)pupilpatternWave, row_tmp, column_tmp);
       plt.init(row,column);
       plt.plotComplex(pupilpatternWave, MOD2, 0, 1, "probeIntensity", 0);
       plt.plotComplex(pupilpatternWave, PHASE, 0, 1, "probePhase", 0);
@@ -250,10 +252,6 @@ class ptycho : public experimentConfig{
       multiplyFresnelPhase(pupilpatternWave, d);
     }
     void initPosition(){
-      shiftx = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
-      shifty = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
-      memset(shiftx, 0, scanx*scany*sizeof(Real)/sizeof(char));
-      memset(shifty, 0, scanx*scany*sizeof(Real)/sizeof(char));
       if(runSim && positionUncertainty>1e-4){
         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
         std::default_random_engine generator(seed);
@@ -281,17 +279,17 @@ class ptycho : public experimentConfig{
         for(int j = 0; j < scany; j++){
           int shiftxpix = shiftx[idx]-round(shiftx[idx]);
           int shiftypix = shiftx[idx]-round(shifty[idx]);
-          cudaF(getWindow)((complexFormat*)objectWave, i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, window);
+          cudaF(getWindow,(complexFormat*)objectWave, i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, window);
           if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
             shiftWave((complexFormat*)window, row*column, shiftxpix, shiftypix);
           }
-          cudaF(multiply)(esw, (complexFormat*)pupilpatternWave, window);
+          cudaF(multiply,esw, (complexFormat*)pupilpatternWave, window);
           verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)+"_"+to_string(j)).c_str()));
           propagate(esw,esw,1);
           if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
-          cudaF(getMod2)(patterns[idx], esw);
-          if(useBS) cudaF(applySupport)(patterns[idx], beamstop);
-          if(simCCDbit) cudaF(applyPoissonNoise_WO)(patterns[idx], noiseLevel, devstates, 1./exposure);
+          cudaF(getMod2,patterns[idx], esw);
+          if(useBS) cudaF(applySupport,patterns[idx], beamstop);
+          if(simCCDbit) cudaF(applyPoissonNoise_WO,patterns[idx], noiseLevel, devstates, 1./exposure);
           verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
           verbose(4, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)+"log").c_str(),1));
           idx++;
@@ -301,35 +299,35 @@ class ptycho : public experimentConfig{
     }
     void initObject(){
       init_cuda_image(row_O,column_O,rcolor, 1./exposure);
-      cudaF(random)((complexFormat*)objectWave, devstates);
+      cudaF(random,(complexFormat*)objectWave, devstates);
       init_cuda_image(row,column,rcolor, 1./exposure);
-      cudaF(pupilFunc)((complexFormat*)pupilpatternWave);
+      cudaF(pupilFunc,(complexFormat*)pupilpatternWave);
     }
     void updatePosition(Real &shiftx, Real &shifty, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){
       Real siz = memMngr.getSize(obj);
       complexFormat *cachex = (complexFormat*)memMngr.borrowCache(siz);
       complexFormat *cachey = (complexFormat*)memMngr.borrowCache(siz);
       propagate(obj, cachex, 1);
-      cudaF(cudaConvertFO)(cachex);
+      cudaF(cudaConvertFO,cachex);
       cudaMemcpy(cachey, cachex, siz, cudaMemcpyDeviceToDevice);
-      cudaF(multiplyx)(cachex);
-      cudaF(multiplyy)(cachey);
-      cudaF(cudaConvertFO)(cachex);
-      cudaF(cudaConvertFO)(cachey);
+      cudaF(multiplyx,cachex);
+      cudaF(multiplyy,cachey);
+      cudaF(cudaConvertFO,cachex);
+      cudaF(cudaConvertFO,cachey);
       propagate(cachex, cachex, 0);
       propagate(cachey, cachey, 0);
-      cudaF(multiply)(cachex, probe);
-      cudaF(multiply)(cachey, probe);
+      cudaF(multiply,cachex, probe);
+      cudaF(multiply,cachey, probe);
       propagate(cachex, cachex, 1);
       propagate(cachey, cachey, 1);
-      cudaF(calcPartial)(cachex, Fn, pattern, beamstop);
-      cudaF(calcPartial)(cachey, Fn, pattern, beamstop);
-      Real partialx = 8*M_PI*findSumReal(cachex,row*column);
-      Real partialy = 8*M_PI*findSumReal(cachey,row*column);
+      cudaF(calcPartial,cachex, Fn, pattern, beamstop);
+      cudaF(calcPartial,cachey, Fn, pattern, beamstop);
+      Real partialx = 8*M_PI*findSumReal(cachex);
+      Real partialy = 8*M_PI*findSumReal(cachey);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
-      shiftx -= partialx*1e-3;
-      shifty -= partialy*1e-3;
+      shiftx -= partialx*1.4e-3;
+      shifty -= partialy*1.4e-3;
       if(shiftx!=shiftx || shifty!=shifty) exit(0);
     }
     void iterate(){
@@ -342,38 +340,38 @@ class ptycho : public experimentConfig{
       int update_probe_iter = 4;
       for(int iter = 0; iter < nIter; iter++){
         int idx = 0;
-        if(iter >= update_probe_iter) objMax = findMod2Max((complexFormat*)objectWave, row_O*column_O);
-        probeMax = findMod2Max((complexFormat*)pupilpatternWave, row*column);
+        if(iter >= update_probe_iter) objMax = findMod2Max((complexFormat*)objectWave);
+        probeMax = findMod2Max((complexFormat*)pupilpatternWave);
         if(iter >= update_probe_iter && iter%200==0){
           init_cuda_image(row_O,column_O,rcolor, 1./exposure);
-          cudaF(applyNorm)((complexFormat*)objectWave, pow(probeMax/objMax, 0.25));
+          cudaF(applyNorm,(complexFormat*)objectWave, pow(probeMax/objMax, 0.25));
           init_cuda_image(row,column,rcolor, 1./exposure);
-          cudaF(applyNorm)((complexFormat*)pupilpatternWave, pow(objMax/probeMax,0.25));
+          cudaF(applyNorm,(complexFormat*)pupilpatternWave, pow(objMax/probeMax,0.25));
           objMax = probeMax = sqrt(objMax*probeMax);
         }
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
             int shiftypix = shiftx[idx]-round(shifty[idx]);
-            cudaF(getWindow)((complexFormat*)objectWave,
+            cudaF(getWindow,(complexFormat*)objectWave,
                 i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, objCache);
             if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
               shiftWave((complexFormat*)objCache, row*column, shiftxpix, shiftypix);
             }
-            cudaF(multiply)(esw, (complexFormat*)pupilpatternWave, objCache);
+            cudaF(multiply,esw, (complexFormat*)pupilpatternWave, objCache);
             propagate(esw,Fn,1);
-            if(iter % 50 == 0 && iter >= 100) updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
-            cudaF(applyMod)(Fn, patterns[idx],beamstop,1);
+            if(iter % 100 == 0 && iter >= 100) updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
+            cudaF(applyMod,Fn, patterns[idx],beamstop,1);
             propagate(Fn,Fn,0);
-            cudaF(add)(esw, Fn, -1);
-            if(iter < update_probe_iter) cudaF(updateObject)(objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
+            cudaF(add,esw, Fn, -1);
+            if(iter < update_probe_iter) cudaF(updateObject,objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
                 probeMax);
-            else cudaF(updateObjectAndProbe)(objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
+            else cudaF(updateObjectAndProbe,objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
                 probeMax, objMax);
             if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
               shiftWave(objCache, row*column, -shiftxpix, -shiftypix);
             }
-            cudaF(updateWindow)((complexFormat*)objectWave,
+            cudaF(updateWindow,(complexFormat*)objectWave,
                 i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, objCache);
             idx++;
           }
@@ -395,7 +393,7 @@ class ptycho : public experimentConfig{
       plt.plotComplex(pupilpatternWave, MOD2, 0, 1., "ptycho_probe_afterIter", 0);
       init_cuda_image(row_O,column_O,rcolor,1./exposure);
       plt.init(row_O, column_O);
-      plt.plotComplex(objectWave, MOD2, 0, 0.1, "ptycho_afterIter", 0);
+      plt.plotComplex(objectWave, MOD2, 0, 0.2, "ptycho_afterIter", 0);
       plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase", 0);
     }
     void readPattern(){
@@ -413,8 +411,8 @@ class ptycho : public experimentConfig{
           if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
           cudaMemcpy(patterns[idx], pattern, sz, cudaMemcpyHostToDevice);
           ccmemMngr.returnCache(pattern);
-          cudaF(cudaConvertFO)(patterns[idx]);
-          cudaF(applyNorm)(patterns[idx], 1./exposure);
+          cudaF(cudaConvertFO,patterns[idx]);
+          cudaF(applyNorm,patterns[idx], 1./exposure);
           verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
           idx++;
         }

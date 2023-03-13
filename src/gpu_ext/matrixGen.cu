@@ -2,7 +2,7 @@
 #include "cudaDefs.h"
 #include "matrixGen.h"
 
-__global__ void calcElement(float* matrixEle, int shiftx, int shifty, int paddingx, int paddingy){
+__global__ void calcElement(cudaVars* vars, float* matrixEle, int shiftx, int shifty, int paddingx, int paddingy){
   cudaIdx()
   //shift to middle
   x-=cuda_row/2;
@@ -30,10 +30,7 @@ __global__ void calcElement(float* matrixEle, int shiftx, int shifty, int paddin
   matrixEle[index] = sum/cuda_row/cuda_column;
 }
 void matrixGen(Sparse *matrix, int rows, int cols, int paddingx, int paddingy, float weight){
-  dim3 numBlocks((rows-1)/threadsPerBlock.x+1, (cols-1)/threadsPerBlock.y+1);
-  printf("<<<{%d,%d},{%d,%d}>>>\n", numBlocks.x, numBlocks.y, threadsPerBlock.x, threadsPerBlock.y);
-  cudaMemcpyToSymbol(cuda_column,&cols,sizeof(cols));
-  cudaMemcpyToSymbol(cuda_row,&rows,sizeof(rows));
+  init_cuda_image(rows,cols);
   int widthx = 2;
   int widthy = 2;
   float *cuda_matrix;
@@ -44,7 +41,7 @@ void matrixGen(Sparse *matrix, int rows, int cols, int paddingx, int paddingy, f
   for(int shiftx = -widthx; shiftx <= widthx; shiftx++){
     for(int shifty = -widthy; shifty <= widthy; shifty++){
       //if(abs(shiftx)>2 && abs(shifty)>2) continue;
-      calcElement<<<numBlocks,threadsPerBlock>>>(cuda_matrix, shiftx, shifty, paddingx, paddingy);
+      cudaF(calcElement, cuda_matrix, shiftx, shifty, paddingx, paddingy);
       cudaMemcpy(matrixEle, cuda_matrix, sz, cudaMemcpyDeviceToHost);
       for(int index = 0; index < rows*cols; index ++){
         if(fabs(matrixEle[index]) > 1e-5){

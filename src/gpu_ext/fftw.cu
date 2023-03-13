@@ -36,7 +36,7 @@ Mat* fftw ( Mat* in, Mat *out, bool isforward, Real ratio)
     
   myCufftExec( *plan, cudaData,cudaData, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
 
-  cudaF(applyNorm)(cudaData, ratio);
+  cudaF(applyNorm,cudaData, ratio);
 
   gpuErrchk(cudaMemcpy(out->data, cudaData, sz, cudaMemcpyDeviceToHost));
   

@@ -13,9 +13,10 @@ Real gaussian(Real x, Real y, Real sigma){
 }
 int main(int argc, char** argv )
 {
-  int row = 256;
-  int column = 256;
-  Mat image (row, column, float_cv_format(1), Scalar::all(0));
+  int row = 320;
+  int column = 320;
+  //Mat image (row, column, float_cv_format(1), Scalar::all(0));
+  Mat image (row, column, CV_8UC1, Scalar::all(0));
   int rad = row/12;
   int radcut = row/12;
   int spotr = 4;
@@ -24,8 +25,8 @@ int main(int argc, char** argv )
   int spotblock[] = {row/2+5, column/2+5};
   auto seed = (unsigned)time(NULL);
   srand(seed);
-  Real* rowo;
-  //char* rowo;
+  //Real* rowo;
+  char* rowo;
   Real tot = 0;
   Real totx = 0;
   Real toty = 0;
@@ -33,9 +34,10 @@ int main(int argc, char** argv )
   Real sumy = 0;
   Real max = 0;
   for(int x = 0; x < row ; x++){
-    rowo =   image.ptr<Real>(x);
-    //rowo = image.ptr<char>(x);
+    //rowo =   image.ptr<Real>(x);
+    rowo = image.ptr<char>(x);
     for(int y = 0; y<column; y++){
+#if 0
       Real r = hypot(x-row/2,y-row/2);
       for(int i = 0 ; i < 2; i++){
         Real r = hypot(x-spotsx[i],y-spotsy[i]);
@@ -50,6 +52,10 @@ int main(int argc, char** argv )
       r = hypot(x-spotblock[0],y-spotblock[1]);
       if(r<spotr) rowo[y] = 0;
       //if(r<60) rowo[y] *= 0.4;
+#endif
+      if(x <= 7 || y <= 7) rowo[y] = 255;
+      else rowo[y] = 0;
+      if(y > 7 && (y%30 < 7)) rowo[y] = 0; 
     }
   }
 

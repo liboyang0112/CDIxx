@@ -12,7 +12,7 @@ cuMnist::cuMnist(const char* dir, int re, int r, int c) : mnistData(dir), refine
 void cuMnist::cuRead(void* out){
   cudaMemcpy(cuRaw, read(), rowraw*colraw*sizeof(Real), cudaMemcpyHostToDevice);
   init_cuda_image(rowrf, colrf, 65536, 1);
-  cudaF(refine)((Real*)cuRaw, (Real*)cuRefine, refinement);
+  cudaF(refine,(Real*)cuRaw, (Real*)cuRefine, refinement);
   init_cuda_image(row, col, 65536, 1);
-  cudaF(pad)((Real*)cuRefine, (Real*)out, rowrf, colrf);
+  cudaF(pad,(Real*)cuRefine, (Real*)out, rowrf, colrf);
 }

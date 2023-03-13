@@ -36,7 +36,7 @@ int ReverseInt(int i)
   }
 
 mnistData::mnistData(const char* dir){
-  std::string filename = "/t10k-images-idx3-ubyte";
+  std::string filename = "/train-images-idx3-ubyte";
   filename = dir+filename;
   ifstream *file = new ifstream(filename, ios::binary);
   dataset = file;

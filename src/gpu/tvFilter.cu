@@ -44,10 +44,12 @@ __device__ T minmod(T data1, T data2){
 
 
 template <typename T>
-__global__ void calcBracketLambda(T *srcImage, T *bracket, T* u0, T* lambdacore, T noiseLevel)
+__global__ void calcBracketLambda(cudaVars* vars, T *srcImage, T *bracket, T* u0, T* lambdacore, T noiseLevel)
 {
   int x = blockIdx.x*blockDim.x + threadIdx.x;
   int y = blockIdx.y*blockDim.y + threadIdx.y;
+  int cuda_row = vars->rows;
+  int cuda_column = vars->cols;
   extern __shared__ float tile[];
   if(threadIdx.x<blockDim.x/2+FILTER_WIDTH && threadIdx.y<blockDim.y/2+FILTER_HEIGHT)
     tile[threadIdx.x*(tilewidth)+threadIdx.y]=(x>=FILTER_WIDTH && y>=FILTER_HEIGHT)?srcImage[(x-FILTER_WIDTH)*cuda_column+y-FILTER_HEIGHT]:0;
@@ -62,7 +64,7 @@ __global__ void calcBracketLambda(T *srcImage, T *bracket, T* u0, T* lambdacore,
   int index = x*cuda_column+y;
   float sigma = sqrt(noiseLevel);
   float dt = 5e-8*sigma;
-  float sigmafactor = cuda_rcolor*5e-8*cuda_rcolor/(cuda_row*cuda_column*2)/sigma;
+  float sigmafactor = vars->rcolor*5e-8*vars->rcolor/(cuda_row*cuda_column*2)/sigma;
   int centerIdx = (threadIdx.x+FILTER_WIDTH)*(tilewidth) + threadIdx.y+FILTER_HEIGHT;
   float dpxU = tile[centerIdx+tilewidth]-tile[centerIdx];
   float dpyU = tile[centerIdx+1]-tile[centerIdx];
@@ -92,7 +94,7 @@ __global__ void calcBracketLambda(T *srcImage, T *bracket, T* u0, T* lambdacore,
 }
 
 template <typename T>
-__global__ void tvFilter(T *srcImage, T *bracket, T* u0, T* slambda)
+__global__ void tvFilter(cudaVars* vars, T *srcImage, T *bracket, T* u0, T* slambda)
 {
   cudaIdx()
   srcImage[index]+=bracket[index]-(*slambda)*(srcImage[index]-u0[index]);
@@ -113,9 +115,9 @@ void inittvFilter(int row, int col){
 Real* tvFilterWrap(Real* d_input, Real noiseLevel, int nIters){
   gpuErrchk(cudaMemcpy(d_output,d_input,sz,cudaMemcpyDeviceToDevice));
 	for(int i = 0; i<nIters; i++){
-    calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
+    calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(cudaVar, d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
     gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, sz, d_lambdacore, lambda, rows*cols, sum_op, 0));
-    tvFilter<<<numBlocks,threadsPerBlock>>>(d_output, d_bracket, d_input, lambda);
+    cudaF(tvFilter, d_output, d_bracket, d_input, lambda);
 	}
   cudaMemcpy(d_input,d_output,sz,cudaMemcpyDeviceToDevice);
 	return d_input;
