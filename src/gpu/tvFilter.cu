@@ -117,7 +117,7 @@ Real* tvFilterWrap(Real* d_input, Real noiseLevel, int nIters){
 	for(int i = 0; i<nIters; i++){
     calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(cudaVar, d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
     gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, sz, d_lambdacore, lambda, rows*cols, sum_op, 0));
-    cudaF(tvFilter, d_output, d_bracket, d_input, lambda);
+    tvFilter<<<numBlocks,threadsPerBlock>>>(cudaVar, d_output, d_bracket, d_input, lambda);
 	}
   cudaMemcpy(d_input,d_output,sz,cudaMemcpyDeviceToDevice);
 	return d_input;

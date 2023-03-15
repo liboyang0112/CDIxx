@@ -28,21 +28,21 @@ Real gaussian_norm(Real x, Real y, Real sigma){
   return 1./(2*M_PI*sigma*sigma)*gaussian(x,y,sigma);
 }
 
-__global__ void takeMod2Diff(cudaVars* vars, complexFormat* a, Real* b, Real *output, Real *bs){
+cuFunc(takeMod2Diff,(cudaVars* vars, complexFormat* a, Real* b, Real *output, Real *bs),(vars,a,b,output,bs),{
   cudaIdx()
     Real mod2 = pow(a[index].x,2)+pow(a[index].y,2);
   Real tmp = b[index]-mod2;
   if(bs&&bs[index]>0.5) tmp=0;
   else if(b[index]>0.99) tmp = 0.99-mod2;
   output[index] = tmp;
-}
+})
 
-__global__ void takeMod2Sum(cudaVars* vars, complexFormat* a, Real* b){
+cuFunc(takeMod2Sum,(cudaVars* vars, complexFormat* a, Real* b),(vars,a,b),{
   cudaIdx()
     Real tmp = b[index]+pow(a[index].x,2)+pow(a[index].y,2);
   if(tmp<0) tmp=0;
   b[index] = tmp;
-}
+})
 
 
 __device__ void ApplyHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
@@ -149,6 +149,7 @@ void CDI::readObjectWave(){
         cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
       }
       memMngr.returnCache(d_phasetmp);
+      init_cuda_image(row,column);
     }
     else {
       gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
@@ -161,41 +162,6 @@ void CDI::readObjectWave(){
 
   if(d_phase) memMngr.returnCache(d_phase);
   memMngr.returnCache(d_intensity);
-  // if(setups.useRectHERALDO){
-  //   pixeltype *rowp;
-  //   for(int i = 0; i < row ; i++){
-  //     rowp = intensity.ptr<pixeltype>(i);
-  //     for(int j = 0; j < column ; j++){
-  //       if(i > row/2 || j > column/2) rowp[j] = rcolor-1;
-  //     }
-  //   }
-  // }
-  //if(setups.useGaussionLumination){
-  //  //setups.spt = &re;
-  //  //if(!setups.useShrinkMap) setups.spt = &cir3;
-  //  //diffraction image, either from simulation or from experiments.
-  //  auto f = [&](int x, int y, fftw_format &data){
-  //    auto tmp = (complex<Real>*)&data;
-  //    bool inside = cir3.isInside(x,y);
-  //    if(!inside) *tmp = 0.;
-  //    *tmp *= gaussian(x-cir2.x0,y-cir2.y0,cir3.r);
-  //    //if(cir2.isInside(x,y))printf("%f, ",gaussian(x-cir2.x0,y-cir2.y0,cir2.r/2));
-  //  };
-  //  imageLoop<decltype(f)>(gkp1,&f,0);
-  //}
-  //if(setups.useGaussionHERALDO){
-  //  auto f = [&](int x, int y, fftw_format &data){
-  //    auto tmp = (complex<Real>*)&data;
-  //    if(cir2.isInside(x,y)) 
-  //      *tmp *= gaussian(x-cir2.x0,y-cir2.y0,cir2.r*4);
-  //    else *tmp = gaussian(x-cir2.x0,y-cir2.y0,cir2.r*4);
-  //    if(x < row*1/3 && y < row*1/3) *tmp = 0;
-  //    //if(cir2.isInside(x,y))printf("%f, ",gaussian(x-cir2.x0,y-cir2.y0,cir2.r/2));
-  //  };
-  //  imageLoop<decltype(f)>(gkp1,&f,0);
-  //}
-  //if(useRectHERALDO)
-  //  cudaF(setRectHERALDO,objectWave, oversampling);
 }
 void CDI::readPattern(){
   Real* pattern = readImage(common.Pattern.c_str(), row, column);
@@ -329,7 +295,7 @@ void CDI::saveState(){
   ccmemMngr.returnCache(outputData);
 }
 
-__global__ void applySupportOblique(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1){
+cuFunc(applySupportOblique,(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1),(vars,gkp1,gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
   cudaIdx()
     bool inside = spt[index] > vars->threshold;
   complexFormat &gkp1data = gkp1[index];
@@ -346,10 +312,10 @@ __global__ void applySupportOblique(cudaVars* vars, complexFormat *gkp1, complex
       gkp1data.y=mod*sin(phase);
     }
   }
-}
+})
 
 
-__global__ void applySupport(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0){
+cuFunc(applySupport,(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0),(vars,gkp1,gkprime,algo,spt,iter,fresnelFactor),{
 
   cudaIdx()
     bool inside = spt[index] > vars->threshold;
@@ -368,7 +334,7 @@ __global__ void applySupport(cudaVars* vars, complexFormat *gkp1, complexFormat 
       gkp1data.y=mod*sin(phase);
     }
   }
-}
+})
 
 complexFormat* CDI::phaseRetrieve(){
   Real beta = -1;
@@ -420,10 +386,10 @@ complexFormat* CDI::phaseRetrieve(){
         for(int i = 0; i < width*width; i++)
           gaussianKernel[i] /= total;
         cudaMemcpy(d_gaussianKernel, gaussianKernel, kernelsz, cudaMemcpyHostToDevice);
-        applyConvolution<<<numBlocks,threadsPerBlock, pow(size*2+threadsPerBlock.x,2)*sizeof(Real)>>>(cudaVar, cuda_objMod, support, d_gaussianKernel, size, size);
+        cudaFShared(applyConvolution,pow(size*2+threadsPerBlock.x,2)*sizeof(Real),cuda_objMod, support, d_gaussianKernel, size, size);
 
         cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
-        cudaMemcpy(cudaVar+(size_t)&(((cudaVars *)0)->threshold), &(cudaVarLocal->threshold), sizeof(cudaVarLocal->threshold),cudaMemcpyHostToDevice);
+        cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
 
         if(gaussianSigma>1.5) {
           gaussianSigma*=0.99;

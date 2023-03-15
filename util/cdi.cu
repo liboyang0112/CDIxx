@@ -16,7 +16,7 @@
 
 #include "cdi.h"
 
-__global__  void applyESWSupport(cudaVars* vars, complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length){
+cuFunc(applyESWSupport,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(vars,ESW,ISW,ESWP,length),{
   cudaIdx()
     auto tmp = ISW[index];
   auto tmp2 = ESWP[index];
@@ -43,8 +43,8 @@ __global__  void applyESWSupport(cudaVars* vars, complexFormat* ESW, complexForm
      ESW[index].y -= vars->beta_HIO*(1-factor)*sum.y;
      length[index] = 1;
    */
-}
-__global__  void initESW(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp){
+})
+cuFunc(initESW,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp),(vars,ESW,mod,amp),{
   cudaIdx()
     auto tmp = amp[index];
   if(cuCabsf(tmp)<=1e-10) {
@@ -59,8 +59,8 @@ __global__  void initESW(cudaVars* vars, complexFormat* ESW, Real* mod, complexF
   Real factor = sqrtf(mod[index])/cuCabsf(tmp)-1;
   ESW[index].x = factor*tmp.x;
   ESW[index].y = factor*tmp.y;
-}
-__global__  void applyESWMod(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel){
+})
+cuFunc(applyESWMod,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel),(vars,ESW,mod,amp,noiseLevel),{
   cudaIdx()
     Real tolerance = 0;//1./vars->rcolor*vars->scale+1.5*sqrtf(noiseLevel)/vars->rcolor; // fluctuation caused by bit depth and noise
   auto tmp = amp[index];
@@ -83,9 +83,9 @@ __global__  void applyESWMod(cudaVars* vars, complexFormat* ESW, Real* mod, comp
   //printf("factor=%f, mod=%f, sum=%f\n", factor, mod[index], cuCabsf(sum));
   ESW[index].x = factor*sum.x-tmp.x;
   ESW[index].y = factor*sum.y-tmp.y;
-}
+})
 
-__global__ void calcESW(cudaVars* vars, complexFormat* sample, complexFormat* ISW){
+cuFunc(calcESW,(cudaVars* vars, complexFormat* sample, complexFormat* ISW),(vars,sample,ISW),{
   cudaIdx()
     complexFormat tmp = sample[index];
   tmp.x = -tmp.x;  // Here we reverse the image, use tmp.x = tmp.x - 1 otherwise;
@@ -93,9 +93,9 @@ __global__ void calcESW(cudaVars* vars, complexFormat* sample, complexFormat* IS
                    //tmp.y=tmp.x;   // We are ignoring the factor (-i) each time we do fresnel propagation, which causes this transform in the ISW. ISW=iA ->  ESW=(O-1)A=(i-iO)ISW
                    //tmp.x=ttmp;
   sample[index]=cuCmulf(tmp,ISW[index]);
-}
+})
 
-__global__ void calcO(cudaVars* vars, complexFormat* ESW, complexFormat* ISW){
+cuFunc(calcO,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW),(vars,ESW,ISW),{
   cudaIdx()
     if(cuCabsf(ISW[index])<1e-4) {
       ESW[index].x = 0;
@@ -110,9 +110,9 @@ __global__ void calcO(cudaVars* vars, complexFormat* ESW, complexFormat* ISW){
    */
   ESW[index].x=1+tmp.x;
   ESW[index].y=tmp.y;
-}
+})
 
-__global__ void applyAutoCorrelationMod(cudaVars* vars, complexFormat* source,complexFormat* target, Real *bs = 0){
+cuFunc(applyAutoCorrelationMod,(cudaVars* vars, complexFormat* source,complexFormat* target, Real *bs = 0),(vars,source,target,bs),{
   cudaIdx()
   Real targetdata = target[index].x;
   Real retval = targetdata;
@@ -136,34 +136,7 @@ __global__ void applyAutoCorrelationMod(cudaVars* vars, complexFormat* source,co
     retval = max(sourcedata,maximum);
   }
   source[index].x = retval;
-}
-
-template <typename sptType>
-__global__ void applyERACSupport(cudaVars* vars, complexFormat* data,complexFormat* prime,sptType *spt, Real* objMod){
-  cudaIdx()
-  if(!spt->isInside(x,y)){
-    data[index].x = 0;
-    data[index].y = 0;
-  }
-  else{
-    data[index].x = prime[index].x;
-    data[index].y = prime[index].y;
-  }
-  objMod[index] = cuCabsf(data[index]);
-}
-
-template <typename sptType>
-__global__ void applyHIOACSupport(cudaVars* vars, complexFormat* data,complexFormat* prime, sptType *spt, Real *objMod){
-  cudaIdx()
-  if(!spt->isInside(x,y)){
-    data[index].x -= prime[index].x;
-  }
-  else{
-    data[index].x = prime[index].x;
-  }
-  data[index].y -= prime[index].y;
-  objMod[index] = cuCabsf(data[index]);
-}
+})
 
 int main(int argc, char** argv )
 {

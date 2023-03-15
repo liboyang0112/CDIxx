@@ -99,24 +99,24 @@ Real findSum(Real* d_in, int num, bool debug=false)
   return output;
 }
 
-__global__ void multiplyx(cudaVars* vars, complexFormat* object, Real* out){
+cuFunc(multiplyx,(cudaVars* vars, complexFormat* object, Real* out),(vars,object,out),{
   cudaIdx();
   out[index] = cuCabsf(object[index]) * (Real(x)/cuda_row-0.5);
-}
+})
 
-__global__ void multiplyy(cudaVars* vars, complexFormat* object, Real* out){
+cuFunc(multiplyy,(cudaVars* vars, complexFormat* object, Real* out),(vars,object,out),{
   cudaIdx();
   out[index] = cuCabsf(object[index]) * (Real(y)/cuda_column-0.5);
-}
-__global__ void multiplyx(cudaVars* vars, Real* object, Real* out){
+})
+cuFunc(multiplyx,(cudaVars* vars, Real* object, Real* out),(vars,object,out),{
   cudaIdx();
   out[index] = object[index] * (Real(x)/cuda_row-0.5);
-}
+})
 
-__global__ void multiplyy(cudaVars* vars, Real* object, Real* out){
+cuFunc(multiplyy,(cudaVars* vars, Real* object, Real* out),(vars,object,out),{
   cudaIdx();
   out[index] = object[index] * (Real(y)/cuda_column-0.5);
-}
+})
 complexFormat findMiddle(complexFormat* d_in, int num){
   int num_items = memMngr.getSize(d_in)/sizeof(complexFormat);
   Real* tmp = (Real*) memMngr.borrowCache(num_items*sizeof(Real));

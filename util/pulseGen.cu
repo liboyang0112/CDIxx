@@ -77,7 +77,7 @@ int main(int argc, char** argv){
   complexFormat *single = (complexFormat*)memMngr.borrowCache(sz*2);
   complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
   complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
-  init_cuda_image(mwl.row, mwl.column);
+  init_cuda_image(mwl.row, mwl.column,65536,1);
   plt.init(mwl.row, mwl.column);
   curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();

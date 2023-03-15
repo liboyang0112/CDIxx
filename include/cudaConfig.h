@@ -8,28 +8,28 @@
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
 #define myCufftExecR2C cufftExecR2C
-__global__ void forcePositive(cudaVars* vars, complexFormat* a);
-__global__ void add(cudaVars* vars, Real* a, Real* b, Real c = 1);
-__global__ void extendToComplex(cudaVars* vars, Real* a, complexFormat* b);
-__global__ void applyNorm(cudaVars* vars, complexFormat* data, Real factor);
-__global__ void applyNorm(cudaVars* vars, Real* data, Real factor);
-__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0);
-__global__ void createWaveFront(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0);
-__global__ void applyConvolution(cudaVars* vars, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
-__global__ void getMod(cudaVars* vars, Real* mod, complexFormat* amp);
-__global__ void getReal(cudaVars* vars, Real* mod, complexFormat* amp);
-__global__ void getMod2(cudaVars* vars, Real* mod, complexFormat* amp);
-__global__ void applyPoissonNoise(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-__global__ void applyPoissonNoise_WO(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-__global__ void initRand(cudaVars* vars, curandStateMRG32k3a *state,unsigned long long seed);
-__global__ void fillRedundantR2C(cudaVars* vars, complexFormat* data, complexFormat* dataout, Real factor);
-__global__ void applyMod(cudaVars* vars, complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
-__global__ void add(cudaVars* vars, complexFormat* a, complexFormat* b, Real c = 1);
-__global__ void add(cudaVars* vars, complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
-__global__ void applyRandomPhase(cudaVars* vars, complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
-__global__ void multiply(cudaVars* vars, complexFormat* source, complexFormat* target);
-__global__ void multiplyReal(cudaVars* vars, Real* store, complexFormat* source, complexFormat* target);
-__global__ void multiply(cudaVars* vars, complexFormat* store, complexFormat* source, complexFormat* target);
+void forcePositiveWrap(cudaVars* vars, complexFormat* a);
+void addWrap(cudaVars* vars, Real* a, Real* b, Real c = 1);
+void extendToComplexWrap(cudaVars* vars, Real* a, complexFormat* b);
+void applyNormWrap(cudaVars* vars, complexFormat* data, Real factor);
+void applyNormWrap(cudaVars* vars, Real* data, Real factor);
+void createWaveFrontWrap(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0);
+void createWaveFrontWrap(cudaVars* vars, Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0);
+void applyConvolutionWrap(size_t size, cudaVars* vars, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
+void getModWrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void getRealWrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void getMod2Wrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void applyPoissonNoiseWrap(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
+void applyPoissonNoise_WOWrap(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
+void initRandWrap(cudaVars* vars, curandStateMRG32k3a *state,unsigned long long seed);
+void fillRedundantR2CWrap(cudaVars* vars, complexFormat* data, complexFormat* dataout, Real factor);
+void applyModWrap(cudaVars* vars, complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
+void addWrap(cudaVars* vars, complexFormat* a, complexFormat* b, Real c = 1);
+void addWrap(cudaVars* vars, complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
+void applyRandomPhaseWrap(cudaVars* vars, complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
+void multiplyWrap(cudaVars* vars, complexFormat* source, complexFormat* target);
+void multiplyRealWrap(cudaVars* vars, Real* store, complexFormat* source, complexFormat* target);
+void multiplyWrap(cudaVars* vars, complexFormat* store, complexFormat* source, complexFormat* target);
 void init_fft(int rows, int cols);
 template <typename T>
 __global__ void cudaConvertFO(cudaVars* vars, T* data){
@@ -43,6 +43,10 @@ __global__ void cudaConvertFO(cudaVars* vars, T* data){
   T tmp = data[index];
   data[index]=data[indexp];
   data[indexp]=tmp;
+}
+template <typename T>
+void cudaConvertFOWrap(cudaVars* vars, T* data){
+  cudaConvertFO<<<numBlocks,threadsPerBlock>>>(vars,data);
 }
 
 template <typename T>
@@ -58,6 +62,10 @@ __global__ void cudaConvertFO(cudaVars* vars, T* data, T* out){
   out[index]=data[indexp];
   out[indexp]=tmp;
 }
+template <typename T>
+void cudaConvertFOWrap(cudaVars* vars, T* data, T* out){
+  cudaConvertFO<<<numBlocks,threadsPerBlock>>>(vars,data,out);
+}
 
 template <typename T>
 __global__ void zeroEdge(cudaVars* vars, T* a, int n){
@@ -65,25 +73,33 @@ __global__ void zeroEdge(cudaVars* vars, T* a, int n){
   if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
     a[index] = T();
 }
+template <typename T>
+void zeroEdgeWrap(cudaVars* vars, T* a, int n){
+  zeroEdge<<<numBlocks,threadsPerBlock>>>(vars,a,n);
+}
 
 template <typename T1, typename T2>
 __global__ void assignVal(cudaVars* vars, T1* out, T2* input){
   cudaIdx()
 	out[index] = input[index];
 }
-
-template <typename T>
-__global__ void crop(cudaVars* vars, T* src, T* dest, int row, int col){
-  cudaIdx()
-	int targetindex = (x+(row-cuda_row)/2)*col + y+(col-cuda_column)/2;
-	dest[index] = src[targetindex];
+template <typename T1, typename T2>
+void assignValWrap(cudaVars* vars, T1* out, T2* input){
+  assignVal<<<numBlocks,threadsPerBlock>>>(vars,out,input);
 }
+
 template <typename T>
 __global__ void crop(cudaVars* vars, T* src, T* dest, int row, int col, Real midx, Real midy){
   cudaIdx()
 	int targetindex = (x+(row-cuda_row)/2+int(row*midx))*col + y+(col-cuda_column)/2+int(col*midy);
 	dest[index] = src[targetindex];
 }
+
+template <typename T>
+void cropWrap(cudaVars* vars, T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0){
+  crop<<<numBlocks,threadsPerBlock>>>(vars,src,dest,row,col,midx,midy);
+}
+
 
 template <typename T>
 __global__ void pad(cudaVars* vars, T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0){
@@ -96,6 +112,10 @@ __global__ void pad(cudaVars* vars, T* src, T* dest, int row, int col, int shift
 	}
 	int targetindex = (x-marginx)*col + y-marginy;
 	dest[index] = src[targetindex];
+}
+template <typename T>
+void padWrap(cudaVars* vars, T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0){
+  pad<<<numBlocks,threadsPerBlock>>>(vars, src, dest, row, col, shiftx, shifty);
 }
 
 template <typename T>
@@ -112,6 +132,10 @@ __global__ void refine(cudaVars* vars, T* src, T* dest, int refinement){
 		+((y<cuda_column-refinement)?src[indexld]*(1-dx)*dy:0)
 		+((x<cuda_row-refinement)?src[indexru]*dx*(1-dy):0)
 		+((y<cuda_column-refinement&&x<cuda_row-refinement)?src[indexrd]*dx*dy:0);
+}
+template <typename T>
+void refineWrap(cudaVars* vars, T* src, T* dest, int refinement){
+  refine<<<numBlocks,threadsPerBlock>>>(vars,src,dest,refinement);
 }
 
 
@@ -147,5 +171,10 @@ __global__ void createMask(cudaVars* vars, Real* data, sptType* spt, bool isFreq
     else y+=cuda_column/2;
   }
   data[index]=spt->isInside(x,y);
+}
+
+template <typename sptType>
+void createMaskWrap(cudaVars* vars, Real* data, sptType* spt, bool isFrequency=0){
+  createMask<<<numBlocks,threadsPerBlock>>>(vars,data,spt,isFrequency);
 }
 #endif

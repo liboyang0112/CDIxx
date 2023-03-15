@@ -41,7 +41,7 @@ void matrixGen(Sparse *matrix, int rows, int cols, int paddingx, int paddingy, f
   for(int shiftx = -widthx; shiftx <= widthx; shiftx++){
     for(int shifty = -widthy; shifty <= widthy; shifty++){
       //if(abs(shiftx)>2 && abs(shifty)>2) continue;
-      cudaF(calcElement, cuda_matrix, shiftx, shifty, paddingx, paddingy);
+      calcElement<<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_matrix, shiftx, shifty, paddingx, paddingy);
       cudaMemcpy(matrixEle, cuda_matrix, sz, cudaMemcpyDeviceToHost);
       for(int index = 0; index < rows*cols; index ++){
         if(fabs(matrixEle[index]) > 1e-5){

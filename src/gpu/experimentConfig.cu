@@ -1,33 +1,34 @@
 #include "experimentConfig.h"
 #include "cudaConfig.h"
 
-__global__ void multiplyPatternPhase_Device(cudaVars* vars, complexFormat* amp, Real r_d_lambda, Real d_r_lambda){ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
+// pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
+cuFunc(multiplyPatternPhase_Device,(cudaVars* vars, complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(vars,amp,r_d_lambda,d_r_lambda),{
   cudaIdx()
   Real phase = (pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2))*r_d_lambda+d_r_lambda;
   complexFormat p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
-}
+})
 
-__global__ void multiplyPatternPhaseOblique_Device(cudaVars* vars, complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta){ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
+cuFunc(multiplyPatternPhaseOblique_Device,(cudaVars* vars, complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(vars,amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
   cudaIdx()
   Real phase = (pow((x-(cuda_row>>1)*costheta),2)+pow(y-(cuda_column>>1),2))*r_d_lambda+d_r_lambda;
   complexFormat p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
-}
+})
 
-__global__ void multiplyFresnelPhase_Device(cudaVars* vars, complexFormat* amp, Real phaseFactor){ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
+cuFunc(multiplyFresnelPhase_Device,(cudaVars* vars, complexFormat* amp, Real phaseFactor),(vars,amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
   cudaIdx()
   Real phase = phaseFactor*(pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2));
   complexFormat p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
-}
+})
 
-__global__ void multiplyFresnelPhaseOblique_Device(cudaVars* vars, complexFormat* amp, Real phaseFactor, Real costheta_r){ // costheta_r = 1./costheta = r/z
+cuFunc(multiplyFresnelPhaseOblique_Device,(cudaVars* vars, complexFormat* amp, Real phaseFactor, Real costheta_r),(vars,amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
   cudaIdx()
   Real phase = phaseFactor*(pow((x-(cuda_row>>1))*costheta_r,2)+pow(y-(cuda_column>>1),2));
   complexFormat p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
-}
+})
 
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
   cudaF(multiplyFresnelPhase_Device,(complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/cudaVarLocal->rows/cudaVarLocal->cols));
@@ -38,14 +39,14 @@ void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
   cudaF(multiplyPatternPhase_Device,(complexFormat*)field, M_PI*lambda*d/(imagesize*imagesize), 2*d*M_PI/lambda - M_PI/2);
 }
 
-__global__ void multiplyPropagatePhase(cudaVars* vars, complexFormat* amp, Real a, Real b){
+cuFunc(multiplyPropagatePhase,(cudaVars* vars, complexFormat* amp, Real a, Real b),(vars,amp,a,b),{
   cudaIdx();
   complexFormat phasefactor;
   Real phase = a*sqrt(1-(pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2))*b);
   phasefactor.x = cos(phase);
   phasefactor.y = sin(phase);
   amp[index] = cuCmulf(amp[index],phasefactor);
-}
+})
 void angularSpectrumPropagate(void* field, Real imagesize_over_lambda, Real z_over_lambda){
   myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_FORWARD);
   cudaF(applyNorm,(complexFormat*)field, 1./(cudaVarLocal->rows*cudaVarLocal->cols));

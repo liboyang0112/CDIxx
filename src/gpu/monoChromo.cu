@@ -10,10 +10,10 @@ int nearestEven(Real x){
   return round(x/2)*2;
 }
 
-__global__ void multiplyReal(cudaVars* vars, complexFormat* a, complexFormat* b, Real* c){
+cuFunc(multiplyReal,(cudaVars* vars, complexFormat* a, complexFormat* b, Real* c),(vars,a,b,c),{
   cudaIdx();
   c[index] = a[index].x*b[index].x;
-}
+})
 
 void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* spectra_){
   nlambda = nlambda_;
@@ -36,7 +36,7 @@ Real monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real 
   column = ncol;
   Real currentLambda = 1;
   int currentPoint = 0;
-  int jump = 3;
+  int jump = 10;
   Real stepsize = 2./row*jump;
   nlambda = (endlambda-1)/stepsize+1;
   spectra = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
@@ -126,12 +126,12 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   memMngr.returnCache(d_intensity);
   memMngr.returnCache(d_patternAmp);
 }
-__global__ void printpix(cudaVars* vars, Real* input, int x, int y){
+cuFunc(printpix,(cudaVars* vars, Real* input, int x, int y),(vars,input,x,y),{
   printf("%f", input[x*vars->cols+y]);
-}
-__global__ void printpixreal(cudaVars* vars, complexFormat* input, int x, int y){
+})
+cuFunc(printpixreal,(cudaVars* vars, complexFormat* input, int x, int y),(vars,input,x,y),{
   printf("%f,", input[x*vars->cols+y].x);
-}
+})
 
 void* createCache(void* b){
   size_t sz = memMngr.getSize(b);

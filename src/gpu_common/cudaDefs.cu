@@ -20,6 +20,7 @@ void init_cuda_image(int rows, int cols, int rcolor, Real scale){
     numBlocks.y=(cols-1)/threadsPerBlock.y+1;
     if(scale==scale) cudaVarLocal->scale = scale;
     if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
+    else cudaVarLocal->rcolor=65535;
     cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
     return;
   }
