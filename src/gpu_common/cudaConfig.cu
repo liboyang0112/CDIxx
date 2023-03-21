@@ -108,6 +108,11 @@ cuFunc(add,(Real* a, Real* b, Real c),(a,b,c),{
   a[index]+=b[index]*c;
 })
 
+cuFunc(add,(Real* store, Real* a, Real* b, Real c),(store, a,b,c),{
+  cudaIdx()
+  store[index] = a[index]+b[index]*c;
+})
+
 cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty),(d_intensity,d_phase,objectWave,row,col,shiftx,shifty),{
   cudaIdx()
   int marginx = (cuda_row-row)/2+shiftx;

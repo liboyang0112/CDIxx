@@ -141,6 +141,8 @@ target_link_libraries(readHj_cu monoChromo_cu_lib)
 target_link_libraries(mwlholo_cu monoChromo_cu_lib)
 target_link_libraries(mwlholo_cu cdi_cu_lib)
 target_link_libraries(holo_cu holo_cu_lib)
+target_link_libraries(testFISTA_cu FISTA_cu_lib)
+target_link_libraries(testFISTA_cu cdi_cu_lib)
 
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )

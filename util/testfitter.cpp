@@ -41,7 +41,7 @@ int main(){
   vectors[0][0] = 1;
   vectors[0][1] = 0;
   vectors[1][0] = 1;
-  vectors[1][1] = 0.0001;
+  vectors[1][1] = 2;
   Real right[N] = {0,59};
   Real* out = (Real*) ccmemMngr.borrowCache(N*sizeof(Real));
   Fit(out, N, (void**)vectors, right, innerProd, mult, add, createCache, deleteCache);

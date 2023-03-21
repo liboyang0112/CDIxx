@@ -10,6 +10,7 @@
 #define myCufftExecR2C cufftExecR2C
 void forcePositiveWrap(cudaVars* vars, complexFormat* a);
 void addWrap(cudaVars* vars, Real* a, Real* b, Real c = 1);
+void addWrap(cudaVars* vars, Real* store, Real* a, Real* b, Real c = 1);
 void extendToComplexWrap(cudaVars* vars, Real* a, complexFormat* b);
 void applyNormWrap(cudaVars* vars, complexFormat* data, Real factor);
 void applyNormWrap(cudaVars* vars, Real* data, Real factor);
