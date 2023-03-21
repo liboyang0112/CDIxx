@@ -3,16 +3,18 @@
 #include <cufft.h>
 #include "format.h"
 #include "memManager.h"
+#define addVarArg(x...) cudaVars* vars, x
+#define addVar(x...) vars, x
 #define cuFunc(name,args,param,content...)\
-__global__ void name args content \
-void name##Wrap args{\
-  name<<<numBlocks, threadsPerBlock>>>param;\
+__global__ void name(addVarArg args) content \
+void name##Wrap(addVarArg args){\
+  name<<<numBlocks, threadsPerBlock>>>(addVar param);\
 }
-#define addSize(args...) size_t size,args
+#define addSize(args...) size_t size, args
 #define cuFuncShared(name,args,param,content...)\
-__global__ void name args content \
-void name##Wrap( addSize args ){\
-  name<<<numBlocks, threadsPerBlock, size>>>param;\
+__global__ void name(addVarArg args) content \
+void name##Wrap( addSize(addVarArg args) ){\
+  name<<<numBlocks, threadsPerBlock, size>>>(addVar param);\
 }
 
 #define cudaF(funcname, ...) funcname##Wrap (cudaVar,__VA_ARGS__)

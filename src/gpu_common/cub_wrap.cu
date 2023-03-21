@@ -99,21 +99,21 @@ Real findSum(Real* d_in, int num, bool debug=false)
   return output;
 }
 
-cuFunc(multiplyx,(cudaVars* vars, complexFormat* object, Real* out),(vars,object,out),{
+cuFunc(multiplyx,(complexFormat* object, Real* out),(object,out),{
   cudaIdx();
   out[index] = cuCabsf(object[index]) * (Real(x)/cuda_row-0.5);
 })
 
-cuFunc(multiplyy,(cudaVars* vars, complexFormat* object, Real* out),(vars,object,out),{
+cuFunc(multiplyy,(complexFormat* object, Real* out),(object,out),{
   cudaIdx();
   out[index] = cuCabsf(object[index]) * (Real(y)/cuda_column-0.5);
 })
-cuFunc(multiplyx,(cudaVars* vars, Real* object, Real* out),(vars,object,out),{
+cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
   cudaIdx();
   out[index] = object[index] * (Real(x)/cuda_row-0.5);
 })
 
-cuFunc(multiplyy,(cudaVars* vars, Real* object, Real* out),(vars,object,out),{
+cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
   cudaIdx();
   out[index] = object[index] * (Real(y)/cuda_column-0.5);
 })

@@ -32,13 +32,13 @@ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
 }
 
 Real gaussian_norm(Real x, Real y, Real sigma);
-cuFunc(applySupport,(cudaVars* vars, Real* image, Real* support),(vars,image,support),{
+cuFunc(applySupport,(Real* image, Real* support),(image,support),{
   cudaIdx();
   if(support[index] > vars->threshold) image[index] = 0;
 })
 
 
-cuFunc(multiplyProbe,(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(vars,object,probe,U,shiftx,shifty,objrow,objcol,window),{
+cuFunc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(object,probe,U,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   complexFormat tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -47,7 +47,7 @@ cuFunc(multiplyProbe,(cudaVars* vars, complexFormat* object, complexFormat* prob
   U[index] = cuCmulf(probe[index], tmp);
 })
 
-cuFunc(getWindow,(cudaVars* vars, complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(vars,object,shiftx,shifty,objrow,objcol,window),{
+cuFunc(getWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(object,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   complexFormat tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -55,7 +55,7 @@ cuFunc(getWindow,(cudaVars* vars, complexFormat* object, int shiftx, int shifty,
   window[index] = tmp;
 })
 
-cuFunc(updateWindow,(cudaVars* vars, complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(vars,object,shiftx,shifty,objrow,objcol,window),{
+cuFunc(updateWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(object,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
   object[(x+shiftx)*objcol+y+shifty] = window[index];
@@ -78,12 +78,12 @@ __device__ void rPIE(complexFormat &target, complexFormat source, complexFormat 
   target.y -= source.y*denom;
 }
 
-cuFunc(updateObject,(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(vars,object,probe,U,mod2maxProbe),{
+cuFunc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(object,probe,U,mod2maxProbe),{
   cudaIdx()
   rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
-cuFunc(updateObjectAndProbe,(cudaVars* vars, complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(vars,object,probe,U,mod2maxProbe,mod2maxObj),{
+cuFunc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(object,probe,U,mod2maxProbe,mod2maxObj),{
   cudaIdx()
   complexFormat objectdat= object[index];
   complexFormat diff= U[index];
@@ -91,14 +91,14 @@ cuFunc(updateObjectAndProbe,(cudaVars* vars, complexFormat* object, complexForma
   rPIE(probe[index], objectdat, diff, mod2maxObj, BETA);
 })
 
-cuFunc(random,(cudaVars* vars, complexFormat* object, curandStateMRG32k3a *state),(vars,object,state),{
+cuFunc(random,(complexFormat* object, curandStateMRG32k3a *state),(object,state),{
   cudaIdx()
   curand_init(1,index,0,&state[index]);
   object[index].x = curand_uniform(&state[index]);
   object[index].y = curand_uniform(&state[index]);
 })
 
-cuFunc(pupilFunc,(cudaVars* vars, complexFormat* object),(vars,object),{
+cuFunc(pupilFunc,(complexFormat* object),(object),{
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
@@ -106,26 +106,26 @@ cuFunc(pupilFunc,(cudaVars* vars, complexFormat* object),(vars,object),{
   object[index].y = 0;
 })
 
-cuFunc(multiplyShift,(cudaVars* vars, complexFormat* object, Real shiftx, Real shifty),(vars,object,shiftx,shifty),{
+cuFunc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(object,shiftx,shifty),{
   cudaIdx();
   Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
   complexFormat tmp = {cos(phi),sin(phi)};
   object[index] = cuCmulf(object[index],tmp);
 })
 
-cuFunc(multiplyx,(cudaVars* vars, complexFormat* object),(vars,object),{
+cuFunc(multiplyx,(complexFormat* object),(object),{
   cudaIdx();
   object[index].x *= Real(x)/cuda_row-0.5;
   object[index].y *= Real(x)/cuda_row-0.5;
 })
 
-cuFunc(multiplyy,(cudaVars* vars, complexFormat* object),(vars,object),{
+cuFunc(multiplyy,(complexFormat* object),(object),{
   cudaIdx();
   object[index].x *= Real(y)/cuda_row-0.5;
   object[index].y *= Real(y)/cuda_row-0.5;
 })
 
-cuFunc(calcPartial,(cudaVars* vars, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(vars,object,Fn,pattern,beamstop),{
+cuFunc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(object,Fn,pattern,beamstop),{
   cudaIdx();
   if(beamstop[index] > 0.5){
     object[index].x = 0;

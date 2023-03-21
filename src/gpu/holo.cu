@@ -2,19 +2,27 @@
 #include "common.h"
 #include "cuPlotter.h"
 
-cuFunc(applySupportBar,(cudaVars* vars, complexFormat* img, Real* spt),(vars,img,spt),{
+cuFunc(applySupportBar,(complexFormat* img, Real* spt),(img,spt),{
   cudaIdx();
   if(spt[index] > vars->threshold)
     img[index].x = img[index].y = 0;
 })
 
-cuFunc(applySupport,(cudaVars* vars, complexFormat* img, Real* spt),(vars,img,spt),{
+cuFunc(applySupportBar_Flip,(complexFormat* img, Real* spt),(img,spt),{
+  cudaIdx();
+  if(spt[index] > vars->threshold){
+    img[index].x *= -0.3;
+    img[index].y *= -0.3;
+  }
+})
+
+cuFunc(applySupport,(complexFormat* img, Real* spt),(img,spt),{
   cudaIdx();
   if(spt[index] < vars->threshold)
     img[index].x = img[index].y = 0;
 })
 
-cuFunc(dillate, (cudaVars* vars, complexFormat* data, Real* support, int wid, int hit), (vars,data,support,wid,hit),{
+cuFunc(dillate, (complexFormat* data, Real* support, int wid, int hit), (data,support,wid,hit),{
   cudaIdx();
   if(abs(data[index].y) < 0.5 && abs(data[index].y) < 0.5) return;
   int idxp = 0;
@@ -26,11 +34,10 @@ cuFunc(dillate, (cudaVars* vars, complexFormat* data, Real* support, int wid, in
     idxp++;
   }
 })
-cuFunc(applyModCorr, (cudaVars* vars, complexFormat* obj, complexFormat* refer, Real* xcorrelation),(vars,obj,refer,xcorrelation),{
+cuFunc(applyModCorr, (complexFormat* obj, complexFormat* refer, Real* xcorrelation),(obj,refer,xcorrelation),{
   cudaIdx();
   complexFormat objtmp = obj[index];
   complexFormat reftmp = refer[index];
-  Real maximum = vars->scale*0.99;
   Real fact = xcorrelation[index]/2 - reftmp.x*objtmp.x - reftmp.y*objtmp.y;
   fact /= reftmp.x*reftmp.x + reftmp.y*reftmp.y;
   obj[index].x = objtmp.x + fact*reftmp.x;
@@ -80,57 +87,64 @@ void holo::simulate(){
   init();
   prepareIter();
   allocateMem_holo();
-  Real* intensity = readImage(pupil.Intensity.c_str(), objrow, objcol);
-  size_t sz = objrow*objcol*sizeof(Real);
-  Real* d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
-  cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
-  ccmemMngr.returnCache(intensity);
-  Real* d_phase = 0;
-  if(phaseModulation_pupil) {
-    int tmprow,tmpcol;
-    Real* phase = readImage(pupil.Phase.c_str(), tmprow,tmpcol);
-    d_phase = (Real*)memMngr.borrowCache(sz);
-    size_t tmpsz = tmprow*tmpcol*sizeof(Real);
+  if(runSim){
+    Real* intensity = readImage(pupil.Intensity.c_str(), objrow, objcol);
+    size_t sz = objrow*objcol*sizeof(Real);
+    Real* d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
+    cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
+    ccmemMngr.returnCache(intensity);
+    Real* d_phase = 0;
+    if(phaseModulation_pupil) {
+      int tmprow,tmpcol;
+      Real* phase = readImage(pupil.Phase.c_str(), tmprow,tmpcol);
+      d_phase = (Real*)memMngr.borrowCache(sz);
+      size_t tmpsz = tmprow*tmpcol*sizeof(Real);
 
-    if(tmpsz!=sz){
-      Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
-      gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
-      init_cuda_image(objrow, objcol);
-      if(tmpsz > sz){
-        cudaF(crop,d_phasetmp, d_phase, tmprow, tmpcol);
-      }else{
-        cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
+      if(tmpsz!=sz){
+        Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
+        gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
+        init_cuda_image(objrow, objcol);
+        if(tmpsz > sz){
+          cudaF(crop,d_phasetmp, d_phase, tmprow, tmpcol);
+        }else{
+          cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
+        }
+        memMngr.returnCache(d_phasetmp);
       }
-      memMngr.returnCache(d_phasetmp);
+      else {
+        gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
+      }
+      ccmemMngr.returnCache(phase);
     }
-    else {
-      gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
-    }
-    ccmemMngr.returnCache(phase);
+    init_cuda_image(row, column);
+    cudaF(createWaveFront, d_intensity, d_phase, objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2);
+    cudaF(add, objectWave_holo, (complexFormat*)objectWave, 1);
+    plt.plotComplex(objectWave_holo, MOD2, 0, 1, "input");
+    plt.plotComplex(objectWave_holo, PHASE, 0, 1, "input_phase");
+    propagate(objectWave_holo, patternWave_holo, 1);
+    cudaF(getMod2, patternData_holo, patternWave_holo);
+    plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPattern");
+  }else{
+    objrow = objcol = 150;
   }
-  init_cuda_image(row, column);
-  cudaF(createWaveFront, d_intensity, d_phase, objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2);
-  cudaF(add, objectWave_holo, (complexFormat*)objectWave, 1);
-  plt.plotComplex(objectWave_holo, MOD2, 0, 1, "input");
-  plt.plotComplex(objectWave_holo, PHASE, 0, 1, "input_phase");
-  if(doIteration) phaseRetrieve();
-  else propagate(patternWave, objectWave, 0);
-  propagate(objectWave_holo, patternWave_holo, 1);
-  cudaF(getMod2, patternData_holo, patternWave_holo);
-  plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPattern");
-  if(simCCDbit) {
+  if(!runSim || simCCDbit) {
     Real* intensity = readImage("holoPattern.png", row, column);
     cudaMemcpy(patternData_holo, intensity, memMngr.getSize(patternData_holo), cudaMemcpyHostToDevice);
     ccmemMngr.returnCache(intensity);
-    cudaF(applyPoissonNoise_WO, patternData_holo, noiseLevel, devstates, 1);
+    if(runSim) cudaF(applyPoissonNoise_WO, patternData_holo, noiseLevel, devstates, 1);
+    else init_cuda_image(row, column);
     cudaF(applyNorm, patternData_holo, 1./exposurepupil);
     cudaF(cudaConvertFO, patternData_holo);
   }
+  if(doIteration) phaseRetrieve();
+  else propagate(patternWave, objectWave, 0);
   calcXCorrelation();
   iterate();
 };
 void holo::iterate(){
   cudaMemset(patternWave_obj, 0, memMngr.getSize(patternWave_obj));
+  //cudaF(add, patternData_holo, xcorrelation, -1);
+  //cudaF(add, patternData_holo, patternData, -1);
   for(int iter = 0; iter < nIter; iter++){
     cudaF(applyModCorr, patternWave_obj, patternWave, xcorrelation);
     cudaF(add, patternWave_obj, patternWave, 1);
@@ -138,7 +152,7 @@ void holo::iterate(){
     cudaF(add, patternWave_obj, patternWave, -1);
     myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_INVERSE);
     cudaF(applyNorm, patternWave_obj, 1./(row*column));
-    cudaF(applySupportBar, patternWave_obj, support_holo);
+    cudaF(applySupportBar_Flip, patternWave_obj, support_holo);
     myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_FORWARD);
   }
   propagate(patternWave_obj,objectWave_holo,0);

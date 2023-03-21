@@ -16,7 +16,7 @@
 
 #include "cdi.h"
 
-cuFunc(applyESWSupport,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(vars,ESW,ISW,ESWP,length),{
+cuFunc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(ESW,ISW,ESWP,length),{
   cudaIdx()
     auto tmp = ISW[index];
   auto tmp2 = ESWP[index];
@@ -44,7 +44,7 @@ cuFunc(applyESWSupport,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW, 
      length[index] = 1;
    */
 })
-cuFunc(initESW,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp),(vars,ESW,mod,amp),{
+cuFunc(initESW,(complexFormat* ESW, Real* mod, complexFormat* amp),(ESW,mod,amp),{
   cudaIdx()
     auto tmp = amp[index];
   if(cuCabsf(tmp)<=1e-10) {
@@ -60,7 +60,7 @@ cuFunc(initESW,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* am
   ESW[index].x = factor*tmp.x;
   ESW[index].y = factor*tmp.y;
 })
-cuFunc(applyESWMod,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel),(vars,ESW,mod,amp,noiseLevel),{
+cuFunc(applyESWMod,(complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel),(ESW,mod,amp,noiseLevel),{
   cudaIdx()
     Real tolerance = 0;//1./vars->rcolor*vars->scale+1.5*sqrtf(noiseLevel)/vars->rcolor; // fluctuation caused by bit depth and noise
   auto tmp = amp[index];
@@ -85,7 +85,7 @@ cuFunc(applyESWMod,(cudaVars* vars, complexFormat* ESW, Real* mod, complexFormat
   ESW[index].y = factor*sum.y-tmp.y;
 })
 
-cuFunc(calcESW,(cudaVars* vars, complexFormat* sample, complexFormat* ISW),(vars,sample,ISW),{
+cuFunc(calcESW,(complexFormat* sample, complexFormat* ISW),(sample,ISW),{
   cudaIdx()
     complexFormat tmp = sample[index];
   tmp.x = -tmp.x;  // Here we reverse the image, use tmp.x = tmp.x - 1 otherwise;
@@ -95,7 +95,7 @@ cuFunc(calcESW,(cudaVars* vars, complexFormat* sample, complexFormat* ISW),(vars
   sample[index]=cuCmulf(tmp,ISW[index]);
 })
 
-cuFunc(calcO,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW),(vars,ESW,ISW),{
+cuFunc(calcO,(complexFormat* ESW, complexFormat* ISW),(ESW,ISW),{
   cudaIdx()
     if(cuCabsf(ISW[index])<1e-4) {
       ESW[index].x = 0;
@@ -112,7 +112,7 @@ cuFunc(calcO,(cudaVars* vars, complexFormat* ESW, complexFormat* ISW),(vars,ESW,
   ESW[index].y=tmp.y;
 })
 
-cuFunc(applyAutoCorrelationMod,(cudaVars* vars, complexFormat* source,complexFormat* target, Real *bs = 0),(vars,source,target,bs),{
+cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Real *bs = 0),(source,target,bs),{
   cudaIdx()
   Real targetdata = target[index].x;
   Real retval = targetdata;

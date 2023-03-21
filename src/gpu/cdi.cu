@@ -28,7 +28,7 @@ Real gaussian_norm(Real x, Real y, Real sigma){
   return 1./(2*M_PI*sigma*sigma)*gaussian(x,y,sigma);
 }
 
-cuFunc(takeMod2Diff,(cudaVars* vars, complexFormat* a, Real* b, Real *output, Real *bs),(vars,a,b,output,bs),{
+cuFunc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(a,b,output,bs),{
   cudaIdx()
     Real mod2 = pow(a[index].x,2)+pow(a[index].y,2);
   Real tmp = b[index]-mod2;
@@ -37,7 +37,7 @@ cuFunc(takeMod2Diff,(cudaVars* vars, complexFormat* a, Real* b, Real *output, Re
   output[index] = tmp;
 })
 
-cuFunc(takeMod2Sum,(cudaVars* vars, complexFormat* a, Real* b),(vars,a,b),{
+cuFunc(takeMod2Sum,(complexFormat* a, Real* b),(a,b),{
   cudaIdx()
     Real tmp = b[index]+pow(a[index].x,2)+pow(a[index].y,2);
   if(tmp<0) tmp=0;
@@ -276,8 +276,8 @@ void CDI::createSupport(){
   rect re;
   re.startx = (oversampling_spt-1)/2*row/oversampling_spt-1;
   re.starty = (oversampling_spt-1)/2*column/oversampling_spt-1;
-  re.endx = row-re.startx-2;
-  re.endy = column-re.starty-2;
+  re.endx = row-re.startx;
+  re.endy = column-re.starty;
   cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
   cudaMemcpy(cuda_spt, &re, sizeof(rect), cudaMemcpyHostToDevice);
   support = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
@@ -295,7 +295,7 @@ void CDI::saveState(){
   ccmemMngr.returnCache(outputData);
 }
 
-cuFunc(applySupportOblique,(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1),(vars,gkp1,gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
+cuFunc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1),(gkp1,gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
   cudaIdx()
     bool inside = spt[index] > vars->threshold;
   complexFormat &gkp1data = gkp1[index];
@@ -315,7 +315,7 @@ cuFunc(applySupportOblique,(cudaVars* vars, complexFormat *gkp1, complexFormat *
 })
 
 
-cuFunc(applySupport,(cudaVars* vars, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0),(vars,gkp1,gkprime,algo,spt,iter,fresnelFactor),{
+cuFunc(applySupport,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0),(gkp1,gkprime,algo,spt,iter,fresnelFactor),{
 
   cudaIdx()
     bool inside = spt[index] > vars->threshold;
@@ -377,16 +377,15 @@ complexFormat* CDI::phaseRetrieve(){
           gaussianKernel =  (Real*) ccmemMngr.borrowCache(kernelsz);
         }
         Real total = 0;
-        Real weight;
         for(int i = 0; i < width*width; i++) {
-          weight = gaussian((i/width-size),i%width-size, gaussianSigma);
-          total+= weight;
-          gaussianKernel[i] = weight;
+          gaussianKernel[i] = gaussian((i/width-size),i%width-size, gaussianSigma);
+          total+= gaussianKernel[i];
         }
-        for(int i = 0; i < width*width; i++)
+        for(int i = 0; i < width*width; i++){
           gaussianKernel[i] /= total;
+        }
         cudaMemcpy(d_gaussianKernel, gaussianKernel, kernelsz, cudaMemcpyHostToDevice);
-        cudaFShared(applyConvolution,pow(size*2+threadsPerBlock.x,2)*sizeof(Real),cuda_objMod, support, d_gaussianKernel, size, size);
+        cudaFShared(applyConvolution,(pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real),cuda_objMod, support, d_gaussianKernel, size, size);
 
         cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
         cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
@@ -427,6 +426,7 @@ complexFormat* CDI::phaseRetrieve(){
       propagate(cuda_gkprime, cuda_gkprime, 1);
       plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
     }
+  plt.plotFloat(support, MOD, 0, 1, "support", 0);
   cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
   plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);

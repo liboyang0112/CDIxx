@@ -8,12 +8,15 @@ class monoChromo{
     bool useOrth = 0;
     Real *spectra;  //normalized spectra
     Real *lambdas;  //normalized lambdas, 1 is the shortest
+    Real *pixel_weight;
+    int jump = 10;
     int nlambda;
     int *rows;
     int *cols;
     int row;
     int column;
     monoChromo(){};
+    void calcPixelWeights();
     void writeSpectra(const char* filename);
     void resetSpectra();
     void init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* spectra_);

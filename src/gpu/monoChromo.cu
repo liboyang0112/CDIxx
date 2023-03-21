@@ -6,11 +6,37 @@
 #include "cuPlotter.h"
 #include <fstream>
 #include <iostream>
+
+cuFunc(multiplyPixelWeight, (complexFormat* img, Real* weights),(img, weights),{
+  cudaIdx();
+  int shift = max(abs(x+0.5-cuda_row/2), abs(y+0.5-cuda_column/2));
+  img[index].x *= weights[shift];
+})
+
 int nearestEven(Real x){
   return round(x/2)*2;
 }
 
-cuFunc(multiplyReal,(cudaVars* vars, complexFormat* a, complexFormat* b, Real* c),(vars,a,b,c),{
+void monoChromo::calcPixelWeights(){
+  int sz = row/2*sizeof(Real);
+  Real* loc_pixel_weight = (Real*) ccmemMngr.borrowCache(sz);
+  memset(loc_pixel_weight, 0, sz);
+  for(int lmd = 0; lmd < nlambda; lmd++){
+    Real maxshift =  Real(row*row)/(2*(row+2*lmd*jump));
+    Real spectWeight = spectra[lmd];
+    for(int shift = 0; shift < maxshift; shift++){
+      loc_pixel_weight[shift] += spectWeight;
+    }
+  }
+  for(int shift = 0; shift < row/2; shift++){
+    loc_pixel_weight[shift] = pow(loc_pixel_weight[shift], -0.6);
+    printf("pixelweights: %f\n", loc_pixel_weight[shift]);
+  }
+  pixel_weight = (Real*) memMngr.borrowCache(sz);
+  cudaMemcpy(pixel_weight, loc_pixel_weight, sz, cudaMemcpyHostToDevice);
+}
+
+cuFunc(multiplyReal,(complexFormat* a, complexFormat* b, Real* c),(a,b,c),{
   cudaIdx();
   c[index] = a[index].x*b[index].x;
 })
@@ -30,13 +56,13 @@ void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* sp
     new((cufftHandle*)locplan+i)cufftHandle();
     cufftPlan2d ( (cufftHandle*)locplan+i, rows[i], cols[i], FFTformat);
   }
+  calcPixelWeights();
 }
 Real monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real endlambda){
   row = nrow;
   column = ncol;
   Real currentLambda = 1;
   int currentPoint = 0;
-  int jump = 10;
   Real stepsize = 2./row*jump;
   nlambda = (endlambda-1)/stepsize+1;
   spectra = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
@@ -82,6 +108,7 @@ Real monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real 
     new(&(((cufftHandle*)locplan)[i]))cufftHandle();
     cufftPlan2d ( &(((cufftHandle*)locplan)[i]), rows[i], cols[i], FFTformat);
   }
+  calcPixelWeights();
   return tot;
 }
 void monoChromo::resetSpectra(){
@@ -126,10 +153,10 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   memMngr.returnCache(d_intensity);
   memMngr.returnCache(d_patternAmp);
 }
-cuFunc(printpix,(cudaVars* vars, Real* input, int x, int y),(vars,input,x,y),{
+cuFunc(printpix,(Real* input, int x, int y),(input,x,y),{
   printf("%f", input[x*vars->cols+y]);
 })
-cuFunc(printpixreal,(cudaVars* vars, complexFormat* input, int x, int y),(vars,input,x,y),{
+cuFunc(printpixreal,(complexFormat* input, int x, int y),(input,x,y),{
   printf("%f,", input[x*vars->cols+y].x);
 })
 
@@ -165,20 +192,22 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   init_fft(row,column);
   init_cuda_image(row, column, 65536, 1);
   Real dt = 2;
-  Real friction = 0.2;//0.1;
-  if(restart) cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
+  Real friction = 0;//.2;//0.1;
+  if(restart) {
+    cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
+    cudaF(zeroEdge, (complexFormat*)d_output, 80);
+  }
   complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
   complexFormat *momentum = (complexFormat*)memMngr.borrowCache(sz);
   if(friction) cudaMemset(momentum, 0, sz);
   complexFormat *padded = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
-  complexFormat *deltabprev = 0;
+  complexFormat *deltabprev = (complexFormat*)memMngr.borrowCache(sz);
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
   Real *momentum_a = 0;
   float step_a = 0;
   ofstream fresidual;
   if(writeResidual) fresidual.open("residual.txt", ios::out);
   if(updateA){
-    deltabprev = (complexFormat*)memMngr.borrowCache(sz);
     cudaF(getMod2,multiplied, (complexFormat*)d_input);
     Real mod2ref = findSum(multiplied);
     printf("normalization: %f\n",mod2ref);
@@ -187,7 +216,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
     momentum_a = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
     memset(momentum_a,0,nlambda*sizeof(Real));
   }
-  Real stepsize = 1.;//0.5;
+  Real stepsize = 0.7;
   complexFormat *fbi;
   if(!updateX) {
     myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
@@ -274,11 +303,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
     }
     if(updateX){
-      if(friction){
-        cudaF(add,(complexFormat*)momentum, deltab, stepsize*spectra[0]);
-      }else{
-        cudaF(add,(complexFormat*)d_output, deltab, stepsize*spectra[0]);
-      }
+      cudaMemset(deltabprev, 0, sz);
+      cudaF(add, deltabprev, deltab, stepsize*spectra[0]);
       if(i==nIter-1) {
         plt.plotComplex(deltab, MOD, 0, 1, "residual", 1);
       }
@@ -293,15 +319,15 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         cudaF(cudaConvertFO,fbi);
         cudaF(applyNorm,fbi, 1./(row*column));
         myCufftExec( *plan, fbi, fbi, CUFFT_FORWARD);
-        if(friction){
-          cudaF(add,(complexFormat*)momentum, fbi, stepsize*spectra[j]);
-        }
-        else 
-          cudaF(add,(complexFormat*)d_output, fbi, stepsize*spectra[j]);
+        cudaF(add,(complexFormat*)deltabprev, fbi, stepsize*spectra[j]);
       }
+      cudaF(multiplyPixelWeight, deltabprev, pixel_weight);
       if(friction){
+        cudaF(add, (complexFormat*)momentum, deltabprev, 1);
         cudaF(applyNorm,(complexFormat*)momentum, 1-friction*dt);
         cudaF(add,(complexFormat*)d_output, momentum, dt);
+      }else{
+        cudaF(add, (complexFormat*)d_output, deltabprev, 1);
       }
       cudaF(forcePositive,(complexFormat*)d_output);
 
@@ -316,8 +342,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   }
   if(updateA){
     ccmemMngr.returnCache(momentum_a);
-    memMngr.returnCache(deltabprev);
   }
+  memMngr.returnCache(deltabprev);
   memMngr.returnCache(multiplied);
   memMngr.returnCache(momentum);
   memMngr.returnCache(padded);

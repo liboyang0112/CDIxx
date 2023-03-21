@@ -59,7 +59,7 @@ int main(int argc, char** argv )
     return -1;
   }
   vector<Mat> imagein;
-  int mergeDepth = 4;
+  int mergeDepth = 8;
   vector<Mat*> imageout;
   for(int i = 2 ; i < argc; i++){
     imagein.push_back( imread( argv[i], IMREAD_UNCHANGED ) );
