@@ -31,6 +31,7 @@ class experimentConfig : public readConfig{
     Real inverseFactorMid = 0;
     void createBeamStop();
     void propagate(void* datain, void* dataout, bool isforward);
+    void angularPropagate(void* datain, void* dataout, bool isforward);
     void multiplyPatternPhase(void* amp, Real distance);
     void multiplyPatternPhase_reverse(void* amp, Real distance);
     void multiplyFresnelPhase(void* amp, Real distance);
@@ -38,6 +39,6 @@ class experimentConfig : public readConfig{
     void multiplyFresnelPhase_factor(void* amp, Real factor);
     void calculateParameters();
 };
-void angularSpectrumPropagate(void* field, Real imagesize_over_lambda, Real z_over_lambda);
+void angularSpectrumPropagate(void* input, void* field, Real imagesize_over_lambda, Real z_over_lambda);
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize);
 #endif

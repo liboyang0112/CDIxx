@@ -47,8 +47,8 @@ cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{
   phasefactor.y = sin(phase);
   amp[index] = cuCmulf(amp[index],phasefactor);
 })
-void angularSpectrumPropagate(void* field, Real imagesize_over_lambda, Real z_over_lambda){
-  myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_FORWARD);
+void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambda, Real z_over_lambda){
+  myCufftExec(*plan, (complexFormat*)input, (complexFormat*)field, CUFFT_FORWARD);
   cudaF(applyNorm,(complexFormat*)field, 1./(cudaVarLocal->rows*cudaVarLocal->cols));
   cudaF(cudaConvertFO,(complexFormat*)field);
   cudaF(multiplyPropagatePhase,(complexFormat*)field, 2*M_PI*z_over_lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
@@ -68,6 +68,9 @@ void experimentConfig::createBeamStop(){
   beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
   cudaF(createMask,beamstop, cuda_spt,1);
   memMngr.returnCache(cuda_spt);
+}
+void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforward){
+  angularSpectrumPropagate(datain, dataout, beamspotsize*oversampling/lambda, (isforward?d:-d)/lambda);
 }
 void experimentConfig::propagate(void* datain, void* dataout, bool isforward){
   myCufftExec( *plan, (complexFormat*)datain, (complexFormat*)dataout, isforward? CUFFT_FORWARD: CUFFT_INVERSE);

@@ -4,6 +4,7 @@
 #include "common.h"
 #include "cub_wrap.h"
 #include "cuPlotter.h"
+#include "tvFilter.h"
 #include <fstream>
 #include <iostream>
 
@@ -182,6 +183,12 @@ Real innerProd(void* a, void* b){
   memMngr.returnCache(tmp);
   return sum;
 }
+
+void applyC(Real* input, Real* output){
+  cudaMemcpy(output, input, memMngr.getSize(input), cudaMemcpyDeviceToDevice);
+  cudaF(forcePositive, output);
+}
+
 void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter, bool updateX, bool updateA)
 {
   useOrth = 1;
@@ -192,7 +199,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   init_fft(row,column);
   init_cuda_image(row, column, 65536, 1);
   Real dt = 2;
-  Real friction = 0;//.2;//0.1;
+  Real friction = .2;//0.1;
   if(restart) {
     cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
     cudaF(zeroEdge, (complexFormat*)d_output, 80);
@@ -227,6 +234,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
     }
   }
   if(!gs) fbi = (complexFormat*)memMngr.borrowCache(sz);
+ // Real tk = 1;
   for(int i = 0; i < nIter; i++){
     bool updateAIter = (updateA&&(i%5==0) || updateX==0) && (i > 0);
     if(updateAIter){
@@ -321,7 +329,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         myCufftExec( *plan, fbi, fbi, CUFFT_FORWARD);
         cudaF(add,(complexFormat*)deltabprev, fbi, stepsize*spectra[j]);
       }
-      cudaF(multiplyPixelWeight, deltabprev, pixel_weight);
+      //cudaF(multiplyPixelWeight, deltabprev, pixel_weight);
       if(friction){
         cudaF(add, (complexFormat*)momentum, deltabprev, 1);
         cudaF(applyNorm,(complexFormat*)momentum, 1-friction*dt);
@@ -330,7 +338,17 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         cudaF(add, (complexFormat*)d_output, deltabprev, 1);
       }
       cudaF(forcePositive,(complexFormat*)d_output);
-
+      /* //FISTA update, not quite effective
+      cudaF(add, deltabprev, (complexFormat*)d_output, 1);
+      cudaF(getReal, (Real*)fbi,deltabprev);
+      FISTA((Real*)fbi, (Real*)deltabprev, 1e-6, 70, &applyC);
+      cudaF(extendToComplex, (Real*)deltabprev, fbi);
+      Real tmp = 0.5+sqrt(0.25+tk*tk);
+      Real fact1 = (tk-1)/tmp;
+      tk = tmp;
+      cudaF(applyNorm, (complexFormat*)d_output, -fact1);
+      cudaF(add, (complexFormat*)d_output, fbi, 1+fact1);
+      */
     }
     if(writeResidual) {
       cudaF(getMod2,multiplied, deltab);

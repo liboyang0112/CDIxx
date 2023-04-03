@@ -14,7 +14,7 @@
 #include "tvFilter.h"
 #include "cuPlotter.h"
 #include "cub_wrap.h"
-#include "cdi.h"
+#include "CCTV.h"
 
 
 //#define Bits 16
@@ -84,32 +84,16 @@ __device__ void ApplyPOSHIOSupport(bool insideS, complexFormat &rhonp1, complexF
   }
   rhonp1.y -= beta*rhoprime.y;
 }
-CDI::CDI(const char* configfile):experimentConfig(configfile){
+CCTV::CCTV(const char* configfile):experimentConfig(configfile){
   verbose(2, print())
     if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
 }
-void CDI::propagatepupil(complexFormat* datain, complexFormat* dataout, bool isforward){
-  myCufftExec( *plan, datain, dataout, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
-  cudaF(applyNorm,dataout, isforward? forwardFactorpupil: inverseFactorpupil);
-}
-void CDI::propagateMid(complexFormat* datain, complexFormat* dataout, bool isforward){
-  myCufftExec( *plan, datain, dataout, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
-  cudaF(applyNorm,dataout, isforward? forwardFactorMid: inverseFactorMid);
-}
-void CDI::multiplyPatternPhaseMid(complexFormat* amp, Real distance){
-  multiplyPatternPhase_factor(amp, resolution*resolution*M_PI/(distance*lambda), 2*distance*M_PI/lambda);
-}
-void CDI::multiplyFresnelPhaseMid(complexFormat* amp, Real distance){
-  Real fresfactor = M_PI*lambda*distance/(pow(resolution*row,2));
-  multiplyFresnelPhase_factor(amp, fresfactor);
-}
-void CDI::allocateMem(){
+void CCTV::allocateMem(){
   if(objectWave) return;
   printf("allocating memory\n");
   int sz = row*column*sizeof(Real);
   objectWave = (complexFormat*)memMngr.borrowCache(sz*2);
   patternWave = (complexFormat*)memMngr.borrowCache(sz*2);
-  autoCorrelation = (complexFormat*)memMngr.borrowCache(sz*2);
   patternData = (Real*)memMngr.borrowCache(sz);
   printf("initializing cuda image\n");
   init_cuda_image(row,column,rcolor,1./exposure);
@@ -117,7 +101,7 @@ void CDI::allocateMem(){
   printf("initializing cuda plotter\n");
   plt.init(row,column);
 }
-void CDI::readObjectWave(){
+void CCTV::readObjectWave(){
   if(domnist){
     row = column = 256;
     mnist_dat = new cuMnist(mnistData.c_str(), 3, row, column);
@@ -135,7 +119,7 @@ void CDI::readObjectWave(){
   if(d_phase) memMngr.returnCache(d_phase);
   if(d_intensity) memMngr.returnCache(d_intensity);
 }
-void CDI::readPattern(){
+void CCTV::readPattern(){
   Real* pattern = readImage(common.Pattern.c_str(), row, column);
   allocateMem();
   cudaMemcpy(patternData, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
@@ -144,24 +128,11 @@ void CDI::readPattern(){
   cudaF(applyNorm,patternData, 1./exposure);
   printf("Created pattern data\n");
 }
-void CDI::calculateParameters(){
+void CCTV::calculateParameters(){
   experimentConfig::calculateParameters();
-  if(dopupil) {
-    Real k = row*pow(pixelsize,2)/(lambda*d);
-    dpupil = d*k/(k+1);
-    resolution = lambda*dpupil/(row*pixelsize);
-    printf("Resolution=%4.2fum\n", resolution);
-    enhancementpupil = pow(pixelsize,2)*sqrt(row*column)/(lambda*dpupil); // this guarentee energy conservation
-    fresnelFactorpupil = lambda*dpupil/pow(pixelsize,2)/row/column;
-    forwardFactorpupil = fresnelFactorpupil*enhancementpupil;
-    inverseFactorpupil = 1./row/column/forwardFactorpupil;
-    enhancementMid = pow(resolution,2)*sqrt(row*column)/(lambda*(d-dpupil)); // this guarentee energy conservation
-    fresnelFactorMid = lambda*(d-dpupil)/pow(resolution,2)/row/column;
-    forwardFactorMid = fresnelFactorMid*enhancementMid;
-    inverseFactorMid = 1./row/column/forwardFactorMid;
-  }
+  oversampling_spt = oversampling = 1+d*lambda/pixelsize/pixelsize/row;
 }
-void CDI::readFiles(){
+void CCTV::readFiles(){
   if(runSim) {
     printf("running simulation, reading input images\n");
     readObjectWave();
@@ -170,18 +141,18 @@ void CDI::readFiles(){
     readPattern();
   }
 }
-void CDI::setPattern_c(void* pattern){
+void CCTV::setPattern_c(void* pattern){
   cudaF(cudaConvertFO,(complexFormat*)pattern,patternWave);
   cudaF(getMod2,patternData, patternWave);
   cudaF(applyRandomPhase,patternWave, useBS?beamstop:0, devstates);
 }
 
-void CDI::setPattern(void* pattern){
+void CCTV::setPattern(void* pattern){
   cudaF(cudaConvertFO,(Real*)pattern,patternData);
   cudaF(createWaveFront,patternData, 0, patternWave, 1);
   cudaF(applyRandomPhase,patternWave, useBS?beamstop:0, devstates);
 }
-void CDI::init(){
+void CCTV::init(){
   allocateMem();
   if(useBS) createBeamStop();
   calculateParameters();
@@ -191,7 +162,7 @@ void CDI::init(){
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   cudaF(initRand,devstates, seed);
 }
-void CDI::prepareIter(){
+void CCTV::prepareIter(){
   if(runSim) {
     if(domnist){
       void* intensity = memMngr.borrowCache(row*column*sizeof(Real));
@@ -206,11 +177,10 @@ void CDI::prepareIter(){
       if(phaseModulation) memMngr.returnCache(phase);
       initSupport();
     }
-    if(isFresnel) multiplyFresnelPhase(objectWave, d);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
     verbose(4,printf("Generating diffraction pattern\n"));
-    propagate(objectWave,patternWave, 1);
+    angularPropagate(objectWave, patternWave, 1);
     cudaF(getMod2,patternData, patternWave);
     if(simCCDbit){
       verbose(4,printf("Applying Poisson noise\n"));
@@ -232,19 +202,10 @@ void CDI::prepareIter(){
     cudaF(createWaveFront,patternData, 0, patternWave, 1);
     cudaF(applyRandomPhase,patternWave, useBS?beamstop:0, devstates);
   }
-  verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1));
-  plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0);
+  verbose(1,plt.plotFloat(patternData, MOD, 0, exposure, "init_logpattern", 1));
+  plt.plotFloat(patternData, MOD, 0, exposure, ("init_pattern"+save_suffix).c_str(), 0);
 }
-void CDI::checkAutoCorrelation(){
-  size_t sz = row*column*sizeof(Real);
-  auto tmp = (complexFormat*)memMngr.useOnsite(sz);
-  myCufftExecR2C( *planR2C, patternData, tmp);
-  cudaF(fillRedundantR2C,tmp, autoCorrelation, 1./sqrt(row*column));
-  plt.plotComplex(autoCorrelation, IMAG, 1, 1, "autocorrelation_imag", 1);
-  plt.plotComplex(autoCorrelation, REAL, 1, exposure, "autocorrelation_real", 1);
-  plt.plotComplex(autoCorrelation, MOD, 1, exposure, "autocorrelation", 1);
-}
-void CDI::createSupport(){
+void CCTV::createSupport(){
   rect re;
   re.startx = (oversampling_spt-1)/2*row/oversampling_spt-1;
   re.starty = (oversampling_spt-1)/2*column/oversampling_spt-1;
@@ -256,10 +217,10 @@ void CDI::createSupport(){
   cudaF(createMask,support, cuda_spt,0);
   memMngr.returnCache(cuda_spt);
 }
-void CDI::initSupport(){
+void CCTV::initSupport(){
   cudaF(createMask,support, cuda_spt,0);
 }
-void CDI::saveState(){
+void CCTV::saveState(){
   size_t sz = row*column*sizeof(complexFormat);
   void* outputData = ccmemMngr.borrowCache(sz);
   cudaMemcpy(outputData, patternWave, sz, cudaMemcpyDeviceToHost);
@@ -308,7 +269,7 @@ cuFunc(applySupport,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo
   }
 })
 
-complexFormat* CDI::phaseRetrieve(){
+complexFormat* CCTV::phaseRetrieve(){
   Real beta = -1;
   Real gammas = -1./beta;
   Real gammam = 1./beta;
@@ -333,7 +294,7 @@ complexFormat* CDI::phaseRetrieve(){
     if(ialgo<0) break;
     //start iteration
     cudaF(applyMod,patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
-    propagate(patternWave, cuda_gkprime, 0);
+    angularPropagate(patternWave, cuda_gkprime, 0);
     if(costheta == 1) cudaF(applySupport,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
     else cudaF(applySupportOblique,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0, 1./costheta);
     //update mask
@@ -368,14 +329,14 @@ complexFormat* CDI::phaseRetrieve(){
       }
       /*
       cudaF(getReal,cuda_objMod,cuda_gkp1);
-      FISTA(cuda_objMod, cuda_objMod, 2e-2, 1, 0);
+      FISTA(cuda_objMod, cuda_objMod, 1e-3, 20, 0);
       cudaF(assignReal, cuda_objMod,cuda_gkp1);
       cudaF(getImag,cuda_objMod,cuda_gkp1);
-      FISTA(cuda_objMod, cuda_objMod, 2e-2, 1, 0);
+      FISTA(cuda_objMod, cuda_objMod, 1e-3, 20, 0);
       cudaF(assignImag, cuda_objMod,cuda_gkp1);
       */
     }
-    propagate( cuda_gkp1, patternWave, 1);
+    angularPropagate( cuda_gkp1, patternWave, 1);
     if(iter%100==0) {
       std::string iterstr = to_string(iter);
       if(saveIter){
@@ -400,10 +361,11 @@ complexFormat* CDI::phaseRetrieve(){
   verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, 0))
     if(verbose >= 4){
       cudaF(cudaConvertFO,(complexFormat*)cuda_gkp1, cuda_gkprime);
-      propagate(cuda_gkprime, cuda_gkprime, 1);
+      angularPropagate(cuda_gkprime, cuda_gkprime, 1);
       plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
     }
   plt.plotFloat(support, MOD, 0, 1, "support", 0);
+  cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
   plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   auto mid = findMiddle(cuda_gkp1, row*column);
@@ -420,14 +382,6 @@ complexFormat* CDI::phaseRetrieve(){
 
   if(isFresnel) multiplyFresnelPhase(cuda_gkp1, -d);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
-  cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
-  cudaF(getMod2, cuda_objMod, patternWave);
-  cudaF(add, patternData, cuda_objMod, -1);
-  cudaF(add, cuda_objMod, patternData, 1);
-  plt.plotFloat(patternData, MOD, 1, exposure, "residual",1);
-  myCufftExecR2C( *planR2C, cuda_objMod, (complexFormat*)cuda_objMod);
-  cudaF(fillRedundantR2C,(complexFormat*)cuda_objMod, cuda_gkprime, 1./sqrt(row*column));
-  plt.plotComplex(cuda_gkprime, MOD, 1, exposure, "autocorrelation_recon", 1);
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
   memMngr.returnCache(cuda_diff);

@@ -18,7 +18,7 @@
 #include "cub_wrap.h"
 
 #define ALPHA 0.5
-#define BETA 0.5
+#define BETA 1
 #define DELTA 1e-3
 #define GAMMA 0.5
 
@@ -198,17 +198,9 @@ class ptycho : public experimentConfig{
       }
     }
     void readPupilAndObject(){
-      Real* object_intensity = readImage(common.Intensity.c_str(), row_O, column_O);
-      Real* object_phase = readImage(common.Phase.c_str(), row_O, column_O);
-      int objsz = row_O*column_O*sizeof(Real);
-      Real* d_object_intensity;
-      Real* d_object_phase;
-      d_object_intensity = (Real*)memMngr.borrowCache(objsz);
-      d_object_phase = (Real*)memMngr.borrowCache(objsz);
-      cudaMemcpy(d_object_intensity, object_intensity, objsz, cudaMemcpyHostToDevice);
-      cudaMemcpy(d_object_phase, object_phase, objsz, cudaMemcpyHostToDevice);
-      ccmemMngr.returnCache(object_intensity);
-      ccmemMngr.returnCache(object_phase);
+      Real* d_object_intensity = 0;
+      Real* d_object_phase = 0;
+      readComplexWaveFront(common.Intensity.c_str(), common.Phase.c_str(), d_object_intensity, d_object_phase, row_O, column_O);
       Real* pupil_intensity = readImage(pupil.Intensity.c_str(), row, column);
       sz = row*column*sizeof(Real);
       int row_tmp=row*oversampling;
@@ -243,7 +235,7 @@ class ptycho : public experimentConfig{
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilIntensity", 0);
       init_fft(row_tmp,column_tmp);
       opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling); //granularity changes
-      //angularSpectrumPropagate((complexFormat*)pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda); //granularity is the same
+      //angularSpectrumPropagate(pupilobjectWave, pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda); //granularity is the same
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilPattern", 0);
       init_cuda_image(row,column,rcolor, 1./exposure);
       init_fft(row,column);
@@ -262,7 +254,7 @@ class ptycho : public experimentConfig{
         for(int i = 0 ; i < scanx*scany; i++){
           shiftx[i]+= distribution(generator)*positionUncertainty;
           shifty[i]+= distribution(generator)*positionUncertainty;
-          printf("shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
+          if(verbose >=3 ) printf("shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
         }
       }
     }
@@ -293,7 +285,7 @@ class ptycho : public experimentConfig{
           cudaF(getMod2,patterns[idx], esw);
           if(useBS) cudaF(applySupport,patterns[idx], beamstop);
           if(simCCDbit) cudaF(applyPoissonNoise_WO,patterns[idx], noiseLevel, devstates, 1./exposure);
-          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
+          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
           verbose(4, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)+"log").c_str(),1));
           idx++;
         }
@@ -325,12 +317,10 @@ class ptycho : public experimentConfig{
       propagate(cachey, cachey, 1);
       cudaF(calcPartial,cachex, Fn, pattern, beamstop);
       cudaF(calcPartial,cachey, Fn, pattern, beamstop);
-      Real partialx = 8*M_PI*findSumReal(cachex);
-      Real partialy = 8*M_PI*findSumReal(cachey);
+      shiftx -= 0.3*findSumReal(cachex);
+      shifty -= 0.3*findSumReal(cachey);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
-      shiftx -= partialx*1.4e-3;
-      shifty -= partialy*1.4e-3;
       if(shiftx!=shiftx || shifty!=shifty) exit(0);
     }
     void iterate(){
@@ -356,14 +346,18 @@ class ptycho : public experimentConfig{
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
             int shiftypix = shiftx[idx]-round(shifty[idx]);
-            cudaF(getWindow,(complexFormat*)objectWave,
-                i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, objCache);
-            if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
+            int shiftxn = i*stepSize-round(shiftx[idx]);
+            int shiftyn = j*stepSize-round(shifty[idx]);
+            cudaF(getWindow,(complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
+            bool shiftpix = fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3;
+            if(shiftpix){
               shiftWave((complexFormat*)objCache, row*column, shiftxpix, shiftypix);
             }
             cudaF(multiply,esw, (complexFormat*)pupilpatternWave, objCache);
             propagate(esw,Fn,1);
-            if(iter % 100 == 0 && iter >= 100) updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
+            if(iter % 20 == 0 && iter >= 20) {
+              updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
+            }
             cudaF(applyMod,Fn, patterns[idx],beamstop,1);
             propagate(Fn,Fn,0);
             cudaF(add,esw, Fn, -1);
@@ -371,11 +365,10 @@ class ptycho : public experimentConfig{
                 probeMax);
             else cudaF(updateObjectAndProbe,objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
                 probeMax, objMax);
-            if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
+            if(shiftpix){
               shiftWave(objCache, row*column, -shiftxpix, -shiftypix);
             }
-            cudaF(updateWindow,(complexFormat*)objectWave,
-                i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, objCache);
+            cudaF(updateWindow,(complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
             idx++;
           }
         }
@@ -388,8 +381,10 @@ class ptycho : public experimentConfig{
           plt.init(row, column);
         }
       }
-      for(int i = 0 ; i < scanx*scany; i++){
-        printf("recon shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
+      if(verbose>=3){
+        for(int i = 0 ; i < scanx*scany; i++){
+          printf("recon shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
+        }
       }
       memMngr.returnCache(Fn);
       memMngr.returnCache(objCache);

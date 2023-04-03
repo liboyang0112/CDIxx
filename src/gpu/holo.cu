@@ -88,34 +88,9 @@ void holo::simulate(){
   prepareIter();
   allocateMem_holo();
   if(runSim){
-    Real* intensity = readImage(pupil.Intensity.c_str(), objrow, objcol);
-    size_t sz = objrow*objcol*sizeof(Real);
-    Real* d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
-    cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
-    ccmemMngr.returnCache(intensity);
+    Real* d_intensity = 0;
     Real* d_phase = 0;
-    if(phaseModulation_pupil) {
-      int tmprow,tmpcol;
-      Real* phase = readImage(pupil.Phase.c_str(), tmprow,tmpcol);
-      d_phase = (Real*)memMngr.borrowCache(sz);
-      size_t tmpsz = tmprow*tmpcol*sizeof(Real);
-
-      if(tmpsz!=sz){
-        Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
-        gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
-        init_cuda_image(objrow, objcol);
-        if(tmpsz > sz){
-          cudaF(crop,d_phasetmp, d_phase, tmprow, tmpcol);
-        }else{
-          cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
-        }
-        memMngr.returnCache(d_phasetmp);
-      }
-      else {
-        gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
-      }
-      ccmemMngr.returnCache(phase);
-    }
+    readComplexWaveFront(pupil.Intensity.c_str(), phaseModulation_pupil?pupil.Phase.c_str():0,d_intensity,d_phase,objrow,objcol);
     init_cuda_image(row, column);
     cudaF(createWaveFront, d_intensity, d_phase, objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2);
     cudaF(add, objectWave_holo, (complexFormat*)objectWave, 1);
@@ -152,7 +127,7 @@ void holo::iterate(){
     cudaF(add, patternWave_obj, patternWave, -1);
     myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_INVERSE);
     cudaF(applyNorm, patternWave_obj, 1./(row*column));
-    cudaF(applySupportBar_Flip, patternWave_obj, support_holo);
+    cudaF(applySupportBar, patternWave_obj, support_holo);
     myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_FORWARD);
   }
   propagate(patternWave_obj,objectWave_holo,0);

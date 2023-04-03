@@ -1,4 +1,5 @@
 #include "cudaConfig.h"
+#include "common.h"
 #include <iostream>
 using namespace std;
 static int rows_fft, cols_fft;
@@ -88,6 +89,11 @@ cuFunc(forcePositive,(complexFormat* a),(a),{
   a[index].y = 0;
 })
 
+cuFunc(forcePositive,(Real* a),(a),{
+  cudaIdx()
+  if(a[index]<0) a[index]=0;
+})
+
 cuFunc(multiply,(complexFormat* store, complexFormat* src, complexFormat* target),(store,src,target),{
   cudaIdx()
   store[index] = cuCmulf(src[index], target[index]);
@@ -122,7 +128,8 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
     return;
   }
   int targetindex = (x-marginx)*col + y-marginy;
-  Real mod = sqrtf(max(0.,d_intensity[targetindex]));
+  Real mod = 1;
+  if(d_intensity) mod = sqrtf(max(0.,d_intensity[targetindex]));
   Real phase = d_phase? (d_phase[targetindex]-0.5)*2*M_PI : 0;
   //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
   objectWave[index].x = mod*cos(phase);
@@ -139,12 +146,52 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
     return;
   }
   int targetindex = (x-marginx)*ceil(cuda_column/oversampling) + y-marginy;
-  Real mod = sqrtf(max(0.,d_intensity[targetindex]));
+  Real mod = 1;
+  if(d_intensity) mod = sqrtf(max(0.,d_intensity[targetindex]));
   Real phase = d_phase? (d_phase[targetindex]-0.5)*2*M_PI : 0;
   //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
   objectWave[index].x = mod*cos(phase);
   objectWave[index].y = mod*sin(phase);
 })
+
+void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol){
+  size_t sz = 0;
+  if(intensityFile) {
+    Real* intensity = readImage(intensityFile, objrow, objcol);
+    sz = objrow*objcol*sizeof(Real);
+    d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
+    cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
+    ccmemMngr.returnCache(intensity);
+  }
+  if(phaseFile) {
+    int tmprow,tmpcol;
+    Real* phase = readImage(phaseFile, tmprow,tmpcol);
+    if(!intensityFile) {
+      sz = tmprow*tmpcol*sizeof(Real);
+      objrow = tmprow;
+      objcol = tmpcol;
+    }
+    d_phase = (Real*)memMngr.borrowCache(sz);
+    size_t tmpsz = tmprow*tmpcol*sizeof(Real);
+    if(tmpsz!=sz){
+      Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
+      gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
+      init_cuda_image(objrow, objcol);
+      if(tmpsz > sz){
+        cudaF(crop,d_phasetmp, d_phase, tmprow, tmpcol);
+      }else{
+        cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
+      }
+      memMngr.returnCache(d_phasetmp);
+    }
+    else {
+      gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
+    }
+
+    ccmemMngr.returnCache(phase);
+  }
+  gpuErrchk(cudaGetLastError());
+}
 
 cuFunc(initRand,(curandStateMRG32k3a *state, unsigned long long seed),(state,seed),{
   cudaIdx()
@@ -174,6 +221,18 @@ cuFunc(getReal,(Real* mod, complexFormat* amp),(mod,amp),{
   cudaIdx()
   mod[index] = amp[index].x;
 })
+cuFunc(getImag,(Real* mod, complexFormat* amp),(mod,amp),{
+  cudaIdx()
+  mod[index] = amp[index].y;
+})
+cuFunc(assignReal,(Real* mod, complexFormat* amp),(mod,amp),{
+  cudaIdx()
+  amp[index].x = mod[index];
+})
+cuFunc(assignImag,(Real* mod, complexFormat* amp),(mod,amp),{
+  cudaIdx()
+   amp[index].y = mod[index];
+})
 cuFunc(getMod2,(Real* mod2, complexFormat* amp),(mod2,amp),{
   cudaIdx()
   complexFormat tmp = amp[index];
@@ -191,15 +250,17 @@ cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int 
     //else mod2 = maximum+1;
     return;
   }
-  Real tolerance = 0;//(1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
+  Real tolerance = 0;// (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
   complexFormat sourcedata = source[index];
   Real ratiox = 1;
   Real ratioy = 1;
   Real srcmod2 = sourcedata.x*sourcedata.x + sourcedata.y*sourcedata.y;
+  /*
   if(mod2>=maximum) {
     if(loose) mod2 = max(maximum,srcmod2);
     else tolerance*=1000;
   }
+  */
   Real diff = mod2-srcmod2;
   if(diff>tolerance){
     ratioy=ratiox = sqrt((mod2-tolerance)/srcmod2);

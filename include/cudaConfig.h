@@ -9,6 +9,7 @@
 #define myCufftExec cufftExecC2C
 #define myCufftExecR2C cufftExecR2C
 void forcePositiveWrap(cudaVars* vars, complexFormat* a);
+void forcePositiveWrap(cudaVars* vars, Real* a);
 void addWrap(cudaVars* vars, Real* a, Real* b, Real c = 1);
 void addWrap(cudaVars* vars, Real* store, Real* a, Real* b, Real c = 1);
 void extendToComplexWrap(cudaVars* vars, Real* a, complexFormat* b);
@@ -19,6 +20,9 @@ void createWaveFrontWrap(cudaVars* vars, Real* d_intensity, Real* d_phase, compl
 void applyConvolutionWrap(size_t size, cudaVars* vars, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void getModWrap(cudaVars* vars, Real* mod, complexFormat* amp);
 void getRealWrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void getImagWrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void assignRealWrap(cudaVars* vars, Real* mod, complexFormat* amp);
+void assignImagWrap(cudaVars* vars, Real* mod, complexFormat* amp);
 void getMod2Wrap(cudaVars* vars, Real* mod, complexFormat* amp);
 void applyPoissonNoiseWrap(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
 void applyPoissonNoise_WOWrap(cudaVars* vars, Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
@@ -32,6 +36,7 @@ void multiplyWrap(cudaVars* vars, complexFormat* source, complexFormat* target);
 void multiplyRealWrap(cudaVars* vars, Real* store, complexFormat* source, complexFormat* target);
 void multiplyWrap(cudaVars* vars, complexFormat* store, complexFormat* source, complexFormat* target);
 void init_fft(int rows, int cols);
+void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 template <typename T>
 __global__ void cudaConvertFO(cudaVars* vars, T* data){
   int x = blockIdx.x * blockDim.x + threadIdx.x;

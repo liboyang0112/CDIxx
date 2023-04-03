@@ -14,5 +14,5 @@ if [ -z ${CDI_DIR+x} ] ; then
 		export LD_LIBRARY_PATH+=:$CDI_DIR/lib
 	fi
 	alias cdicd='cd $CDI_DIR'
-	alias cdimake='cd $CDI_DIR; make; cd -'
+	alias cdimake='cd $CDI_DIR/build; ninja; cd -'
 fi

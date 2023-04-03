@@ -31,9 +31,8 @@ int main(int argc, char** argv )
   setups.readFiles();
   setups.init();
   setups.prepareIter();
-  Real* smoothed = (Real*) memMngr.borrowSame(setups.patternData);
-  FISTA(setups.patternData,smoothed, 0.001, 70, &applyC);
-  plt.plotFloat(smoothed, MOD, 1, setups.exposure, "test",1);
+  FISTA(setups.patternData,setups.patternData, 0.003, 100, 0);
+  plt.plotFloat(setups.patternData, MOD, 1, setups.exposure, "test",1);
   return 0;
 }
 
