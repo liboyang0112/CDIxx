@@ -332,7 +332,8 @@ complexFormat* CDI::phaseRetrieve(){
     int ialgo = algo.next();
     if(ialgo<0) break;
     //start iteration
-    cudaF(applyMod,patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
+    if(!simCCDbit) cudaF(applyMod,patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
+    else cudaF(applyModAbs,patternWave,cuda_diff);
     propagate(patternWave, cuda_gkprime, 0);
     if(costheta == 1) cudaF(applySupport,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
     else cudaF(applySupportOblique,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0, 1./costheta);

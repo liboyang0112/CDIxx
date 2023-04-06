@@ -5,12 +5,14 @@
 #include "memManager.h"
 #define addVarArg(x...) cudaVars* vars, x
 #define addVar(x...) vars, x
+#define cuFuncDec(funcname, ...) void funcname##Wrap(cudaVars* vars, __VA_ARGS__)
 #define cuFunc(name,args,param,content...)\
 __global__ void name(addVarArg args) content \
 void name##Wrap(addVarArg args){\
   name<<<numBlocks, threadsPerBlock>>>(addVar param);\
 }
 #define addSize(args...) size_t size, args
+#define cuFuncSharedDec(funcname, ...) void funcname##Wrap (size_t size, cudaVars* vars, __VA_ARGS__)
 #define cuFuncShared(name,args,param,content...)\
 __global__ void name(addVarArg args) content \
 void name##Wrap( addSize(addVarArg args) ){\

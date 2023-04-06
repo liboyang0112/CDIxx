@@ -181,9 +181,9 @@ int main(int argc, char** argv )
       setups.prepareIter();
       setups.phaseRetrieve(); 
     }
-    setups.saveState();
+    //setups.saveState();
   }
-  setups.checkAutoCorrelation();
+  //setups.checkAutoCorrelation();
 
   //Now let's do pupil
   if(setups.dopupil){ 

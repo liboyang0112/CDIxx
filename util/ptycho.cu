@@ -241,7 +241,7 @@ class ptycho : public experimentConfig{
       init_fft(row,column);
       cudaF(crop,(complexFormat*)pupilobjectWave, (complexFormat*)pupilpatternWave, row_tmp, column_tmp);
       plt.init(row,column);
-      plt.plotComplex(pupilpatternWave, MOD2, 0, 1, "probeIntensity", 0);
+      plt.plotComplex(pupilpatternWave, MOD2, 0, 0.08, "probeIntensity", 0);
       plt.plotComplex(pupilpatternWave, PHASE, 0, 1, "probePhase", 0);
       calculateParameters();
       multiplyFresnelPhase(pupilpatternWave, d);
@@ -274,7 +274,7 @@ class ptycho : public experimentConfig{
         for(int j = 0; j < scany; j++){
           int shiftxpix = shiftx[idx]-round(shiftx[idx]);
           int shiftypix = shiftx[idx]-round(shifty[idx]);
-          cudaF(getWindow,(complexFormat*)objectWave, i*stepSize-round(shiftx[idx]), j*stepSize-round(shifty[idx]), row_O, column_O, window);
+          cudaF(getWindow,(complexFormat*)objectWave, i*stepSize+round(shiftx[idx]), j*stepSize+round(shifty[idx]), row_O, column_O, window);
           if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
             shiftWave((complexFormat*)window, row*column, shiftxpix, shiftypix);
           }
@@ -317,8 +317,8 @@ class ptycho : public experimentConfig{
       propagate(cachey, cachey, 1);
       cudaF(calcPartial,cachex, Fn, pattern, beamstop);
       cudaF(calcPartial,cachey, Fn, pattern, beamstop);
-      shiftx -= 0.3*findSumReal(cachex);
-      shifty -= 0.3*findSumReal(cachey);
+      shiftx += 0.3*findSumReal(cachex);
+      shifty += 0.3*findSumReal(cachey);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
       if(shiftx!=shiftx || shifty!=shifty) exit(0);
@@ -346,8 +346,8 @@ class ptycho : public experimentConfig{
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
             int shiftypix = shiftx[idx]-round(shifty[idx]);
-            int shiftxn = i*stepSize-round(shiftx[idx]);
-            int shiftyn = j*stepSize-round(shifty[idx]);
+            int shiftxn = i*stepSize+round(shiftx[idx]);
+            int shiftyn = j*stepSize+round(shifty[idx]);
             cudaF(getWindow,(complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
             bool shiftpix = fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3;
             if(shiftpix){
@@ -388,11 +388,18 @@ class ptycho : public experimentConfig{
       }
       memMngr.returnCache(Fn);
       memMngr.returnCache(objCache);
-      plt.plotComplex(pupilpatternWave, MOD2, 0, 1., "ptycho_probe_afterIter", 0);
-      init_cuda_image(row_O,column_O,rcolor,1./exposure);
-      plt.init(row_O, column_O);
-      plt.plotComplex(objectWave, MOD2, 0, 0.2, "ptycho_afterIter", 0);
-      plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase", 0);
+      plt.plotComplex(pupilpatternWave, MOD2, 0, 0.12, "ptycho_probe_afterIter", 0);
+      plt.plotComplex(pupilpatternWave, PHASE, 0, 1, "ptycho_probe_afterIterphase", 0);
+      Real crop_ratio = 0.65;
+      int rowc = row_O*crop_ratio;
+      int colc = column_O*crop_ratio;
+      init_cuda_image(rowc, colc, rcolor,1./exposure);
+      plt.init(rowc, colc);
+      complexFormat* cropped = (complexFormat*)memMngr.borrowCache(rowc*colc*sizeof(complexFormat));
+      cudaF(crop,(complexFormat*)objectWave, cropped, row_O, column_O);
+      plt.plotComplex(cropped, MOD2, 0, 0.7, "ptycho_afterIter");
+      plt.plotPhase(cropped, PHASERAD, 0, 1, "ptycho_afterIterphase");
+      //plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase");
     }
     void readPattern(){
       Real* pattern = readImage((common.Pattern+"0_0.png").c_str(), row, column);

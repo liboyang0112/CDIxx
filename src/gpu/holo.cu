@@ -56,7 +56,19 @@ void holo::allocateMem_holo(){
   patternWave_obj = (complexFormat*)memMngr.borrowCache(sz*2);
   objectWave_holo = (complexFormat*)memMngr.borrowCache(sz*2);
 }
-void holo::calcXCorrelation(){
+void holo::calcXCorrelation(bool doplot){
+  cudaF(add, patternData_holo, patternData, -1);
+  cudaF(extendToComplex, patternData_holo, patternWave_holo);
+  cudaF(add, patternData_holo, patternData, 1);
+  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_FORWARD);
+  cudaF(applyNorm, patternWave_holo, 1./(row*column));
+  cudaF(applySupportBar, patternWave_holo, xcorrelation_support);
+  if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1);
+  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
+  cudaF(getReal, xcorrelation, patternWave_holo);
+
+}
+void holo::initXCorrelation(){
   cudaF(add, patternData_holo, patternData, -1);
   cudaF(extendToComplex, patternData_holo, patternWave_holo);
   cudaF(add, patternData_holo, patternData, 1);
@@ -74,6 +86,7 @@ void holo::calcXCorrelation(){
   cudaF(createMask, xcorrelation_support, cuda_spt, 1);
   
   cudaF(applySupportBar, patternWave_holo, xcorrelation_support);
+  plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1);
   myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
   plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1);
   cudaF(getReal, xcorrelation, patternWave_holo);
@@ -99,6 +112,7 @@ void holo::simulate(){
     propagate(objectWave_holo, patternWave_holo, 1);
     cudaF(getMod2, patternData_holo, patternWave_holo);
     plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPattern");
+    plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlogsim",1);
   }else{
     objrow = objcol = 150;
   }
@@ -111,24 +125,30 @@ void holo::simulate(){
     cudaF(applyNorm, patternData_holo, 1./exposurepupil);
     cudaF(cudaConvertFO, patternData_holo);
   }
+  plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlog",1);
   if(doIteration) phaseRetrieve();
   else propagate(patternWave, objectWave, 0);
-  calcXCorrelation();
+  init_cuda_image(row, column, rcolor, 1./exposurepupil);
+  initXCorrelation();
   iterate();
 };
 void holo::iterate(){
-  cudaMemset(patternWave_obj, 0, memMngr.getSize(patternWave_obj));
-  //cudaF(add, patternData_holo, xcorrelation, -1);
-  //cudaF(add, patternData_holo, patternData, -1);
-  for(int iter = 0; iter < nIter; iter++){
+  for(int i = 0; i < 300; i++){
+    cudaMemset(patternWave_obj, 0, memMngr.getSize(patternWave_obj));
     cudaF(applyModCorr, patternWave_obj, patternWave, xcorrelation);
-    cudaF(add, patternWave_obj, patternWave, 1);
-    cudaF(applyMod, patternWave_obj, patternData_holo, useBS? beamstop:0, 1, iter, noiseLevel);
-    cudaF(add, patternWave_obj, patternWave, -1);
-    myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_INVERSE);
-    cudaF(applyNorm, patternWave_obj, 1./(row*column));
-    cudaF(applySupportBar, patternWave_obj, support_holo);
-    myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_FORWARD);
+    for(int iter = 0; iter < 10; iter++){
+      cudaF(add, patternWave_holo, patternWave_obj, patternWave, 1);
+      cudaF(applyMod, patternWave_holo, patternData_holo, useBS? beamstop:0, 1, iter, noiseLevel);
+      cudaF(add, patternWave_obj, patternWave_holo, patternWave, -1);
+      myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_INVERSE);
+      cudaF(applyNorm, patternWave_obj, 1./(row*column));
+      cudaF(applySupportBar, patternWave_obj, support_holo);
+      myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_FORWARD);
+    }
+    cudaF(add, patternWave_holo, patternWave_obj, patternWave, 1);
+    cudaF(applyMod, patternWave_holo, patternData_holo, useBS? beamstop:0, 1, nIter, noiseLevel);
+    cudaF(getMod2, patternData_holo, patternWave_holo);
+    calcXCorrelation(i == 99);
   }
   propagate(patternWave_obj,objectWave_holo,0);
   plt.plotComplex(objectWave_holo, MOD2, 0, 1, "object");

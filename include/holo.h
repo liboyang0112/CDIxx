@@ -11,7 +11,8 @@ class holo : public CDI{
     Real *support_holo = 0;
     Real *xcorrelation_support = 0; //two times the size of original support
     int objrow, objcol;
-    void calcXCorrelation();
+    void initXCorrelation();
+    void calcXCorrelation(bool doplot);
     void simulate();
     void allocateMem_holo();
     void iterate();
