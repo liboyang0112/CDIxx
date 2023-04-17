@@ -292,41 +292,22 @@ complexFormat* CCTV::phaseRetrieve(){
   for(int iter = 0; ; iter++){
     int ialgo = algo.next();
     if(ialgo<0) break;
+    //update mask
+    if(ialgo == shrinkWrap){
+      cudaF(getMod2,cuda_objMod,cuda_gkp1);
+      applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
+      cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
+      cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
+      if(gaussianSigma>1.) {
+        gaussianSigma*=0.99;
+      }
+      continue;
+    }
     //start iteration
     cudaF(applyMod,patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
     angularPropagate(patternWave, cuda_gkprime, 0);
     if(costheta == 1) cudaF(applySupport,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
     else cudaF(applySupportOblique,cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0, 1./costheta);
-    //update mask
-    if(iter%20==0){
-      cudaF(getMod2,cuda_objMod,cuda_gkp1);
-      if(iter > 0 && useShrinkMap){
-        int size = floor(gaussianSigma*6); // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
-        size = size/2;
-        int width = size*2+1;
-        int kernelsz = width*width*sizeof(Real);
-        if(!d_gaussianKernel){
-          d_gaussianKernel = (Real*) memMngr.borrowCache(kernelsz);
-          gaussianKernel =  (Real*) ccmemMngr.borrowCache(kernelsz);
-        }
-        Real total = 0;
-        for(int i = 0; i < width*width; i++) {
-          gaussianKernel[i] = gaussian((i/width-size),i%width-size, gaussianSigma);
-          total+= gaussianKernel[i];
-        }
-        for(int i = 0; i < width*width; i++){
-          gaussianKernel[i] /= total;
-        }
-        cudaMemcpy(d_gaussianKernel, gaussianKernel, kernelsz, cudaMemcpyHostToDevice);
-        cudaFShared(applyConvolution,(pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real),cuda_objMod, support, d_gaussianKernel, size, size);
-
-        cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
-        cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
-
-        if(gaussianSigma>1.5) {
-          gaussianSigma*=0.99;
-        }
-      }
       /*
       cudaF(getReal,cuda_objMod,cuda_gkp1);
       FISTA(cuda_objMod, cuda_objMod, 1e-3, 20, 0);
@@ -335,7 +316,6 @@ complexFormat* CCTV::phaseRetrieve(){
       FISTA(cuda_objMod, cuda_objMod, 1e-3, 20, 0);
       cudaF(assignImag, cuda_objMod,cuda_gkp1);
       */
-    }
     angularPropagate( cuda_gkp1, patternWave, 1);
     if(iter%100==0) {
       std::string iterstr = to_string(iter);

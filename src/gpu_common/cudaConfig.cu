@@ -18,6 +18,29 @@ void init_fft(int rows, int cols){
     rows_fft = rows;
   }
 }
+
+__global__ void createGaussKernel(Real* data, int sz, Real sigma){
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+  if(x >= sz || y >= sz) return;
+  int dx = x-(sz>>1);
+  int dy = y-(sz>>1);
+  data[x*sz+y] = exp(-Real(dx*dx+dy*dy)/(sigma*sigma));
+}
+
+void createGauss(Real* data, int sz, Real sigma){
+  dim3 nblk;
+  nblk.x = nblk.y =(sz-1)/threadsPerBlock.x+1;
+  createGaussKernel<<<nblk,threadsPerBlock>>>(data, sz, sigma);
+}
+void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma){
+  int size = floor(sigma*6); // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
+  size = size>>1;
+  int width = (size<<1)+1;
+  createGauss(gaussMem, width, sigma);
+  cudaFShared(applyConvolution,(pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
+}
+
 cuFunc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(data,dataout,factor),{
   cudaIdx()
   int targetIndex = x*(cuda_column/2+1)+y;
@@ -71,6 +94,13 @@ cuFuncShared(applyConvolution,(Real *input, Real *output, Real* kernel, int kern
 
 cuFunc(applyNorm,(complexFormat* data, Real factor),(data,factor),{
   cudaIdx()
+  data[index].x*=factor;
+  data[index].y*=factor;
+})
+cuFunc(ceiling,(complexFormat* data, Real ceilval),(data,ceilval),{
+  cudaIdx()
+  Real factor = ceilval/hypot(data[index].x, data[index].y);
+  if(factor>1) return;
   data[index].x*=factor;
   data[index].y*=factor;
 })
@@ -237,6 +267,17 @@ cuFunc(getMod2,(Real* mod2, complexFormat* amp),(mod2,amp),{
   cudaIdx()
   complexFormat tmp = amp[index];
   mod2[index] = tmp.x*tmp.x + tmp.y*tmp.y;
+})
+
+cuFunc(bitMap,(Real* store, complexFormat* amp, Real threshold),(store,amp, threshold),{
+  cudaIdx()
+  complexFormat tmp = amp[index];
+  store[index] = tmp.x*tmp.x+tmp.y*tmp.y > threshold*threshold;
+})
+
+cuFunc(bitMap,(Real* store, Real* amp, Real threshold),(store,amp, threshold),{
+  cudaIdx()
+  store[index] = amp[index] > threshold;
 })
 
 cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data, fact, shift),{

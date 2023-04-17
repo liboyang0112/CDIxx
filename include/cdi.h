@@ -31,3 +31,4 @@ class CDI : public experimentConfig{
     complexFormat* phaseRetrieve();
     void saveState();
 };
+cuFuncDec(applySupport, complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0);

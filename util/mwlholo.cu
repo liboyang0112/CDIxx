@@ -42,10 +42,10 @@ int main(int argc, char** argv){
 #if 1
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
-  Real *lambdas;
-  Real *spectra;
-  lambdas = (Real*)ccmemMngr.borrowCache(sizeof(Real)*nlambda);
-  spectra = (Real*)ccmemMngr.borrowCache(sizeof(Real)*nlambda);
+  double *lambdas;
+  double *spectra;
+  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 2.*i/objrow;
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1

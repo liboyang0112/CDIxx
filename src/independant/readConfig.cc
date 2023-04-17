@@ -143,6 +143,8 @@ AlgoParser::AlgoParser(std::string formula){
     else if(str=="HIO") algoList.push_back(HIO);
     else if(str=="ER") algoList.push_back(ER);
     else if(str=="POSHIO") algoList.push_back(POSHIO);
+    else if(str=="shrinkWrap") algoList.push_back(shrinkWrap);
+    else if(str=="XCORRELATION") algoList.push_back(XCORRELATION);
     else if(str=="subParser") algoList.push_back(nAlgo+iParser++);
     else{
       printf("Algorithm %s not found\n", str.c_str());

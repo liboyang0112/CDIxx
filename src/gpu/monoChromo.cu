@@ -7,6 +7,7 @@
 #include "tvFilter.h"
 #include <fstream>
 #include <iostream>
+#include <gsl/gsl_spline.h>
 
 cuFunc(multiplyPixelWeight, (complexFormat* img, Real* weights),(img, weights),{
   cudaIdx();
@@ -31,7 +32,6 @@ void monoChromo::calcPixelWeights(){
   }
   for(int shift = 0; shift < row/2; shift++){
     loc_pixel_weight[shift] = pow(loc_pixel_weight[shift], -0.6);
-    printf("pixelweights: %f\n", loc_pixel_weight[shift]);
   }
   pixel_weight = (Real*) memMngr.borrowCache(sz);
   cudaMemcpy(pixel_weight, loc_pixel_weight, sz, cudaMemcpyHostToDevice);
@@ -42,7 +42,7 @@ cuFunc(multiplyReal,(complexFormat* a, complexFormat* b, Real* c),(a,b,c),{
   c[index] = a[index].x*b[index].x;
 })
 
-void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* spectra_){
+void monoChromo::init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_){
   nlambda = nlambda_;
   spectra = spectra_;
   row = nrow;
@@ -59,58 +59,60 @@ void monoChromo::init(int nrow, int ncol, int nlambda_, Real* lambdas_, Real* sp
   }
   calcPixelWeights();
 }
-Real monoChromo::init(int nrow, int ncol, Real* lambdasi, Real* spectrumi, Real endlambda){
+Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
   row = nrow;
   column = ncol;
-  Real currentLambda = 1;
-  int currentPoint = 0;
+  jump = 10;
+  int skip = 0;
   Real stepsize = 2./row*jump;
-  nlambda = (endlambda-1)/stepsize+1;
-  spectra = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
-  int i = 0;
-  Real tot = 0;
-  while(currentLambda < endlambda){
-    int count = 0;
-    Real intensity = 0;
-    while(lambdasi[currentPoint] < currentLambda+stepsize/2){
-      count++;
-      intensity += spectrumi[currentPoint];
-      currentPoint++;
-    }
-    if(count >=2 ){ //use average
-      spectra[i] = intensity/count;
-    }else{ //use interpolation
-      if(currentLambda == lambdasi[currentPoint-1]){
-        spectra[i] = spectrumi[currentPoint-1];
-      }
-      else if(currentLambda > lambdasi[currentPoint-1]){
-        Real dlambda = lambdasi[currentPoint]-lambdasi[currentPoint-1];
-        Real dx = (currentLambda - lambdasi[currentPoint-1])/dlambda;
-        spectra[i] = spectrumi[currentPoint-1]*(1-dx) + spectrumi[currentPoint]*(dx);
-      }else{
-        Real dlambda = lambdasi[currentPoint-1]-lambdasi[currentPoint-2];
-        Real dx = (currentLambda - lambdasi[currentPoint-2])/dlambda;
-        spectra[i] = spectrumi[currentPoint-2]*(1-dx) + spectrumi[currentPoint-1]*(dx);
-      }
-    }
-    tot+=spectra[i];
-    i++;
-    currentLambda+=stepsize;
+  Real skiplambda = 2./row*skip;
+  nlambda = (lambdasi[narray-1]-skiplambda-1)/stepsize+1;
+  spectra = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
+  ofstream spectrumfile;
+  int sz = narray*sizeof(double);
+  double* spectrumraw = (double*)ccmemMngr.borrowCache(sz);
+  memcpy(spectrumraw, spectrumi, sz);
+  for(int i = 1; i < narray; i++){
+    spectrumi[i] += spectrumi[i-1];
   }
-  nlambda = i;
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, narray);
+  gsl_spline_init (spline, lambdasi, spectrumi, narray);
+  Real cumprev = 0;
+  Real lambda = 1+skiplambda;
+  for(int i = 0; i < nlambda-1; i++){
+    double cumnow = gsl_spline_eval (spline, lambda+stepsize/2, acc);
+    spectra[i] = cumnow-cumprev;
+    cumprev = cumnow;
+    lambda+=stepsize;
+  }
+  spectra[nlambda-1] = spectrumi[narray-1]-cumprev;
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
+
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
   locplan = ccmemMngr.borrowCache(sizeof(cufftHandle)*nlambda);
+  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  for(int i = 0; i < narray; i++){
+    spectrumfile<<lambdasi[i]<<" "<<spectrumraw[i]/spectrumi[narray-1]<<std::endl;
+  }
+  spectrumfile.close();
   for(int i = 0; i < nlambda; i++){
-    rows[i] = row+i*2*jump;
-    cols[i] = column+i*2*jump;
-    printf("%d: (%d,%d)=%f\n",i, rows[i],cols[i],spectra[i]/=tot);
+    rows[i] = row+i*2*jump+skip*2;
+    cols[i] = column+i*2*jump+skip*2;
+    printf("%d: (%d,%d)=%f\n",i, rows[i],cols[i],spectra[i]/=spectrumi[narray-1]);
     new(&(((cufftHandle*)locplan)[i]))cufftHandle();
     cufftPlan2d ( &(((cufftHandle*)locplan)[i]), rows[i], cols[i], FFTformat);
   }
+  spectrumfile.open("spectra.txt", std::ios::out);
+  for(int i = 0; i < nlambda; i++){
+    spectrumfile<<1+stepsize*i+skiplambda<<" "<<spectra[i]/narray*nlambda<<std::endl;
+  }
+  spectrumfile.close();
   calcPixelWeights();
-  return tot;
+  return spectrumi[narray-1];
 }
 void monoChromo::resetSpectra(){
   for(int i = 0; i < nlambda; i++){
@@ -132,11 +134,11 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
     int thiscol = cols[i];
-    init_cuda_image(thisrow, thiscol, 65536, 1);
+    init_cuda_image(thisrow, thiscol);
     cudaF(createWaveFront,(Real*)d_input, 0, (complexFormat*)d_intensity, row/oversampling, column/oversampling);
     myCufftExec( ((cufftHandle*)locplan)[i], d_intensity,d_intensity, CUFFT_FORWARD);
     cudaF(cudaConvertFO,d_intensity);
-    init_cuda_image(row, column, 65536, 1);
+    init_cuda_image(row, column);
     cudaF(crop,d_intensity,d_patternAmp,thisrow,thiscol);
     cudaF(applyNorm,d_patternAmp, sqrt(spectra[i])/sqrt(thiscol*thisrow));
     if(i==0) {
@@ -197,7 +199,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
-  init_cuda_image(row, column, 65536, 1);
+  init_cuda_image(row, column);
   Real dt = 2;
   Real friction = .2;//0.1;
   if(restart) {
@@ -272,12 +274,12 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       size_t N = rows[j]*cols[j];
       if(gs) fbi = (complexFormat*)gs[j];
       if(!gs || updateX || i==0){
-        init_cuda_image(rows[j], cols[j], 65536, 1);
+        init_cuda_image(rows[j], cols[j]);
         cudaF(pad,fftb, padded, row, column);
         cudaF(cudaConvertFO,padded);
         cudaF(applyNorm,padded, 1./N);
         myCufftExec( ((cufftHandle*)locplan)[j], padded, padded, CUFFT_FORWARD);
-        init_cuda_image(row, column, 65536, 1);
+        init_cuda_image(row, column);
         cudaF(crop,padded, fbi, rows[j], cols[j]);
       }
       cudaF(add,deltab, fbi, -spectra[j]);
@@ -300,7 +302,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
     }
     if(useOrth&&!updateX){
       Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1);
-      init_cuda_image(row, column, 65536, 1);
+      init_cuda_image(row, column);
       break;
     }
     if(updateAIter){
@@ -318,11 +320,11 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
       for(int j = 1; j < nlambda; j++){
         if(spectra[j]<=0) continue;
-        init_cuda_image(rows[j], cols[j], 65536, 1);
+        init_cuda_image(rows[j], cols[j]);
         cudaF(pad,(complexFormat*)deltab, padded, row, column);
         myCufftExec( ((cufftHandle*)locplan)[j], padded, padded, CUFFT_INVERSE);
         cudaF(cudaConvertFO,padded);
-        init_cuda_image(row, column, 65536, 1);
+        init_cuda_image(row, column);
         cudaF(crop,padded, fbi, rows[j], cols[j]);
         cudaF(cudaConvertFO,fbi);
         cudaF(applyNorm,fbi, 1./(row*column));

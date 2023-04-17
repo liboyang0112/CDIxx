@@ -4,6 +4,7 @@ set(CMAKE_CXX_COMPILER "/usr/bin/g++-10")
 set(CMAKE_C_COMPILER "/usr/bin/gcc-10")
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE)
 find_package( OpenCV REQUIRED )
+find_package( GSL REQUIRED )
 find_package(VTK COMPONENTS 
   jsoncpp
   CommonColor
@@ -24,7 +25,7 @@ find_package(MPI REQUIRED)
 find_package(TBB REQUIRED)
 find_package(HDF5 REQUIRED)
 set(TBB_LIBRARIES TBB::tbb TBB::tbbmalloc TBB::tbbmalloc_proxy)
-set(Alllibs fftw3 config++ fftw3_mpi fftw3_threads m pthread ${MPI_LIBRARIES} ${TBB_LIBRARIES} ${OpenCV_LIBS} ${HDF5_LIBRARIES} cholmod)
+set(Alllibs fftw3 config++ fftw3_mpi fftw3_threads m pthread ${MPI_LIBRARIES} ${TBB_LIBRARIES} ${OpenCV_LIBS} ${HDF5_LIBRARIES} cholmod ${GSL_LIBRARIES})
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)

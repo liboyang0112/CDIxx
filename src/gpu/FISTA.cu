@@ -9,13 +9,19 @@
 
 cuFunc(partialx, (Real* b, Real* p), (b,p),{
   cudaIdx()
-  if(x == cuda_row-1) p[index] = b[index]-b[index%cuda_column];
-  else p[index] = b[index]-b[index+cuda_column];
+  Real target;
+  if(x == cuda_row-1) target = b[index]-b[index%cuda_column];
+  else target = b[index]-b[index+cuda_column];
+  //if(fabs(target) > 3e-2) target = 0;
+  p[index] = target;
 })
 cuFunc(partialy, (Real* b, Real* p), (b,p),{
   cudaIdx()
-  if(y == cuda_column-1) p[index] = b[index]-b[index-cuda_column+1];
-  else p[index] = b[index]-b[index+1];
+  Real target;
+  if(y == cuda_column-1) target = b[index]-b[index-cuda_column+1];
+  else target = b[index]-b[index+1];
+  //if(fabs(target) > 3e-2) target = 0;
+  p[index] = target;
 })
 cuFunc(diffMax, (Real* p, Real* q), (p,q),{
   cudaIdx()

@@ -42,29 +42,28 @@ int main(int argc, char** argv){
 #if 0
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
-  Real *lambdas;
-  Real *spectra;
-  lambdas = (Real*)ccmemMngr.borrowCache(sizeof(Real)*nlambda);
-  spectra = (Real*)ccmemMngr.borrowCache(sizeof(Real)*nlambda);
+  double *lambdas;
+  double *spectra;
+  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 2.*i/objrow;
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
 #elif 0
   const int nlambda = 5;
-  Real lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
-  Real spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
+  double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
+  double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
 #else
   int nlambda;
-  Real* lambdas, *spectra;
+  double* lambdas, *spectra;
   Real startlambda = 400;
   Real endlambda = 990;
-  getNormSpectrum(argv[2],argv[3],startlambda,nlambda,lambdas,spectra); //this may change startlambda
-  Real rate = endlambda/startlambda;
-  printf("lambda range = (%f, %f), ratio=%f\n", startlambda, endlambda, rate);
+  getNormSpectrum(argv[2],argv[3],startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+  printf("lambda range = (%f, %f), ratio=%f\n", startlambda, endlambda*startlambda, endlambda);
 #endif
   //mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  Real tot = mwl.init(objrow, objcol, lambdas, spectra, rate);
+  Real tot = mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   std::ofstream spectrafile;
   spectrafile.open("spectra_raw.txt",ios::out);
   for(int i = 0; i < nlambda; i++){

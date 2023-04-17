@@ -29,7 +29,7 @@ void runIter(int n, int niter, int niter1, Real step_lambda, Real step_bi, doubl
   ccmemMngr.returnCache(grads);
 }
 
-void Fit(Real* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm){
+void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm){
   double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); //orthogalized ai
   double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double));  //normalization of each vector
   double *matrix = (double*)ccmemMngr.borrowCache(n*(n+1)/2*sizeof(double));  // b_i = M_ij*a_j
@@ -82,7 +82,7 @@ void Fit(Real* out, int n, void** vectors, void* right, Real (*innerProd)(void*,
   runIter_cu(n, niter, niter1, step_lambda, step_bi, bi, prods, matrix);
   ccmemMngr.returnCache(prods);
   //calculate a.
-  memset(out, 0, n*sizeof(Real));
+  memset(out, 0, n*sizeof(double));
   for(int i = 0; i < n; i++){
     for(int j = 0; j < i+1; j++){
       out[j] += matrix[i*(i+1)/2+j]*bi[i];

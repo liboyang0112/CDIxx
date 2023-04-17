@@ -3,6 +3,7 @@
 #include "readCXI.h"
 #include "common.h"
 #include "fstream"
+#include <gsl/gsl_spline.h>
 using namespace cv;
 using namespace std;
 Real* readImage(const char* name, int &row, int &col){
@@ -64,16 +65,16 @@ void *readComplexImage(const char* name){
   return data;
 };
 
-void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, int &nlambda, Real *& outlambda, Real *& outspectrum){
-  std::vector<Real> spectrum_lambda;
-  std::vector<Real> spectrum;
-  std::vector<Real> ccd_lambda;
-  std::vector<Real> ccd_rate;
+void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum){
+  std::vector<double> spectrum_lambda;
+  std::vector<double> spectrum;
+  std::vector<double> ccd_lambda;
+  std::vector<double> ccd_rate;
   std::ifstream file_spectrum, file_ccd_response;
-  Real threshold = 1e-3;
+  double threshold = 1e-3;
   file_spectrum.open(fspectrum);
   file_ccd_response.open(ccd_response);
-  Real lambda, val, maxval;
+  double lambda, val, maxval;
   maxval = 0;
   while(file_spectrum){
     file_spectrum >> lambda >> val;
@@ -81,33 +82,39 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
     spectrum.push_back(val);
     if(val > maxval) maxval = val;
   }
-  while(file_ccd_response){
-    file_ccd_response >> lambda >> val;
+  while(file_ccd_response>>lambda>>val){
     ccd_lambda.push_back(lambda);
     ccd_rate.push_back(val);
   }
-  Real endlambda = ccd_lambda.back();
+  endLambda = std::min(Real(spectrum_lambda.back()),endLambda);
   bool isShortest = 1;
-  int ccd_n = 0;
   nlambda = 0;
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
+  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
+  double ccdmax = ccd_lambda.back();
+  double ccd_rate_max = ccd_rate.back();
   for(int i = 0; i < spectrum.size(); i++){
-    if(spectrum_lambda[i] < ccd_lambda[0] || spectrum_lambda[i]<startLambda) continue;
-    if(spectrum_lambda[i] >= endlambda) break;
+    lambda = spectrum_lambda[i];
+    if(lambda<startLambda) continue;
+    if(lambda>=endLambda) break;
     if(isShortest && spectrum[i] < threshold*maxval) continue;
-    if(isShortest) startLambda = spectrum_lambda[i];
+    if(isShortest) startLambda = lambda;
     isShortest = 0;
-    spectrum_lambda[nlambda] = spectrum_lambda[i]/startLambda;
-    while(ccd_lambda[ccd_n] < spectrum_lambda[i]) ccd_n++;
-    Real dx = (spectrum_lambda[i]-ccd_lambda[ccd_n-1])/(ccd_lambda[ccd_n] - ccd_lambda[ccd_n-1]);
-    Real ccd_rate_i = ccd_rate[ccd_n-1]*(1-dx) + ccd_rate[ccd_n]*dx;
-    //printf("ccd_rate = %f , dx = %f, spectrum = %f\n", ccd_rate_i, dx, spectrum[nlambda]);
+    double ccd_rate_i = ccd_rate[0];
+    if(lambda >= ccdmax) ccd_rate_i = ccd_rate_max;
+    else if(lambda > ccd_lambda[0]) ccd_rate_i = gsl_spline_eval (spline, lambda, acc);
+    spectrum_lambda[nlambda] = lambda/startLambda;
     spectrum[nlambda] = spectrum[i]*ccd_rate_i/maxval;
     nlambda++;
   }
-  outlambda = (Real*) ccmemMngr.borrowCache(sizeof(Real)*nlambda);
-  outspectrum = (Real*) ccmemMngr.borrowCache(sizeof(Real)*nlambda);
+  endLambda /= startLambda;
+  outlambda = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  outspectrum = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     outlambda[i] = spectrum_lambda[i];
     outspectrum[i] = spectrum[i];
   }
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
 }

@@ -134,7 +134,7 @@ complexFormat findMiddle(Real* d_in, int num){
   int num_items = memMngr.getSize(d_in);
   Real* tmp = (Real*) memMngr.borrowCache(num_items);
   num_items/=sizeof(Real);
-  Real norm = findSum(tmp, num_items);
+  Real norm = findSum(d_in, num_items);
   cudaF(multiplyx,d_in,tmp);
   complexFormat mid;
   mid.x = findSum(tmp, num_items)/norm;

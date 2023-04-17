@@ -11,7 +11,7 @@ static const Real scale = 1;
 void *readComplexImage(const char* name);
 void writeComplexImage(const char* name, void* data, int row, int column);
 Real *readImage(const char* name, int &row, int &col);
-void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, int &nlambda, Real *& outlambda, Real *& outspectrum);
+void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum);
 
 
 #endif

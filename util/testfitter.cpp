@@ -43,7 +43,7 @@ int main(){
   vectors[1][0] = 1;
   vectors[1][1] = 2;
   Real right[N] = {0,59};
-  Real* out = (Real*) ccmemMngr.borrowCache(N*sizeof(Real));
+  double* out = (double*) ccmemMngr.borrowCache(N*sizeof(double));
   Fit(out, N, (void**)vectors, right, innerProd, mult, add, createCache, deleteCache);
   printf("solved: %f,%f\n", out[0], out[1]);
  }

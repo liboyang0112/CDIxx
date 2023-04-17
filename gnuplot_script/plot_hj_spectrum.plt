@@ -1,6 +1,10 @@
 power = -3
 mult = 10**(-power)
-set label sprintf("{/Symbol \264}10^{%d}",power) at 1.,30.6
+
+stats "spectra_raw.txt" nooutput
+set yrange [0:STATS_max_y*1.2*mult]
+set label sprintf("{/Symbol \264}10^{%d}",power) at 1,STATS_max_y*1.23*mult
+
 #set title "Spectrum"
 set xlabel "Normalized wave length"
 set ylabel "Normalized Intensity"
