@@ -22,13 +22,13 @@ int main(int argc, char** argv){
     if(cdi.domnist) {
       objrow = 128;
       objcol = 128;
-      mnist_dat = new cuMnist(cdi.mnistData.c_str(), 3, objrow, objcol);
+      mnist_dat = new cuMnist(cdi.mnistData, 3, objrow, objcol);
       cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
     }
     else {
-      intensity = readImage(cdi.common.Intensity.c_str(), objrow, objcol);
+      intensity = readImage(cdi.common.Intensity, objrow, objcol);
       cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
       cudaMemcpy(d_input, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
@@ -36,7 +36,7 @@ int main(int argc, char** argv){
       objcol *= cdi.oversampling;
     }
   }else{
-    intensity = readImage(cdi.common.Pattern.c_str(), objrow, objcol);
+    intensity = readImage(cdi.common.Pattern, objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
 #if 0
@@ -104,7 +104,7 @@ int main(int argc, char** argv){
         ccmemMngr.returnCache(intensity);
       }
     }else{
-      intensity = readImage(cdi.common.Pattern.c_str(), objrow, objcol);
+      intensity = readImage(cdi.common.Pattern, objrow, objcol);
       cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
     }

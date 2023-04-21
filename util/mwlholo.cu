@@ -22,13 +22,13 @@ int main(int argc, char** argv){
     if(cdi.domnist) {
       objrow = 128;
       objcol = 128;
-      mnist_dat = new cuMnist(cdi.mnistData.c_str(), 3, objrow, objcol);
+      mnist_dat = new cuMnist(cdi.mnistData, 3, objrow, objcol);
       cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
     }
     else {
-      intensity = readImage(cdi.common.Intensity.c_str(), objrow, objcol);
+      intensity = readImage(cdi.common.Intensity, objrow, objcol);
       cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
       cudaMemcpy(d_input, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
@@ -36,7 +36,7 @@ int main(int argc, char** argv){
       objcol *= cdi.oversampling;
     }
   }else{
-    intensity = readImage(cdi.common.Pattern.c_str(), objrow, objcol);
+    intensity = readImage(cdi.common.Pattern, objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
 #if 1
@@ -99,7 +99,7 @@ int main(int argc, char** argv){
       plt.plotComplex(single, MOD, 0, cdi.exposure, ("single"+to_string(j)).c_str(), 1);
       intensity = readImage(("merged"+to_string(j)+".png").c_str(), objrow, objcol);
     }else{
-      intensity = readImage(cdi.common.Pattern.c_str(), objrow, objcol);
+      intensity = readImage(cdi.common.Pattern, objrow, objcol);
     }
     cudaF(extendToComplex,d_patternSum, d_CpatternSum);
     init_fft(objrow,objcol);

@@ -1,5 +1,4 @@
 #include "cholmod.h"
-#include "mmio.h"
 int main (void)
 {
 	cholmod_sparse *A ;

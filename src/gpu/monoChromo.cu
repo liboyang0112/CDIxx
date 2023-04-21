@@ -62,7 +62,7 @@ void monoChromo::init(int nrow, int ncol, int nlambda_, double* lambdas_, double
 Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
   row = nrow;
   column = ncol;
-  jump = 10;
+  jump = 5;
   int skip = 0;
   Real stepsize = 2./row*jump;
   Real skiplambda = 2./row*skip;
@@ -316,7 +316,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       cudaMemset(deltabprev, 0, sz);
       cudaF(add, deltabprev, deltab, stepsize*spectra[0]);
       if(i==nIter-1) {
-        plt.plotComplex(deltab, MOD, 0, 1, "residual", 1);
+        plt.plotComplex(deltab, MOD, 0, 1, "residual_pulseGen", 1);
       }
       for(int j = 1; j < nlambda; j++){
         if(spectra[j]<=0) continue;

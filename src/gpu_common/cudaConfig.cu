@@ -308,7 +308,7 @@ cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int 
     //else mod2 = maximum+1;
     return;
   }
-  Real tolerance = 0;//(1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
+  Real tolerance = (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
   complexFormat sourcedata = source[index];
   Real srcmod2 = sourcedata.x*sourcedata.x + sourcedata.y*sourcedata.y;
   if(mod2>=maximum) {

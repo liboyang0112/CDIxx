@@ -9,24 +9,22 @@
 
 #ifndef __CDIxxCONFIG
 #define __CDIxxCONFIG
-#include <libconfig.h++>
-#include "format.h"
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
 enum Algorithm {RAAR, ER, HIO, POSHIO, shrinkWrap, XCORRELATION, cnt};
 
 struct CDIfiles{
-  std::string Pattern;
-  std::string Intensity;
-  std::string Phase;
-  std::string restart;
+  const char* Pattern;
+  const char* Intensity;
+  const char* Phase;
+  const char* restart;
 };
 
 #define DECINT(x,y) int x = y;
 #define DECBOOL(x,y) bool x = y;
-#define DECREAL(x,y) Real x = y;
-#define DECSTR(x,y) std::string x = y;
+#define DECREAL(x,y) double x = y;
+#define DECSTR(x,y) const char* x = y;
 
 #define INTVAR(F) \
 F(beamStopSize,5)F(nIter,1)F(nIterpupil,1)F(noiseLevel,0)F(noiseLevel_pupil,0)F(verbose,2)F(mnistN,3)
@@ -62,7 +60,7 @@ public:
   int nAlgo = cnt;
   int currentAlgo;
   int currentCount;
-  AlgoParser(std::string formula);
+  AlgoParser(const char* formula);
   void restart();
   int next();
 };

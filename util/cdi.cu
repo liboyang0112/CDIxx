@@ -204,7 +204,7 @@ int main(int argc, char** argv )
 
       m_verbose(setups,2,plt.plotComplex(cuda_pupilAmp, MOD2, 0, 1, "ISW"));
       int row, column;
-      Real* pupilInput = readImage(setups.pupil.Intensity.c_str(), row, column);
+      Real* pupilInput = readImage(setups.pupil.Intensity, row, column);
       cudaMemcpy(cuda_pupilmod, pupilInput, sz/2, cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(pupilInput);
       cudaF(createWaveFront,cuda_pupilmod, 0, cuda_ESW, row, column);
@@ -228,10 +228,10 @@ int main(int argc, char** argv )
       cudaF(applyPoissonNoise_WO,cuda_pupilmod, setups.noiseLevel_pupil, setups.devstates, 1./setups.exposurepupil);
       plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, "pupil_logintensity", 1);
       plt.plotComplex(cuda_pupilAmp, PHASE, 0, 1, "pupil_phase", 0);
-      plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, setups.pupil.Pattern.c_str(), 0);
+      plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, setups.pupil.Pattern, 0);
     }else{
       int row, column;
-      Real* pattern = readImage(setups.pupil.Pattern.c_str(),row,column); //reconstruction is better after integerization
+      Real* pattern = readImage(setups.pupil.Pattern,row,column); //reconstruction is better after integerization
       cudaMemcpy(cuda_pupilmod, pattern, sz/2, cudaMemcpyHostToDevice);
       cudaF(applyNorm,cuda_pupilmod, 1./setups.exposurepupil);
       ccmemMngr.returnCache(pattern);

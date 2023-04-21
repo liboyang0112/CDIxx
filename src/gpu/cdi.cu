@@ -120,14 +120,14 @@ void CDI::allocateMem(){
 void CDI::readObjectWave(){
   if(domnist){
     row = column = 256;
-    mnist_dat = new cuMnist(mnistData.c_str(), 3, row, column);
+    mnist_dat = new cuMnist(mnistData, 3, row, column);
     allocateMem();
     return;
   }
   int objrow,objcol;
   Real* d_intensity = 0;
   Real* d_phase = 0;
-  readComplexWaveFront(intensityModulation?common.Intensity.c_str():0, phaseModulation?common.Phase.c_str():0, d_intensity, d_phase, objrow,objcol);
+  readComplexWaveFront(intensityModulation?common.Intensity:0, phaseModulation?common.Phase:0, d_intensity, d_phase, objrow,objcol);
   row = objrow*oversampling;
   column = objcol*oversampling;
   allocateMem();
@@ -136,7 +136,7 @@ void CDI::readObjectWave(){
   if(d_intensity) memMngr.returnCache(d_intensity);
 }
 void CDI::readPattern(){
-  Real* pattern = readImage(common.Pattern.c_str(), row, column);
+  Real* pattern = readImage(common.Pattern, row, column);
   allocateMem();
   cudaMemcpy(patternData, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
   ccmemMngr.returnCache(pattern);
@@ -223,9 +223,10 @@ void CDI::prepareIter(){
       cudaF(applyNorm,patternData, 1./exposure);
       cudaF(cudaConvertFO,patternData);
     }
+    plt.saveFloat(patternData, "pattern");
   }
   if(restart){
-    complexFormat *wf = (complexFormat*) readComplexImage(common.restart.c_str());
+    complexFormat *wf = (complexFormat*) readComplexImage(common.restart);
     cudaMemcpy(patternWave, wf, row*column*sizeof(complexFormat), cudaMemcpyHostToDevice);
     verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
     ccmemMngr.returnCache(wf);
@@ -237,7 +238,6 @@ void CDI::prepareIter(){
   plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0);
   cudaF(cudaConvertFO, patternData);
   cudaF(applyNorm, patternData, exposure);
-  plt.saveFloat(patternData, "pattern");
   cudaF(cudaConvertFO, patternData);
   cudaF(applyNorm, patternData, 1./exposure);
 }
@@ -269,7 +269,7 @@ void CDI::saveState(){
   size_t sz = row*column*sizeof(complexFormat);
   void* outputData = ccmemMngr.borrowCache(sz);
   cudaMemcpy(outputData, patternWave, sz, cudaMemcpyDeviceToHost);
-  writeComplexImage(common.restart.c_str(), outputData, row, column);//save the step
+  writeComplexImage(common.restart, outputData, row, column);//save the step
   ccmemMngr.returnCache(outputData);
 }
 
@@ -415,8 +415,8 @@ complexFormat* CDI::phaseRetrieve(){
   cudaF(add, patternData, cuda_objMod, -1);
   plt.plotFloat(patternData, MOD, 1, exposure, "residual",1);
   cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
-  myCufftExecR2C( *planR2C, cuda_objMod, (complexFormat*)cuda_objMod);
-  cudaF(fillRedundantR2C,(complexFormat*)cuda_objMod, cuda_gkprime, 1./sqrt(row*column));
+  myCufftExecR2C( *planR2C, cuda_objMod, (complexFormat*)cuda_diff);
+  cudaF(fillRedundantR2C,(complexFormat*)cuda_diff, cuda_gkprime, 1./sqrt(row*column));
   plt.plotComplex(cuda_gkprime, MOD, 1, exposure, "autocorrelation_recon", 1);
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);

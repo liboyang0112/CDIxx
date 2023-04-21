@@ -1,83 +1,63 @@
 #include "readConfig.h"
 #include  <memory>
 #include <vector>
-#include <regex>
 #include <string>
 #include <iostream>
+#include <string.h>
 using namespace std;
-using namespace libconfig;
 #define subParsers (*(std::vector<AlgoParser*>*) subParsersp)
 #define count (*(std::vector<int>*) countp)
 #define algoList (*(std::vector<int>*) algoListp)
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
-
-int readConfigFile(const char * filename, Config &cfg)
+#include <libconfig.h>
+int readConfigFile(const char * filename, config_t *cfg)
 {
-
+  if(! config_read_file(cfg, filename))
+  {
+    fprintf(stderr, "%s:%d - %s\n", config_error_file(cfg),
+        config_error_line(cfg), config_error_text(cfg));
+    config_destroy(cfg);
+    return(EXIT_FAILURE);
+  }
   // Read the file. If there is an error, report it and exit.
-  try
-  {
-    cfg.readFile(filename);
-  }
-  catch(const FileIOException &fioex)
-  {
-    std::cerr << "I/O error while reading file." << std::endl;
-    return(EXIT_FAILURE);
-  }
-  catch(const ParseException &pex)
-  {
-    std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
-              << " - " << pex.getError() << std::endl;
-    return(EXIT_FAILURE);
-  }
+
   return EXIT_SUCCESS;
 }
 
 readConfig::readConfig(const char* configfile){
-  libconfig::Config cfg;
+  config_t cfgs;
+  config_t* cfg = &cfgs;
+  config_init(cfg);
   int ret = readConfigFile(configfile, cfg);
   cout << "config file: " << configfile << endl;
   if(ret==EXIT_FAILURE) exit(ret);
 
-  const Setting& root = cfg.getRoot();
-
   // Output a list of all vdWFluids in the inventory.
-  try
-  {
-    libconfig::Setting &InputImages = root["InputImages"];
-    libconfig::Setting &defaultImages= InputImages["default"];
-    libconfig::Setting &pupilImages= InputImages["pupil"];
+    config_setting_t *InputImages = config_lookup(cfg,"InputImages");
+    config_setting_t *defaultImages= config_setting_lookup(InputImages,"default");
+    config_setting_t *pupilImages= config_setting_lookup(InputImages,"pupil");
 
-    defaultImages.lookupValue("Intensity",common.Intensity);
-    defaultImages.lookupValue("Phase",common.Phase);
-    defaultImages.lookupValue("restart",common.restart);
-    defaultImages.lookupValue("Pattern",common.Pattern);
-    pupilImages.lookupValue("Intensity",pupil.Intensity);
-    pupilImages.lookupValue("Phase",pupil.Phase);
-    pupilImages.lookupValue("restart",pupil.restart);
-    pupilImages.lookupValue("Pattern",pupil.Pattern);
-  }
-  catch(const SettingNotFoundException &nfex)
-  {
-    cerr << "No Image file setting in configuration file." << endl;
-  }
-
+    config_setting_lookup_string(defaultImages,"Intensity",&common.Intensity);
+    config_setting_lookup_string(defaultImages,"Phase",&common.Phase);
+    config_setting_lookup_string(defaultImages,"restart",&common.restart);
+    config_setting_lookup_string(defaultImages,"Pattern",&common.Pattern);
+    config_setting_lookup_string(pupilImages,"Intensity",&pupil.Intensity);
+    config_setting_lookup_string(pupilImages,"Phase",&pupil.Phase);
+    config_setting_lookup_string(pupilImages,"restart",&pupil.restart);
+    config_setting_lookup_string(pupilImages,"Pattern",&pupil.Pattern);
   // Output a list of all vdWFluids in the inventory.
-  try
-  {
-#define getVal(x,y) Job.lookupValue(#x,x);
-    libconfig::Setting &Job = root["Job"];
-    BOOLVAR(getVal)
-    INTVAR(getVal)
-    REALVAR(getVal)
-    STRVAR(getVal)
-  }
-  catch(const SettingNotFoundException &nfex)
-  {
-    cerr << "No Image file setting in configuration file." << endl;
-  }
+#define getValbool(x,y) if(config_setting_lookup_bool(Job, #x, &tmp)) x = tmp;
+#define getValint(x,y) config_setting_lookup_int(Job, #x, &x);
+#define getValfloat(x,y) config_setting_lookup_float(Job, #x, &x);
+#define getValstring(x,y) config_setting_lookup_string(Job, #x, &x);
+    config_setting_t *Job = config_lookup(cfg,"Job");
+    int tmp;
+    BOOLVAR(getValbool);
+    INTVAR(getValint);
+    REALVAR(getValfloat);
+    STRVAR(getValstring);
 }
 void readConfig::print(){
   std::cout<<"common Intensity="<<common.Intensity<<std::endl;
@@ -93,29 +73,26 @@ void readConfig::print(){
 #define PRINTINT(x,y) std::cout<<"int: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
 #define PRINTREAL(x,y) std::cout<<"float: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
 #define PRINTSTR(x,y) std::cout<<"string: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
-    BOOLVAR(PRINTBOOL)
+  BOOLVAR(PRINTBOOL)
     INTVAR(PRINTINT)
     REALVAR(PRINTREAL)
     STRVAR(PRINTSTR)
 }
 
-void Stringsplit(const string& str, const string& split, vector<string>& res)
-{
-	//std::regex ws_re("\\s+"); // 正则表达式,匹配空格 
-	std::regex reg(split);		// 匹配split
-	std::sregex_token_iterator pos(str.begin(), str.end(), reg, -1);
-	decltype(pos) end;              // 自动推导类型 
-	for (; pos != end; ++pos)
-	{
-		res.push_back(pos->str());
-	}
-}
-
-AlgoParser::AlgoParser(std::string formula){
+AlgoParser::AlgoParser(const char* f){
   subParsersp=new std::vector<AlgoParser*>();
   countp=new std::vector<int>();
   algoListp=new std::vector<int>();
-  remove(formula.begin(),formula.end(),' ');
+	int j=0;
+  std::string formula = f;
+	for(int i=0;f[i]!='\0';i++)
+	{
+		if(f[i]!=' ')
+			formula[j++]=f[i];
+	}
+	formula[j]='\0';
+  formula.resize(j+1);
+  printf("%s\n",formula.c_str());
   auto position = formula.find("(");
   while(position!= std::string::npos){
     auto positione = formula.find(")");
@@ -126,18 +103,19 @@ AlgoParser::AlgoParser(std::string formula){
       currentPosition = formula.find("(",currentPosition+1,positione-currentPosition+1);
       std::cout<<position<<","<<currentPosition<<","<<positione<<std::endl;
     }
-    subParsers.push_back(new AlgoParser(formula.substr(position+1, positione-position-1)));
+    subParsers.push_back(new AlgoParser(formula.substr(position+1, positione-position-1).c_str()));
     formula.replace(position, positione-position+1, "subParser");
     std::cout<<formula<<std::endl;
     position = formula.find("(");
   }
-  std::vector<std::string> strs;
-  Stringsplit(formula, "\\+", strs);
+  char* term = const_cast<char*>(formula.c_str());
+  char* ptrstore;
   int iParser = 0;
-  for(auto mult : strs){
-    auto starpos = mult.find('*');
-    int num = atoi(mult.substr(0, starpos).c_str());
-    std::string str = mult.substr(starpos+1,mult.size()+1);
+  char* ptr = strtok_r(term,"*",&ptrstore);
+  do{
+    int num = atoi(ptr);
+    ptr = strtok_r(NULL,"+",&ptrstore);
+    string str = ptr;
     count.push_back(num);
     if(str=="RAAR") algoList.push_back(RAAR);
     else if(str=="HIO") algoList.push_back(HIO);
@@ -150,7 +128,7 @@ AlgoParser::AlgoParser(std::string formula){
       printf("Algorithm %s not found\n", str.c_str());
       exit(0);
     }
-  }
+  }while( ptr = strtok_r(NULL,"*",&ptrstore));
   restart();
 }
 void AlgoParser::restart(){
@@ -179,3 +157,4 @@ int AlgoParser::next(){
   }
 }
 // eof
+

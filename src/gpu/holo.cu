@@ -104,7 +104,7 @@ void holo::simulate(){
   if(runSim){
     Real* d_intensity = 0;
     Real* d_phase = 0;
-    readComplexWaveFront(pupil.Intensity.c_str(), phaseModulation_pupil?pupil.Phase.c_str():0,d_intensity,d_phase,objrow,objcol);
+    readComplexWaveFront(pupil.Intensity, phaseModulation_pupil?pupil.Phase:0,d_intensity,d_phase,objrow,objcol);
     init_cuda_image(row, column);
     cudaF(createWaveFront, d_intensity, d_phase, objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2);
     cudaF(add, objectWave_holo, (complexFormat*)objectWave, 1);

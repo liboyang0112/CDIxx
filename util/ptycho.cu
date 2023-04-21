@@ -200,8 +200,8 @@ class ptycho : public experimentConfig{
     void readPupilAndObject(){
       Real* d_object_intensity = 0;
       Real* d_object_phase = 0;
-      readComplexWaveFront(common.Intensity.c_str(), common.Phase.c_str(), d_object_intensity, d_object_phase, row_O, column_O);
-      Real* pupil_intensity = readImage(pupil.Intensity.c_str(), row, column);
+      readComplexWaveFront(common.Intensity, common.Phase, d_object_intensity, d_object_phase, row_O, column_O);
+      Real* pupil_intensity = readImage(pupil.Intensity, row, column);
       sz = row*column*sizeof(Real);
       int row_tmp=row*oversampling;
       int column_tmp=column*oversampling;
@@ -222,7 +222,7 @@ class ptycho : public experimentConfig{
       if(doPhaseModulationPupil){
         d_phase = (Real*) memMngr.borrowCache(sz);
         int tmp;
-        Real* pupil_phase = readImage(pupil.Phase.c_str(), tmp,tmp);
+        Real* pupil_phase = readImage(pupil.Phase, tmp,tmp);
         gpuErrchk(cudaMemcpy(d_phase, pupil_phase, sz, cudaMemcpyHostToDevice));
         ccmemMngr.returnCache(pupil_phase);
       }
@@ -402,7 +402,7 @@ class ptycho : public experimentConfig{
       //plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase");
     }
     void readPattern(){
-      Real* pattern = readImage((common.Pattern+"0_0.png").c_str(), row, column);
+      Real* pattern = readImage((string(common.Pattern)+"0_0.png").c_str(), row, column);
       plt.init(row,column);
       init_fft(row,column);
       sz = row*column*sizeof(Real);
@@ -418,7 +418,7 @@ class ptycho : public experimentConfig{
           ccmemMngr.returnCache(pattern);
           cudaF(cudaConvertFO,patterns[idx]);
           cudaF(applyNorm,patterns[idx], 1./exposure);
-          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
+          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)+"_"+to_string(j)).c_str()));
           idx++;
         }
       }

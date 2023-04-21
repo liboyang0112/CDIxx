@@ -2,6 +2,7 @@
 #define __EXPERIMENTCONFIG_H__
 
 #include "readConfig.h"
+#include "format.h"
 #define verbose(i,a) if(verbose>=i){a;}
 #define m_verbose(m,i,a) if(m.verbose>=i){a;}
 
