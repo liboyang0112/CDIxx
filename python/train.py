@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import torch
+from os.path import exists
+from os import mkdir
 from model import UNet
 from libunetDataLoader_cython import unetDataLoader as ul
 from torch import utils, device, tensor, nn
@@ -13,7 +15,12 @@ data = ul("./testdb", 1, 256,256, 1, 256,256,device('cuda:0'))
 dataloader = DataLoader(data, batch_size=4, shuffle=True,num_workers=0,drop_last=True)
 EPOCH=1000
 print('load net')
-#net.load_state_dict(torch.load('SAVE/Unet.pt'))
+if not exists('SAVE'):
+    mkdir('SAVE')
+if not exists('Log_imgs'):
+    mkdir('Log_imgs')
+if exists('SAVE/Unet.pt'):
+    net.load_state_dict(torch.load('SAVE/Unet.pt'))
 print('load success')
 for epoch in range(EPOCH):
     print('开始第{}轮'.format(epoch))
@@ -29,6 +36,6 @@ for epoch in range(EPOCH):
     img=torch.unsqueeze(img,dim=0)
     net.eval()
     out=net(img)
-    plt.imsave('Log_imgs/segimg_ep{}_90th_pic.jpg'.format(epoch,i), out.cpu()[0][0].detach().numpy())
+    plt.imsave('Log_imgs/segimg_ep{}_90th_pic.jpg'.format(epoch), out.cpu()[0][0].detach().numpy())
     print('第{}轮结束'.format(epoch))
 

@@ -12,6 +12,7 @@ class mnistData{
 	public:
   mnistData(const char* dir);
   Real* read();
+  void setIndex(int idx) {idat = idx;}
   ~mnistData();
 };
 

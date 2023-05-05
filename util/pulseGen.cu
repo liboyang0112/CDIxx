@@ -41,7 +41,7 @@ int main(int argc, char** argv){
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
-#if 0
+#if 1
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
   double *lambdas;
