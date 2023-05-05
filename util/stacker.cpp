@@ -142,7 +142,7 @@ int main(int argc, char** argv )
     //printf("\n");
   }
   printf("\ntot=%d,max=%d,middle=(%f,%f), max=%f\n",tot,max,sumx/=totx,sumy/=toty,maxIntensity);
-  Mat imagefloatc = centerCrop(imagefloatin, sumx, sumy);
+  Mat imagefloatc = (totx ==0 || toty == 0)? imagefloatin: centerCrop(imagefloatin, sumx, sumy);
   row = imagefloatc.rows;
   column = imagefloatc.cols;
   for(int i = 0; i < imagein.size(); i++)

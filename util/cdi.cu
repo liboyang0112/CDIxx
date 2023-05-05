@@ -183,7 +183,7 @@ int main(int argc, char** argv )
     }
     //setups.saveState();
   }
-  //setups.checkAutoCorrelation();
+  setups.checkAutoCorrelation();
 
   //Now let's do pupil
   if(setups.dopupil){ 

@@ -51,6 +51,7 @@ void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, 
   plot(label, islog);
 }
 void cuPlotter::plot(const char* label, bool iscolor){
+  iscolor = 0;
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
   printf("written to file %s\n", fname.c_str());

@@ -6,3 +6,4 @@ obj
 images
 .vscode
 run
+__pycache__

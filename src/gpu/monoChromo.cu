@@ -9,6 +9,13 @@
 #include <iostream>
 #include <gsl/gsl_spline.h>
 
+
+cuFunc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b),(deltab, b),{
+  cudaIdx();
+  if(b[index].x >= vars->scale*0.99 && deltab[index].x < 0) deltab[index].x = 0;
+  deltab[index].y = 0;
+})
+
 cuFunc(multiplyPixelWeight, (complexFormat* img, Real* weights),(img, weights),{
   cudaIdx();
   int shift = max(abs(x+0.5-cuda_row/2), abs(y+0.5-cuda_column/2));
@@ -135,12 +142,12 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
     int thisrow = rows[i];
     int thiscol = cols[i];
     init_cuda_image(thisrow, thiscol);
-    cudaF(createWaveFront,(Real*)d_input, 0, (complexFormat*)d_intensity, row/oversampling, column/oversampling);
+    cudaF(createWaveFront,(Real*)d_input, 0, (complexFormat*)d_intensity, int(row/oversampling), int(column/oversampling),0,0);
     myCufftExec( ((cufftHandle*)locplan)[i], d_intensity,d_intensity, CUFFT_FORWARD);
     cudaF(cudaConvertFO,d_intensity);
     init_cuda_image(row, column);
     cudaF(crop,d_intensity,d_patternAmp,thisrow,thiscol);
-    cudaF(applyNorm,d_patternAmp, sqrt(spectra[i])/sqrt(thiscol*thisrow));
+    cudaF(applyNorm,d_patternAmp, sqrt(spectra[i]/(thiscol*thisrow)));
     if(i==0) {
       cudaF(getMod2,(Real*)d_patternSum, d_patternAmp);
       if(single!=0) {
@@ -201,10 +208,11 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   init_fft(row,column);
   init_cuda_image(row, column);
   Real dt = 2;
-  Real friction = .2;//0.1;
+  Real friction = .1;//0.1;
   if(restart) {
-    cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
-    cudaF(zeroEdge, (complexFormat*)d_output, 80);
+    //cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
+    //cudaF(zeroEdge, (complexFormat*)d_output, 150);
+    cudaMemset(d_output, 0, sz);
   }
   complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
   complexFormat *momentum = (complexFormat*)memMngr.borrowCache(sz);
@@ -313,6 +321,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
     }
     if(updateX){
+      cudaF(overExposureZeroGrad, deltab, (complexFormat*)d_input);
       cudaMemset(deltabprev, 0, sz);
       cudaF(add, deltabprev, deltab, stepsize*spectra[0]);
       if(i==nIter-1) {

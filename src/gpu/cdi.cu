@@ -65,6 +65,14 @@ __device__ void ApplyRAARSupport(bool insideS, complexFormat &rhonp1, complexFor
   }
 }
 
+__device__ void ApplyPOSERSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
+  if(insideS && rhoprime.x > 0){
+    rhonp1.x = rhoprime.x;
+  }else{
+    rhonp1.x = 0;
+  }
+  rhonp1.y = 0;
+}
 __device__ void ApplyERSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
   if(insideS){
     rhonp1.x = rhoprime.x;
@@ -211,6 +219,8 @@ void CDI::prepareIter(){
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
     verbose(4,printf("Generating diffraction pattern\n"));
     propagate(objectWave,patternWave, 1);
+    cudaF(convertFOPhase, patternWave);
+    plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
     cudaF(getMod2,patternData, patternWave);
     if(simCCDbit){
       verbose(4,printf("Applying Poisson noise\n"));
@@ -301,6 +311,7 @@ cuFunc(applySupport,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo
   complexFormat &gkprimedata = gkprime[index];
   if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
+  else if(algo==POSER) ApplyPOSERSupport(inside,gkp1data,gkprimedata);
   else if(algo==POSHIO) ApplyPOSHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   if(fresnelFactor>1e-4 && iter < 400) {
@@ -347,7 +358,7 @@ complexFormat* CDI::phaseRetrieve(){
       applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
       cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
       cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
-      if(gaussianSigma>1.) {
+      if(gaussianSigma>1) {
         gaussianSigma*=0.99;
       }
       continue;
@@ -412,12 +423,12 @@ complexFormat* CDI::phaseRetrieve(){
   if(isFresnel) multiplyFresnelPhase(cuda_gkp1, -d);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
   cudaF(getMod2, cuda_objMod, patternWave);
-  cudaF(add, patternData, cuda_objMod, -1);
-  plt.plotFloat(patternData, MOD, 1, exposure, "residual",1);
-  cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
   myCufftExecR2C( *planR2C, cuda_objMod, (complexFormat*)cuda_diff);
   cudaF(fillRedundantR2C,(complexFormat*)cuda_diff, cuda_gkprime, 1./sqrt(row*column));
   plt.plotComplex(cuda_gkprime, MOD, 1, exposure, "autocorrelation_recon", 1);
+  cudaF(add, cuda_objMod, patternData, -1);
+  plt.plotFloat(cuda_objMod, MOD, 1, exposure, "residual",1);
+  cudaF(applyMod,patternWave,patternData,useBS?beamstop:0,1,nIter, noiseLevel);
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
   memMngr.returnCache(cuda_diff);

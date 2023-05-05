@@ -40,6 +40,7 @@ cuFuncDec(applyRandomPhase, complexFormat* wave, Real* beamstop, curandStateMRG3
 cuFuncDec(multiply, complexFormat* source, complexFormat* target);
 cuFuncDec(multiplyReal, Real* store, complexFormat* source, complexFormat* target);
 cuFuncDec(multiply, complexFormat* store, complexFormat* source, complexFormat* target);
+cuFuncDec(convertFOPhase, complexFormat* data);
 void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols);

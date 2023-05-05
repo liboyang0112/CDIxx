@@ -1,7 +1,11 @@
 #include <stdlib.h>
+#ifdef __cplusplus
 extern "C" {
-  int initLMDB();
+#endif
+  int initLMDB(const char* dbDIR);
   int saveLMDB();
   int fillLMDB(int *keyval, void* data, size_t data_size, void* label, size_t label_size);
-  int readLMDB(void* data, size_t* data_size, void* label, size_t *label_size, int *keyval);
+  void readLMDB(void** data, size_t* data_size, void** label, size_t *label_size, int *keyval);
+#ifdef __cplusplus
 }
+#endif

@@ -120,6 +120,7 @@ AlgoParser::AlgoParser(const char* f){
     if(str=="RAAR") algoList.push_back(RAAR);
     else if(str=="HIO") algoList.push_back(HIO);
     else if(str=="ER") algoList.push_back(ER);
+    else if(str=="POSER") algoList.push_back(POSER);
     else if(str=="POSHIO") algoList.push_back(POSHIO);
     else if(str=="shrinkWrap") algoList.push_back(shrinkWrap);
     else if(str=="XCORRELATION") algoList.push_back(XCORRELATION);
