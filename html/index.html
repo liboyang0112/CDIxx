@@ -6,23 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-    <title>Upload Files</title>
+    <title>Atto CDI</title>
 
   </head>
   <body>
-    <script>
-      var displaybkg = function(m){
-        var image = document.getElementById('bkgonscreen');
-        image.src = URL.createObjectURL(m.target.files[0]);
-      }
-      var displaypat = function(m){
-        var image = document.getElementById('patonscreen');
-        image.src = URL.createObjectURL(m.target.files[0]);
-      }
-    </script>
     <p>Working folder: <input type="text" value="" name="path" id="path"><!-- onchange="loadlog(event)"-->
-    <a href="images">Show repository</a></p> 
     <button id="setpath">Confirm Folder</button>
+    <a href="images">Show repository</a></p>
     <p>Monochromatization Config:</p>
     <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
@@ -32,9 +22,8 @@
       After selecting working folder, you can edit config file here</textarea></p>
     <button id="savecdi">Save</button>
     <p>Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
-    <p>Upload background: <input type="file" id="background" ><!--onchange="displaybkg(event)"-->
-    Upload pattern: <input type="file" id="image" ><!--onchange="displaypat(event)"--></p>
-    <!--p><img id="bkgonscreen" width="200"><img id="patonscreen" width="200"></p-->
+    <p>Upload background: <input type="file" id="background" >
+    Upload pattern: <input type="file" id="image" ></p>
     <button id="uploadimg">Upload</button>
     <p>Upload Spectrum: <input type="file" id="spectrum" ></p>
     <button id="uploadspect">Upload</button>
@@ -62,15 +51,15 @@
     }).then(response => {
       return response.text();
     });
-    fetch(nodeurl+"/path_pulse",{
+    fetch(nodeurl+"/read",{
       method: 'POST',
-      body: document.getElementById('path').value
+      body: repo+document.getElementById('path').value+"/pulse.cfg"
     }).then(response=>{return response.text()}).then(data=>{
       document.getElementById('monoconfig').value = data;
     })
-    fetch(nodeurl+"/path_cdi",{
+    fetch(nodeurl+"/read",{
       method: 'POST',
-      body: document.getElementById('path').value
+      body: repo+document.getElementById('path').value+"/cdi.cfg"
     }).then(response=>{return response.text()}).then(data=>{
       document.getElementById('cdiconfig').value = data;
     })
@@ -79,9 +68,7 @@
     const path = repo + document.getElementById('path').value +"/"
     const url = 'process.php';
     const files = document.getElementById('background').files;
-    const bkgname = files[0].name
     const sigfiles = document.getElementById('image').files;
-    const patname = files[0].name
     const formData = new FormData();
     formData.append('path', path);
     document.getElementById('runbkgfile').value = files[0].name
@@ -99,7 +86,6 @@
     const path = repo + document.getElementById('path').value +"/"
     const url = 'process.php';
     const file = document.getElementById('spectrum').files;
-    const name = file[0].name;
     const formData = new FormData();
     formData.append('path', path);
     formData.append('files[]', file[0]);
@@ -123,8 +109,7 @@
       return response.text();
     }).then(data => {
       document.getElementById('preparelog').innerText = data;
-      var image = document.getElementById('logimg');
-      image.src = path+"logimagemerged.png?t=" + timestamp;
+      document.getElementById('logimg').src = path+"logimagemerged.png?t=" + timestamp;
     });
     return;
   })
@@ -138,12 +123,9 @@
       return response.text();
     }).then(data => {
       document.getElementById('monolog').innerText = data;
-      var image = document.getElementById('solved');
-      image.src = path+"solvedlog0.png?t=" + timestamp;
-      var image_residual = document.getElementById('residual');
-      image_residual.src = path+"residual_pulseGen.png?t=" + timestamp;
-      var image_spect = document.getElementById('spectrum_plt');
-      image_spect.src = path+"spectra.png?t=" + timestamp;
+      document.getElementById('solved').src = path+"solvedlog0.png?t=" + timestamp;
+      document.getElementById('residual').src = path+"residual_pulseGen.png?t=" + timestamp;
+      document.getElementById('spectrum_plt').src = path+"spectra.png?t=" + timestamp;
     });
     return;
   });
@@ -157,8 +139,7 @@
       return response.text();
     }).then(data => {
       document.getElementById('cdilog').innerText = data;
-      var image = document.getElementById('recon');
-      image.src = path+"recon_intensity_cropped.png?t=" + timestamp;
+      image = document.getElementById('recon').src = path+"recon_intensity_cropped.png?t=" + timestamp;
     });
     return;
   });
