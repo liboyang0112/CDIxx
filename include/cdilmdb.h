@@ -2,10 +2,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  int initLMDB(const char* dbDIR);
-  int saveLMDB();
-  int fillLMDB(int *keyval, void* data, size_t data_size, void* label, size_t label_size);
-  void readLMDB(void** data, size_t* data_size, void** label, size_t *label_size, int *keyval);
+  int initLMDB(int* handle, const char* dbDIR);
+  int saveLMDB(int handle);
+  int setCompress(int handle);
+  int fillLMDB(int handle, int *keyval, int ndata, void** data, size_t* data_size);
+  void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 #ifdef __cplusplus
 }
 #endif

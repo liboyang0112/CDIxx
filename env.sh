@@ -14,6 +14,6 @@ if [ -z ${CDI_DIR+x} ] ; then
 	else
 		export LD_LIBRARY_PATH+=:$CDI_DIR/lib
 	fi
-	alias cdicd='cd $CDI_DIR'
-	alias cdimake='ninja -C $CDI_DIR/build'
 fi
+alias cdicd='cd $CDI_DIR'
+alias cdimake='ninja -C $CDI_DIR/build'

@@ -7,8 +7,9 @@ from torch import utils, tensor
 import os
 
 cdef extern from "cdilmdb.h":
-    int initLMDB(const char*)
-    void readLMDB(void**, size_t*, void**, size_t*, int*)
+    int initLMDB(int* handle, const char*)
+    void readLMDB(int handle, void**, size_t*, void**, size_t*, int*)
+    void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 
 np.import_array()
 class unetDataLoader(utils.data.Dataset):
@@ -23,7 +24,10 @@ class unetDataLoader(utils.data.Dataset):
         self.lenl = rowl*coll*chanl
         self.pystr = db_path.encode("utf8")
         cdef char* path = self.pystr
-        self.length = initLMDB(path)
+        cdef int handle;
+        self.length = initLMDB(&handle, path)
+        self.handle = handle;
+        print("Imported dataset:", db_path, ", containing ", self.length, " samples")
         self.device = device
         self.transform = transform
         self.target_transform = target_transform
@@ -32,12 +36,15 @@ class unetDataLoader(utils.data.Dataset):
         cdef np.npy_intp lenl = self.lenl
         cdef size_t datasz = len*sizeof(float)
         cdef size_t labelsz = lenl*sizeof(float)
+        cdef handle = self.handle;
         cdef int key = index
-        cdef int *data;
-        cdef int *label;
-        readLMDB(<void**>&data, &datasz, <void**>&label, &labelsz, &key);
-        imgnp = np.PyArray_SimpleNewFromData(1, &len, np.NPY_FLOAT, <void*>data);
-        labnp = np.PyArray_SimpleNewFromData(1, &lenl, np.NPY_FLOAT, <void*>label);
+        cdef int ndata;
+        cdef size_t init_size = self.chan*self.row*self.col*sizeof(float);
+        cdef size_t *data_size = &init_size;
+        cdef void **data;
+        readLMDB(handle, &ndata, &data, &data_size, &key);
+        imgnp = np.PyArray_SimpleNewFromData(1, &len, np.NPY_FLOAT, data[0]);
+        labnp = np.PyArray_SimpleNewFromData(1, &lenl, np.NPY_FLOAT, data[1]);
         img = tensor(imgnp).reshape([self.chan, self.row, self.col]).to(self.device);
         lab = tensor(labnp).reshape([self.chanl, self.rowl, self.coll]).to(self.device);
         if self.transform is not None:

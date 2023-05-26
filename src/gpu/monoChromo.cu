@@ -10,6 +10,18 @@
 #include <gsl/gsl_spline.h>
 
 
+cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force, mom , dx),{
+  cudaIdx()
+  Real m = mom[index].x;
+  Real f = force[index].x;
+  // interpolate with walls
+  //if(m * f < 0) m = f*(1-dx);
+  //else m = m*dx + f*(1-dx);
+  if(m * f < 0) m = f*dx;
+  else m = m + f*dx;
+  mom[index].x = m;
+})
+
 cuFunc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b),(deltab, b),{
   cudaIdx();
   if(b[index].x >= vars->scale*0.99 && deltab[index].x < 0) deltab[index].x = 0;
@@ -69,8 +81,6 @@ void monoChromo::init(int nrow, int ncol, int nlambda_, double* lambdas_, double
 Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
   row = nrow;
   column = ncol;
-  jump = 5;
-  int skip = 0;
   Real stepsize = 2./row*jump;
   Real skiplambda = 2./row*skip;
   nlambda = (lambdasi[narray-1]-skiplambda-1)/stepsize+1;
@@ -79,14 +89,22 @@ Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, i
   int sz = narray*sizeof(double);
   double* spectrumraw = (double*)ccmemMngr.borrowCache(sz);
   memcpy(spectrumraw, spectrumi, sz);
+  lambdasi[0] /= (1+skiplambda);
   for(int i = 1; i < narray; i++){
+    lambdasi[i] /= (1+skiplambda);
     spectrumi[i] += spectrumi[i-1];
   }
+  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  for(int i = 0; i < narray; i++){
+    spectrumfile<<lambdasi[i]*(1+skiplambda)<<" "<<spectrumraw[i]/spectrumi[narray-1]<<std::endl;
+  }
+  ccmemMngr.returnCache(spectrumraw);
+  spectrumfile.close();
   gsl_interp_accel *acc = gsl_interp_accel_alloc ();
   gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, narray);
   gsl_spline_init (spline, lambdasi, spectrumi, narray);
   Real cumprev = 0;
-  Real lambda = 1+skiplambda;
+  Real lambda = 1;
   for(int i = 0; i < nlambda-1; i++){
     double cumnow = gsl_spline_eval (spline, lambda+stepsize/2, acc);
     spectra[i] = cumnow-cumprev;
@@ -101,14 +119,9 @@ Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, i
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
   locplan = ccmemMngr.borrowCache(sizeof(cufftHandle)*nlambda);
-  spectrumfile.open("spectra_raw.txt", std::ios::out);
-  for(int i = 0; i < narray; i++){
-    spectrumfile<<lambdasi[i]<<" "<<spectrumraw[i]/spectrumi[narray-1]<<std::endl;
-  }
-  spectrumfile.close();
   for(int i = 0; i < nlambda; i++){
-    rows[i] = row+i*2*jump+skip*2;
-    cols[i] = column+i*2*jump+skip*2;
+    rows[i] = row+i*2*jump;
+    cols[i] = column+i*2*jump;
     printf("%d: (%d,%d)=%f\n",i, rows[i],cols[i],spectra[i]/=spectrumi[narray-1]);
     new(&(((cufftHandle*)locplan)[i]))cufftHandle();
     cufftPlan2d ( &(((cufftHandle*)locplan)[i]), rows[i], cols[i], FFTformat);
@@ -138,11 +151,16 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
   complexFormat *d_intensity = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
   complexFormat* d_patternAmp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
+  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCache(int(row/oversampling)*int(column/oversampling)*sizeof(complexFormat));
+  cudaMemset(d_inputWave, 0, int(row/oversampling)*int(column/oversampling)* sizeof(complexFormat));
+  init_cuda_image(int(row/oversampling), int(column/oversampling));
+  cudaF(assignReal, (Real*)d_input, d_inputWave);
+  if(devstates) cudaF(applyRandomPhase,d_inputWave,0,(curandStateMRG32k3a *)devstates);
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
     int thiscol = cols[i];
     init_cuda_image(thisrow, thiscol);
-    cudaF(createWaveFront,(Real*)d_input, 0, (complexFormat*)d_intensity, int(row/oversampling), int(column/oversampling),0,0);
+    cudaF(pad, d_inputWave, d_intensity, int(row/oversampling), int(column/oversampling));
     myCufftExec( ((cufftHandle*)locplan)[i], d_intensity,d_intensity, CUFFT_FORWARD);
     cudaF(cudaConvertFO,d_intensity);
     init_cuda_image(row, column);
@@ -150,13 +168,17 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
     cudaF(applyNorm,d_patternAmp, sqrt(spectra[i]/(thiscol*thisrow)));
     if(i==0) {
       cudaF(getMod2,(Real*)d_patternSum, d_patternAmp);
-      if(single!=0) {
-        cudaF(extendToComplex,(Real*)d_patternSum, (complexFormat*)single);
-        cudaF(applyNorm,(complexFormat*)single, 1./spectra[i]);
-      }
+      //if(single!=0) {
+      //  cudaF(extendToComplex,(Real*)d_patternSum, (complexFormat*)single);
+      //  cudaF(applyNorm,(complexFormat*)single, 1./spectra[i]);
+      //}
     }else{
       cudaF(getMod2,d_pattern, d_patternAmp);
       cudaF(add,(Real*)d_patternSum, (Real*)d_pattern, 1);
+      if(single!=0 && i == 1 ) {
+        cudaF(extendToComplex,(Real*)d_pattern, (complexFormat*)single);
+        cudaF(applyNorm,(complexFormat*)single, 1./spectra[i]);
+      }
     }
   }
   memMngr.returnCache(d_pattern);
@@ -207,16 +229,26 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   init_cuda_image(row, column);
-  Real dt = 2;
-  Real friction = .1;//0.1;
+  Real lr = 0.5;
+  Real beta1 = 1;//0.1;
+  Real beta2 = 0.;//5;//0.99;
+  Real adamepsilon = 1e-4;
   if(restart) {
     //cudaMemcpy(d_output, d_input, sz, cudaMemcpyDeviceToDevice);
     //cudaF(zeroEdge, (complexFormat*)d_output, 150);
     cudaMemset(d_output, 0, sz);
   }
   complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat *momentum = (complexFormat*)memMngr.borrowCache(sz);
-  if(friction) cudaMemset(momentum, 0, sz);
+  complexFormat *momentum = 0;
+  Real *adamv = 0;
+  if(beta1) {
+    momentum = (complexFormat*)memMngr.borrowCache(sz);
+    cudaMemset(momentum, 0, sz);
+  }
+  if(beta2) {
+    adamv = (Real*)memMngr.borrowCache(sz/2);
+    cudaMemset(adamv, 0, sz/2);
+  }
   complexFormat *padded = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
   complexFormat *deltabprev = (complexFormat*)memMngr.borrowCache(sz);
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
@@ -233,7 +265,6 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
     momentum_a = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
     memset(momentum_a,0,nlambda*sizeof(Real));
   }
-  Real stepsize = 0.7;
   complexFormat *fbi;
   if(!updateX) {
     myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
@@ -269,10 +300,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         printf("WARING recalculated sum %f\n", sum);
         exit(0);
       }
-      Real step = step_a*sum;
-      momentum_a[0] += step*dt;
-      momentum_a[0]*=(1-friction*dt);
-      spectra[0]+=momentum_a[0]*dt;
+      momentum_a[0] = momentum_a[0]*beta1 + (1-beta1)*sum*step_a;
+      spectra[0]+=momentum_a[0]*lr;
       if(spectra[0]<=0) spectra[0] = 1e-6;
       if(spectra[0]>0.03) spectra[0] = 0.03;
       sumspect+=spectra[0];
@@ -300,9 +329,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
           exit(0);
         }
         Real step = step_a*Real(rows[j])/row*sum;
-        momentum_a[j] += step*dt;
-        momentum_a[j]*=(1-friction*dt);
-        spectra[j]+=momentum_a[j]*dt;
+        momentum_a[j] = momentum_a[j]*beta1 + (1-beta1)*step;
+        spectra[j]+=momentum_a[j]*lr;
         if(spectra[j]<=0) spectra[j] = 1e-6;
         if(spectra[j]>0.3) spectra[j] = 0.3;
         sumspect+=spectra[j];
@@ -321,9 +349,9 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
     }
     if(updateX){
-      cudaF(overExposureZeroGrad, deltab, (complexFormat*)d_input);
+      //cudaF(overExposureZeroGrad, deltab, (complexFormat*)d_input);
       cudaMemset(deltabprev, 0, sz);
-      cudaF(add, deltabprev, deltab, stepsize*spectra[0]);
+      cudaF(add, deltabprev, deltab, spectra[0]);
       if(i==nIter-1) {
         plt.plotComplex(deltab, MOD, 0, 1, "residual_pulseGen", 1);
       }
@@ -338,15 +366,17 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         cudaF(cudaConvertFO,fbi);
         cudaF(applyNorm,fbi, 1./(row*column));
         myCufftExec( *plan, fbi, fbi, CUFFT_FORWARD);
-        cudaF(add,(complexFormat*)deltabprev, fbi, stepsize*spectra[j]);
+        cudaF(add,(complexFormat*)deltabprev, fbi, spectra[j]);
       }
       //cudaF(multiplyPixelWeight, deltabprev, pixel_weight);
-      if(friction){
-        cudaF(add, (complexFormat*)momentum, deltabprev, 1);
-        cudaF(applyNorm,(complexFormat*)momentum, 1-friction*dt);
-        cudaF(add,(complexFormat*)d_output, momentum, dt);
+      if(beta1){
+        cudaF(updateMomentum, deltabprev, momentum, beta1);
+        if(beta2) {
+          cudaF(adamUpdateV, adamv, deltabprev, beta2);
+          cudaF(adamUpdate, (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
+        }else cudaF(add,(complexFormat*)d_output, momentum, lr);
       }else{
-        cudaF(add, (complexFormat*)d_output, deltabprev, 1);
+        cudaF(add, (complexFormat*)d_output, deltabprev, lr);
       }
       cudaF(forcePositive,(complexFormat*)d_output);
       /* //FISTA update, not quite effective
@@ -374,7 +404,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   }
   memMngr.returnCache(deltabprev);
   memMngr.returnCache(multiplied);
-  memMngr.returnCache(momentum);
+  if(momentum) memMngr.returnCache(momentum);
+  if(adamv) memMngr.returnCache(adamv);
   memMngr.returnCache(padded);
   if(!gs) memMngr.returnCache(fbi);
   memMngr.returnCache(fftb);

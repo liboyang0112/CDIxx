@@ -93,7 +93,7 @@ __device__ void ApplyPOSHIOSupport(bool insideS, complexFormat &rhonp1, complexF
   rhonp1.y -= beta*rhoprime.y;
 }
 CDI::CDI(const char* configfile):experimentConfig(configfile){
-  verbose(2, print())
+  verbose(4, print())
     if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
 }
 void CDI::propagatepupil(complexFormat* datain, complexFormat* dataout, bool isforward){
@@ -128,7 +128,7 @@ void CDI::allocateMem(){
 void CDI::readObjectWave(){
   if(domnist){
     row = column = 256;
-    mnist_dat = new cuMnist(mnistData, 3, row, column);
+    mnist_dat = new cuMnist(mnistData,1, 3, row, column);
     allocateMem();
     return;
   }
@@ -145,8 +145,19 @@ void CDI::readObjectWave(){
 }
 void CDI::readPattern(){
   Real* pattern = readImage(common.Pattern, row, column);
-  allocateMem();
-  cudaMemcpy(patternData, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
+  if(cropPattern) {
+    Real* tmp = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+    cudaMemcpy(tmp, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
+    int rowtmp = row;
+    int coltmp = column;
+    row = column = cropPattern;
+    allocateMem();
+    cudaF(crop, tmp, patternData, rowtmp, coltmp);
+    memMngr.returnCache(tmp);
+  }else{
+    allocateMem();
+    cudaMemcpy(patternData, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
+  }
   ccmemMngr.returnCache(pattern);
   cudaF(cudaConvertFO,patternData);
   cudaF(applyNorm,patternData, 1./exposure);

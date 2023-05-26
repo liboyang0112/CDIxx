@@ -9,23 +9,34 @@
 #include "monoChromo.h"
 #include "cdi.h"
 #include "cdilmdb.h"
+#include "cub_wrap.h"
 
 int main(int argc, char** argv){
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
-  initLMDB("testdb");
+  int handle;
+  bool training = 1;
+  int ntraining = 1000;
+  int testingstart = ntraining;
+  initLMDB(&handle, training?"traindb":"testdb");
+  //setCompress(&handle);
   monoChromo mwl;
   CDI cdi(argv[1]);
-  cuMnist *mnist_dat = 0;
+  int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
+  int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
+  const int nconfig = 11;
+  int ntesting = nconfig;
+  cuMnist *mnist_dat[nconfig];
   int objrow;
   int objcol;
   Real* d_input;
   Real* intensity;
   if(cdi.runSim){
     if(cdi.domnist) {
-      objrow = 128;
-      objcol = 128;
-      mnist_dat = new cuMnist(cdi.mnistData, 3, objrow, objcol);
-      cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
+      objrow = 256;
+      objcol = 256;
+      for(int iconfig  = 0; iconfig < nconfig; iconfig++)
+        mnist_dat[iconfig] = new cuMnist(cdi.mnistData, datamerge[iconfig], datarefine[iconfig], objrow, objcol);
+      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
     }
@@ -41,7 +52,7 @@ int main(int argc, char** argv){
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
-#if 1
+#if 0
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
   double *lambdas;
@@ -52,31 +63,28 @@ int main(int argc, char** argv){
     lambdas[i] = 1 + 2.*i/objrow;
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
-#elif 1
+#elif 0
   const int nlambda = 5;
   double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
 #else
   int nlambda;
   double* lambdas, *spectra;
-  Real startlambda = 500;
-  Real endlambda = 900;
-  getNormSpectrum(argv[2],argv[3],startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+  Real startlambda = 480;
+  Real endlambda = 1000;
+  getNormSpectrum(cdi.ccd_response,cdi.spectrum,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
   printf("lambda range = (%f, %f), ratio=%f\n", startlambda, endlambda*startlambda, endlambda);
 #endif
-  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  //Real tot = mwl.init(objrow, objcol, lambdas, spectra, nlambda);
-  std::ofstream spectrafile;
-  spectrafile.open("spectra_raw.txt",ios::out);
-  for(int i = 0; i < nlambda; i++){
-    //spectrafile<<lambdas[i]<<" "<<spectra[i]/tot<<endl;
-    spectrafile<<lambdas[i]<<" "<<spectra[i]<<endl;
-  }
-  spectrafile.close();
+  //mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+  mwl.jump = 10;
+  mwl.skip = 5;
+  Real tot = mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   int sz = mwl.row*mwl.column*sizeof(Real);
   Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
+  Real *realcache = (Real*)memMngr.borrowCache(sz);
   complexFormat *d_single = (complexFormat*)memMngr.borrowCache(sz*2);
   Real *single = (Real*)ccmemMngr.borrowCache(sz);
+  Real *merged = (Real*)ccmemMngr.borrowCache(sz);
   complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
   complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
   init_cuda_image(mwl.row, mwl.column,65536,1);
@@ -84,10 +92,13 @@ int main(int argc, char** argv){
   curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   cudaF(initRand,devstates,seed);
-  mwl.writeSpectra("spectra.txt");
-  for(int j = 0; j < 1000; j++){
+  mwl.devstates = 0;//devstates;
+  Real maxmerged = 0;
+  //mwl.writeSpectra("spectra.txt");
+  for(int j = 0; j < (cdi.domnist? (training? ntraining:ntesting):1); j++){
     if(cdi.runSim && cdi.domnist) {
-        mnist_dat->cuRead(d_input);
+        mnist_dat[j%nconfig]->setIndex((training?0:testingstart)+j);
+        mnist_dat[j%nconfig]->cuRead(d_input);
         init_cuda_image(objrow/cdi.oversampling, objcol/cdi.oversampling);
         plt.init(objrow/cdi.oversampling, objcol/cdi.oversampling);
         //plt.plotFloat(d_input, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
@@ -96,21 +107,21 @@ int main(int argc, char** argv){
     }
     if(cdi.runSim){
       mwl.generateMWL(d_input, d_patternSum, d_single, cdi.oversampling);
-      cudaF(applyNorm,d_patternSum,cdi.exposure);
-      //plt.saveFloat(d_patternSum, "merged");
-      if(cdi.simCCDbit) cudaF(applyPoissonNoise_WO,d_patternSum, cdi.noiseLevel, devstates,1);
+      if(maxmerged==0) maxmerged = findMax(d_patternSum);
+      if(cdi.simCCDbit) cudaF(ccdRecord,d_patternSum, d_patternSum, cdi.noiseLevel, devstates, 1./maxmerged);
+      else cudaF(applyNorm, d_patternSum, 1./maxmerged);
+      plt.saveFloat(d_patternSum, "floatimage.tiff");
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
-      plt.plotFloat(d_patternSum, MOD, 0, 1, "merged", 1);
+      //plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
       //plt.plotComplex(d_single, MOD, 0, cdi.exposure, ("single"+to_string(j)).c_str(), 1);
-      if(cdi.simCCDbit){
-        //intensity = readImage(("merged"+to_string(j)+".png").c_str(), objrow, objcol);
-        intensity = readImage("merged.png", objrow, objcol);
-        //cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
-        cudaF(getMod, d_patternSum, d_single);
-        cudaMemcpy(single, d_patternSum, sz, cudaMemcpyDeviceToHost);
-        fillLMDB(&j, intensity, objrow*objcol*sizeof(float), single, objrow*objcol*sizeof(float));
-        ccmemMngr.returnCache(intensity);
-      }
+      cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
+      cudaF(getMod, realcache, d_single);
+      cudaF(applyNorm, realcache, 1./findMax(realcache));
+      cudaMemcpy(single, realcache, sz, cudaMemcpyDeviceToHost);
+      void* ptrs[] = {merged, single};
+      size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
+      int key = j+1000;
+      fillLMDB(handle, &key, 2, ptrs, sizes);
     }else{
       intensity = readImage(cdi.common.Pattern, objrow, objcol);
       cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
@@ -119,12 +130,14 @@ int main(int argc, char** argv){
     if(cdi.doIteration){
       cudaF(extendToComplex,d_patternSum, d_CpatternSum);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
+      plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       mwl.solveMWL(d_CpatternSum, d_solved, 1, cdi.nIter, 1, 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1);
       cudaF(getMod,d_patternSum, d_solved);
       plt.saveFloat(d_patternSum, "pattern");
       //run Phase retrievial;
+      /*
       cdi.row = objrow;
       cdi.column = objcol;
       cdi.init();
@@ -132,6 +145,7 @@ int main(int argc, char** argv){
       cdi.setPattern(d_patternSum);
       init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
       cdi.phaseRetrieve();
+      */
 
       for(int i = 0; i < 0; i++){
         cudaF(getMod2,cdi.patternData, cdi.patternWave);
@@ -158,7 +172,7 @@ int main(int argc, char** argv){
     }
 
   }
-  saveLMDB();
+  saveLMDB(handle);
 
   return 0;
 }

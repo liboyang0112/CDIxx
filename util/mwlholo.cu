@@ -22,7 +22,7 @@ int main(int argc, char** argv){
     if(cdi.domnist) {
       objrow = 128;
       objcol = 128;
-      mnist_dat = new cuMnist(cdi.mnistData, 3, objrow, objcol);
+      mnist_dat = new cuMnist(cdi.mnistData,1, 3, objrow, objcol);
       cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;

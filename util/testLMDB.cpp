@@ -4,9 +4,14 @@
 const int N = 256*256;
 const int M = 256*256;
 int main(){
-  initLMDB("testdb");
+  int handle;
+  initLMDB(&handle, "testdb");
   float data[N];
   float label[M];
+  size_t sizes[2] = {N*sizeof(float),M*sizeof(float)};
+  void** aa = (void**)malloc(2*sizeof(void*));
+  aa[0] = (void*)data;
+  aa[1] = (void*)label;
   for(int key = 0; key < 10; key++){
     for(int n = 0; n < N; n++){
       data[n] = sin((float)(n+key)/(60))*n/2;
@@ -14,17 +19,16 @@ int main(){
     for(int m = 0; m < M; m++){
       label[m] =cos((float)(m+key)/(60))*m;
     }
-    fillLMDB(&key,(void*)data,N*sizeof(float),(void*)label, M*sizeof(float));
+    fillLMDB(handle, &key,2,aa,sizes);
   }
-  saveLMDB();
+  saveLMDB(handle);
   int key  = 0;
-  size_t datasz = N*sizeof(float);
-  size_t labelsz = N*sizeof(float);
-  float* dataout;
-  float* labelout;
-  readLMDB((void**)&dataout, &datasz, (void**)&labelout, &labelsz, &key);
-  printf("data= %f\n", dataout[10]);
-  printf("label= %f\n", labelout[10]);
+  size_t* data_sizes;
+  float** dataout;
+  int ndata = 0;
+  readLMDB(handle, &ndata, (void***)&dataout, &data_sizes, &key);
+  printf("data= %f\n", dataout[0][10]);
+  printf("label= %f\n", dataout[1][10]);
   return 0;
 }
 

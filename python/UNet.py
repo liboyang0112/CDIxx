@@ -1,0 +1,84 @@
+#optimized based on https://blog.csdn.net/kobayashi_/article/details/108951993
+
+from torch import nn
+import torch
+class DownsampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        super(DownsampleLayer, self).__init__()
+        self.Conv_BN_ReLU_2=nn.Sequential(
+            nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(inplace=True)
+        )
+        self.downsample=nn.Sequential(
+            nn.Conv2d(in_channels=out_ch,out_channels=out_ch,kernel_size=3,stride=2,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(inplace=True)
+        )
+
+    def forward(self,x):
+        out=self.Conv_BN_ReLU_2(x)
+        out_2=self.downsample(out)
+        return out,out_2
+class UpSampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        super(UpSampleLayer, self).__init__()
+        midchannel = 2
+        self.Conv_BN_ReLU_2 = nn.Sequential(
+            nn.Conv2d(in_channels=in_ch, out_channels=out_ch*midchannel, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*midchannel),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(in_channels=out_ch*midchannel, out_channels=out_ch*midchannel, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*midchannel),
+            nn.LeakyReLU(inplace=True)
+        )
+        self.upsample=nn.Sequential(
+            nn.ConvTranspose2d(in_channels=out_ch*midchannel,out_channels=out_ch,kernel_size=3,stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(inplace=True)
+        )
+    def forward(self,x,out):
+        return torch.cat((self.upsample(self.Conv_BN_ReLU_2(x)),out),dim=1)
+
+class UNet(nn.Module):
+    def __init__(self, channels=1, level=7):
+        super(UNet, self).__init__()
+        self.nlevel = level
+        out_channels=[channels*2**(i+4) for i in range(self.nlevel+1)]
+        self.d = []
+        d = []
+        self.u = []
+        u = []
+        d.append(DownsampleLayer(channels,out_channels[0]).cuda())
+        for x in range(self.nlevel-1):
+            d.append(DownsampleLayer(out_channels[x],out_channels[x+1]).cuda())
+        self.d = nn.ModuleList(d)
+        u.append(UpSampleLayer(out_channels[self.nlevel-1],out_channels[self.nlevel-1]).cuda())
+        for x in range(self.nlevel-1):
+            u.append(UpSampleLayer(out_channels[self.nlevel-x],out_channels[self.nlevel-x-2]).cuda())
+        self.u = nn.ModuleList(u)
+        self.o=nn.Sequential(
+            nn.Conv2d(out_channels[1],out_channels[0],kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(out_channels[0], out_channels[0], kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(out_channels[0],1,3,1,1),
+            nn.Sigmoid(),
+        )
+    def forward(self,input):
+        ds = []
+        outu,out = self.d[0](input)
+        ds.append(outu)
+        for x in range(1,self.nlevel):
+            outu,out = self.d[x](out)
+            ds.append(outu)
+        for x in range(self.nlevel):
+            out = self.u[x](out,ds[self.nlevel-x-1])
+            del ds[self.nlevel-x-1]
+        return self.o(out)
+

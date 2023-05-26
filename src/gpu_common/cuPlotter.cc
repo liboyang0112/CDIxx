@@ -51,14 +51,14 @@ void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, 
   plot(label, islog);
 }
 void cuPlotter::plot(const char* label, bool iscolor){
-  iscolor = 0;
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
   printf("written to file %s\n", fname.c_str());
   if(iscolor){
     Mat* tmp = (Mat*)cv_cache;
 	  Mat dst8 = Mat::zeros(tmp->size(), CV_8U);
-	  normalize(*tmp, *tmp, 0, 255, NORM_MINMAX);
+	  //normalize(*tmp, *tmp, 0, 255, NORM_MINMAX);
+    *tmp *= 1./256;
 	  convertScaleAbs(*tmp, dst8);
 	  applyColorMap(dst8, dst8, COLORMAP_TURBO);
 	  imwrite(fname,dst8);

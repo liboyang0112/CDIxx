@@ -16,7 +16,7 @@ mnistData::mnistData(const char* dir, int &row, int &col){
   idat = 0;
 }
 Real* mnistData::read(){
-  if(idat == dat->size().value()) return 0;
+  if(idat >= dat->size().value()) return 0;
   auto theData = dat->get(idat).data;
   auto foo_a = theData.accessor<float,3>();
   idat++;
@@ -53,8 +53,12 @@ mnistData::mnistData(const char* dir){
   output = (Real*)ccmemMngr.borrowCache(rowraw*colraw*sizeof(Real));
 };
 Real* mnistData::read(){
-  unsigned char* tmp = (unsigned char*)ccmemMngr.borrowCache(rowraw*colraw*sizeof(char));
-  ((ifstream*)dataset)->read((char*)tmp, rowraw*colraw*sizeof(char));
+  size_t sz =  rowraw*colraw*sizeof(char);
+  unsigned char* tmp = (unsigned char*)ccmemMngr.borrowCache(sz);
+  size_t startpos = sz * size_t(idat);
+  ((ifstream*)dataset)->seekg (sizeof(int)*4 + startpos);
+  ((ifstream*)dataset)->read((char*)tmp, sz);
+  idat+=1;
   for(int i = 0; i < rowraw*colraw; i++){
     output[i] = Real(tmp[i])/255;
   }

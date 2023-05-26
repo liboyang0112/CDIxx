@@ -97,6 +97,33 @@ cuFunc(applyNorm,(complexFormat* data, Real factor),(data,factor),{
   data[index].x*=factor;
   data[index].y*=factor;
 })
+cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
+  cudaIdx()
+  data[index]*=factor;
+})
+cuFunc(interpolate,(Real* out, Real* data0, Real* data1, Real dx),(out, data0,data1,dx),{
+  cudaIdx()
+  out[index] = data0[index]*(1-dx) + data1[index]*dx;
+})
+cuFunc(interpolate,(complexFormat* out, complexFormat* data0, complexFormat* data1, Real dx),(out, data0,data1,dx),{
+  cudaIdx()
+  out[index].x = data0[index].x*(1-dx) + data1[index].x*dx;
+  out[index].y = data0[index].y*(1-dx) + data1[index].y*dx;
+})
+cuFunc(adamUpdateV,(Real* v, Real* grad, Real beta2),(v,grad,beta2),{
+  cudaIdx()
+  Real tmp = grad[index];
+  v[index] = tmp*tmp*(1-beta2) + beta2*v[index];
+})
+cuFunc(adamUpdateV,(Real* v, complexFormat* grad, Real beta2),(v,grad,beta2),{
+  cudaIdx()
+  Real tmp = grad[index].x;
+  v[index] = tmp*tmp*(1-beta2) + beta2*v[index];
+})
+cuFunc(adamUpdate,(complexFormat* xn, complexFormat* m, Real* v, Real lr, Real eps),(xn,m,v,lr,eps),{
+  cudaIdx()
+  xn[index].x += lr*m[index].x/(sqrt(v[index])+eps);
+})
 cuFunc(ceiling,(complexFormat* data, Real ceilval),(data,ceilval),{
   cudaIdx()
   Real factor = ceilval/hypot(data[index].x, data[index].y);
@@ -135,10 +162,6 @@ cuFunc(extendToComplex,(Real* a, complexFormat* b),(a,b),{
   b[index].y = 0;
 })
 
-cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
-  cudaIdx()
-  data[index]*=factor;
-})
 cuFunc(add,(Real* a, Real* b, Real c),(a,b,c),{
   cudaIdx()
   a[index]+=b[index]*c;
@@ -239,7 +262,45 @@ cuFunc(applyPoissonNoise_WO,(Real* wave, Real noiseLevel, curandStateMRG32k3a *s
   if(scale==0) scale = vars->scale;
   wave[index]=scale*(int(wave[index]*vars->rcolor/scale) + curand_poisson(&state[index], noiseLevel)-noiseLevel)/vars->rcolor;
 })
-
+cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+  (data,wave,noiseLevel,state,exposure),{
+  cudaIdx()
+  int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+  if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
+  data[index] = dataint-noiseLevel;
+});
+cuFunc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+  (data,wave,noiseLevel,state,exposure),{
+  cudaIdx()
+  complexFormat tmp = wave[index];
+  int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+  if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
+  data[index] = dataint-noiseLevel;
+});
+cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+  (data,wave,noiseLevel,state,exposure),{
+  cudaIdx()
+  int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+  if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
+  data[index] = Real(dataint-noiseLevel)/vars->rcolor;
+});
+cuFunc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+  (data,wave,noiseLevel,state,exposure),{
+  cudaIdx()
+  complexFormat tmp = wave[index];
+  int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+  if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
+  data[index] = Real(dataint-noiseLevel)/vars->rcolor;
+});
+cuFunc(ccdRecord, (complexFormat* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+  (data,wave,noiseLevel,state,exposure),{
+  cudaIdx()
+  complexFormat tmp = wave[index];
+  int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+  if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
+  data[index].x = Real(dataint-noiseLevel)/vars->rcolor;
+  data[index].y = 0;
+});
 cuFunc(applyPoissonNoise,(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale),
   (wave,noiseLevel,state,scale),{
   cudaIdx()
@@ -362,7 +423,7 @@ cuFunc(applyRandomPhase,(complexFormat* wave, Real* beamstop, curandStateMRG32k3
   }
   else{
     Real mod = cuCabsf(wave[index]);
-    Real randphase = curand_uniform(&state[index]);
+    Real randphase = curand_uniform(&state[index])*2*M_PI;
     tmp.x = mod*cos(randphase);
     tmp.y = mod*sin(randphase);
   }

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+    <title>Upload Files</title>
+
+  </head>
+  <body>
+    <script>
+      var displaybkg = function(m){
+        var image = document.getElementById('bkgonscreen');
+        image.src = URL.createObjectURL(m.target.files[0]);
+      }
+      var displaypat = function(m){
+        var image = document.getElementById('patonscreen');
+        image.src = URL.createObjectURL(m.target.files[0]);
+      }
+    </script>
+    <p>Working folder: <input type="text" value="" name="path" id="path"><!-- onchange="loadlog(event)"-->
+    <a href="images">Show repository</a></p> 
+    <button id="setpath">Confirm Folder</button>
+    <p>Monochromatization Config:</p>
+    <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
+      After selecting working folder, you can edit file here</textarea></p>
+    <button id="savepulse">Save</button>
+    <p>CDI Reconstruction Config:</p>
+    <p><textarea id="cdiconfig" contenteditable="true" rows="20" cols="80">
+      After selecting working folder, you can edit config file here</textarea></p>
+    <button id="savecdi">Save</button>
+    <p>Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
+    <p>Upload background: <input type="file" id="background" ><!--onchange="displaybkg(event)"-->
+    Upload pattern: <input type="file" id="image" ><!--onchange="displaypat(event)"--></p>
+    <!--p><img id="bkgonscreen" width="200"><img id="patonscreen" width="200"></p-->
+    <button id="uploadimg">Upload</button>
+    <p>Upload Spectrum: <input type="file" id="spectrum" ></p>
+    <button id="uploadspect">Upload</button>
+    <p>Select Background: <input type="text" name="runbkgfile" id="runbkgfile">
+    Select Pattern: <input type="text" name="runimgfile" id="runimgfile"></p>
+    <button id="prepare">Prepare Monochromatization</button>
+    <button id="monochrome_btn">Run Monochromatization</button>
+    <button id="cdi_btn">Run CDI</button>
+    <p><img id="logimg" width="200"><img id="solved" width="200"><img id="recon" width="200"></p>
+    <p><img id="residual" width="200"><img id="spectrum_plt" width="400"></p>
+    <p>Prepare log:</p><code id="preparelog"></code>
+    <p>Monochromatization log:</p><code id="monolog"></code>
+    <p>CDI log:</p><code id="cdilog"></code>
+  </body>
+</html>
+<script>
+  const nodeurl = window.location.origin+':8080'
+  const url_cmd = "runcommand.php"
+  const repo = 'images/'
+  document.getElementById("setpath").addEventListener('click',async ()=>{
+    url_path = "setpath.php"
+    await fetch(url_path, {
+      method: 'POST',
+      body: repo+document.getElementById('path').value
+    }).then(response => {
+      return response.text();
+    });
+    fetch(nodeurl+"/path_pulse",{
+      method: 'POST',
+      body: document.getElementById('path').value
+    }).then(response=>{return response.text()}).then(data=>{
+      document.getElementById('monoconfig').value = data;
+    })
+    fetch(nodeurl+"/path_cdi",{
+      method: 'POST',
+      body: document.getElementById('path').value
+    }).then(response=>{return response.text()}).then(data=>{
+      document.getElementById('cdiconfig').value = data;
+    })
+  })
+  document.getElementById("uploadimg").addEventListener('click',async ()=>{
+    const path = repo + document.getElementById('path').value +"/"
+    const url = 'process.php';
+    const files = document.getElementById('background').files;
+    const bkgname = files[0].name
+    const sigfiles = document.getElementById('image').files;
+    const patname = files[0].name
+    const formData = new FormData();
+    formData.append('path', path);
+    document.getElementById('runbkgfile').value = files[0].name
+    document.getElementById('runimgfile').value = sigfiles[0].name
+    formData.append('files[]', files[0]);
+    formData.append('files[]', sigfiles[0]);
+    fetch(url, {
+      method: 'POST',
+      body: formData
+    }).then(response => {
+      return response.text();
+    });
+  });
+  document.getElementById("uploadspect").addEventListener('click',async ()=>{
+    const path = repo + document.getElementById('path').value +"/"
+    const url = 'process.php';
+    const file = document.getElementById('spectrum').files;
+    const name = file[0].name;
+    const formData = new FormData();
+    formData.append('path', path);
+    formData.append('files[]', file[0]);
+    fetch(url, {
+      method: 'POST',
+      body: formData
+    }).then(response => {
+      return response.text();
+    });
+  });
+  document.getElementById("prepare").addEventListener('click',async ()=>{
+    var timestamp = new Date().getTime();
+    const path = repo + document.getElementById('path').value +"/"
+    const comd = "./runStacker.sh "+ path + " "
+      + document.getElementById('runbkgfile').value
+      + " " + document.getElementById('runimgfile').value;
+    fetch(url_cmd, {
+      method: 'POST',
+      body: comd,
+    }).then(response => {
+      return response.text();
+    }).then(data => {
+      document.getElementById('preparelog').innerText = data;
+      var image = document.getElementById('logimg');
+      image.src = path+"logimagemerged.png?t=" + timestamp;
+    });
+    return;
+  })
+  document.getElementById("monochrome_btn").addEventListener('click',async ()=>{
+    const path = repo + document.getElementById('path').value +"/"
+    var timestamp = new Date().getTime();
+    fetch(url_cmd, {
+      method: 'POST',
+      body: "./runPulseGen.sh "+path
+    }).then(response => {
+      return response.text();
+    }).then(data => {
+      document.getElementById('monolog').innerText = data;
+      var image = document.getElementById('solved');
+      image.src = path+"solvedlog0.png?t=" + timestamp;
+      var image_residual = document.getElementById('residual');
+      image_residual.src = path+"residual_pulseGen.png?t=" + timestamp;
+      var image_spect = document.getElementById('spectrum_plt');
+      image_spect.src = path+"spectra.png?t=" + timestamp;
+    });
+    return;
+  });
+  document.getElementById("cdi_btn").addEventListener('click',async ()=>{
+    const path = repo + document.getElementById('path').value +"/"
+    var timestamp = new Date().getTime();
+    fetch(url_cmd, {
+      method: 'POST',
+      body: "./runCDI.sh "+path
+    }).then(response => {
+      return response.text();
+    }).then(data => {
+      document.getElementById('cdilog').innerText = data;
+      var image = document.getElementById('recon');
+      image.src = path+"recon_intensity_cropped.png?t=" + timestamp;
+    });
+    return;
+  });
+  document.getElementById("savepulse").addEventListener('click',async ()=>{
+    fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/pulse.cfg",{
+      method: 'POST',
+      body: document.getElementById('monoconfig').value
+    });
+  })
+  document.getElementById("savecdi").addEventListener('click',async ()=>{
+    fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/cdi.cfg",{
+      method: 'POST',
+      body: document.getElementById('cdiconfig').value
+    });
+  })
+</script>

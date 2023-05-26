@@ -12,6 +12,7 @@
 #include<string>
 #include<fstream>
 #include"monoChromo.h"
+#include"cub_wrap.h"
 
 int main(int argc, const char* argv[])
 {
@@ -35,17 +36,20 @@ int main(int argc, const char* argv[])
     cudaMemcpy(doubleb, b.data<double>(), sizeof(double)*row*col, cudaMemcpyHostToDevice);
     init_cuda_image(row, col);
     cudaF(assignVal,realb, doubleb);
-    cudaF(applyNorm,realb, 1./6553500);
+    cudaF(applyNorm,realb, 1./findMax(realb));
     monoChromo mwl;
+    mwl.jump = 25;
+    mwl.skip = 20;
     mwl.init(row, col, lambdasd, spectrad, nlambda);
     plt.init(row, col);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     cudaF(extendToComplex,realb, complexpattern);
+    plt.saveFloat(realb, "broadpattern");
     plt.plotComplex(complexpattern,REAL,0,1,"logbroadpattern",1);
     plt.plotComplex(complexpattern,REAL,0,1,"broadpattern",0);
     printf("solving matrix\n");
-    mwl.solveMWL(complexpattern, solved, 1, 100, 1, 0);
+    mwl.solveMWL(complexpattern, solved, 1, 40, 1, 0);
     plt.plotComplex(solved,REAL,0,1,"logmonopattern",1);
     plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     cudaF(getMod,realb, solved);

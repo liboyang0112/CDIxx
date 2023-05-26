@@ -11,103 +11,145 @@
 #define CHECK(test, msg) ((test) ? (void)0 : ((void)fprintf(stderr, \
         "%s:%d: %s: %s\n", __FILE__, __LINE__, msg, mdb_strerror(rc)), abort()))
 
-int i = 0, j = 0, rc;
-MDB_env *env;
-MDB_dbi dbi;
-MDB_val key, data_LMDB;
-MDB_txn *txn;
-MDB_stat mst;
-size_t data_cache_size = 0;
-size_t mvdata_size = 0;
-void* data_cache = 0;
-
-int initLMDB(const char* dbDIR){
-  mkdir(dbDIR, S_IRWXU | S_IRWXG | S_IRWXO);
-  E(mdb_env_create(&env));
-  E(mdb_env_set_maxreaders(env, 1));
-  E(mdb_env_set_mapsize(env, 1048576000));
-  E(mdb_env_open(env, dbDIR, MDB_WRITEMAP/*|MDB_NOSYNC*/, 0664));
-  E(mdb_env_stat(env, &mst));
-  E(mdb_txn_begin(env, NULL, /*MDB_WRITEMAP*/0, &txn));
-  E(mdb_dbi_open(txn, NULL, 0, &dbi));
-  return mst.ms_entries;
+int rc;
+struct lmdbds{
+  MDB_env *env;
+  MDB_dbi dbi;
+  MDB_val key, data_LMDB;
+  MDB_txn *txn;
+  MDB_stat mst;
+  size_t data_cache_size;
+  size_t mvdata_size;
+  void* data_cache;
+  char compress;
+};
+struct lmdbds* dsList[100];
+int setCompress(int handle){
+  struct lmdbds* ds = dsList[handle];
+  ds->compress = 1;
 }
-int fillLMDBCoded(int *keyval, void* data, size_t data_size)
+int unoccupied = 0;
+int initLMDB(int* handle, const char* dbDIR){
+  mkdir(dbDIR, S_IRWXU | S_IRWXG | S_IRWXO);
+  struct lmdbds *ds = (struct lmdbds*) malloc(sizeof(struct lmdbds));
+  ds -> data_cache_size = 0;
+  ds -> mvdata_size = 0;
+  ds -> data_cache = 0;
+  ds -> compress = 0;
+  *handle = unoccupied;
+  dsList[unoccupied] = ds;
+  unoccupied+=1;
+  E(mdb_env_create(&ds->env));
+  E(mdb_env_set_maxreaders(ds->env, 1));
+  E(mdb_env_set_mapsize(ds->env, 10485760000));
+  E(mdb_env_open(ds->env, dbDIR, MDB_WRITEMAP/*|MDB_NOSYNC*/, 0664));
+  E(mdb_env_stat(ds->env, &ds->mst));
+  E(mdb_txn_begin(ds->env, NULL, /*MDB_WRITEMAP*/0, &ds->txn));
+  E(mdb_dbi_open(ds->txn, NULL, 0, &ds->dbi));
+  return ds->mst.ms_entries;
+}
+int fillLMDBCoded(int handle, int *keyval, void* data, size_t data_size)
 {
-  key.mv_size = sizeof(int);
-  key.mv_data = keyval;
-  if(mvdata_size < data_size){
-    mvdata_size = data_size;
-    if(data_LMDB.mv_data) free(data_LMDB.mv_data);
-    data_LMDB.mv_data = malloc(data_size);
+  struct lmdbds* ds = dsList[handle];
+  ds->key.mv_size = sizeof(int);
+  ds->key.mv_data = keyval;
+  if(ds->mvdata_size < data_size){
+    ds->mvdata_size = data_size;
+    if(ds->data_LMDB.mv_data) free(ds->data_LMDB.mv_data);
+    ds->data_LMDB.mv_data = malloc(data_size);
   }
-  data_LMDB.mv_size = mvdata_size;
-  int ec = compress(data_LMDB.mv_data, &data_LMDB.mv_size, data, data_size);
+  ds->data_LMDB.mv_size = ds->mvdata_size;
+  int ec = compress(ds->data_LMDB.mv_data, &ds->data_LMDB.mv_size, data, data_size);
   if(ec < Z_OK){
     fprintf(stderr,"compress failed with ec %d\n", ec);
     exit(0);
   }
-  ec =  mdb_put(txn, dbi, &key, &data_LMDB,0);
+  ec =  mdb_put(ds->txn, ds->dbi, &ds->key, &ds->data_LMDB,0);
   if(ec!=MDB_SUCCESS){
     fprintf(stderr,"mdb_put failed with ec %d\n", ec);
     exit(0);
   }
   return ec;
 }
-int fillLMDB(int *keyval, void* data, size_t data_size, void* label, size_t label_size)
+int fillLMDB(int handle, int *keyval, int ndata, void** data, size_t* data_size)
 {
-  int totalSize = sizeof(size_t)+data_size+label_size;
-  if(totalSize > data_cache_size){
-    data_cache_size = totalSize;
-    free(data_cache);
-    data_cache = malloc(data_cache_size);
+  struct lmdbds* ds = dsList[handle];
+  size_t totalSize = sizeof(int)+ndata*sizeof(size_t);
+  for(int i = 0; i < ndata; i++)
+    totalSize+=data_size[i];
+  if(totalSize > ds->data_cache_size){
+    ds->data_cache_size = totalSize;
+    free(ds->data_cache);
+    ds->data_cache = malloc(ds->data_cache_size);
   }
-  memcpy(data_cache, &data_size, sizeof(size_t));
-  memcpy(data_cache+sizeof(size_t), data, data_size);
-  memcpy(data_cache+sizeof(size_t)+data_size, label, label_size);
-  return fillLMDBCoded(keyval, data_cache, totalSize);
+  memcpy(ds->data_cache, &ndata, sizeof(int));
+  size_t shift=sizeof(int);
+  memcpy(ds->data_cache+shift, data_size, ndata*sizeof(size_t));
+  shift+=ndata*sizeof(size_t);
+  for(int i = 0; i < ndata; i++){
+    memcpy(ds->data_cache+shift, data[i], data_size[i]);
+    shift+=data_size[i];
+  }
+  if(!ds->compress){
+    ds->key.mv_size = sizeof(int);
+    ds->key.mv_data = keyval;
+    ds->data_LMDB.mv_data = ds->data_cache;
+    ds->data_LMDB.mv_size = totalSize;
+    int ec =  mdb_put(ds->txn, ds->dbi, &ds->key, &ds->data_LMDB,0);
+    if(ec!=MDB_SUCCESS){
+      fprintf(stderr,"mdb_put failed with ec %d\n", ec);
+      exit(0);
+    }
+    return ec;
+  }
+  else return fillLMDBCoded(handle, keyval, ds->data_cache, totalSize);
 }
 
-int saveLMDB(){
-  E(mdb_txn_commit(txn));
-  mdb_dbi_close(env, dbi);
-  E(mdb_txn_begin(env, NULL, MDB_RDONLY, &txn));
-  E(mdb_dbi_open(txn, NULL, 0, &dbi));
+int saveLMDB(int handle){
+  struct lmdbds* ds = dsList[handle];
+  E(mdb_txn_commit(ds->txn));
+  mdb_dbi_close(ds->env, ds->dbi);
+  E(mdb_txn_begin(ds->env, NULL, MDB_RDONLY, &ds->txn));
+  E(mdb_dbi_open(ds->txn, NULL, 0, &ds->dbi));
 }
-void readLMDB(void** data, size_t* data_size, void** label, size_t *label_size, int *keyval){
+void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval){
+  struct lmdbds* ds = dsList[handle];
   if(keyval){
-    key.mv_size = sizeof(int);
-    key.mv_data = keyval;
+    ds->key.mv_size = sizeof(int);
+    ds->key.mv_data = keyval;
   }
-  if((rc = mdb_get(txn, dbi , &key, &data_LMDB)) != MDB_SUCCESS){
+  if((rc = mdb_get(ds->txn, ds->dbi , &ds->key, &ds->data_LMDB)) != MDB_SUCCESS){
     if(rc==MDB_NOTFOUND){
-      fprintf(stderr,"data not found with key %d\n",*keyval);
+      fprintf(stderr,"data not found with ds->key %d\n",*keyval);
     }
     fprintf(stderr,"data read failed with EC %d\n",rc);
     exit(0);
   }
-  size_t allocedsize = *data_size;
-  if(data_cache_size == 0) {
-    data_cache_size = *data_size+*label_size;
-    free(data_cache);
-    data_cache = malloc(data_cache_size);
+  if(ds->data_cache_size == 0) {
+    ds->data_cache_size = **data_size;
+    free(ds->data_cache);
+    ds->data_cache = malloc(ds->data_cache_size);
   }
   int err;
-  while((err = uncompress(data_cache, &data_cache_size, data_LMDB.mv_data, data_LMDB.mv_size)) != Z_OK){
-    if(err != Z_BUF_ERROR) {
-      fprintf(stderr,"zip error: %d\n", err);
-      exit(0);
+  void* dataptr = ds->data_LMDB.mv_data;
+  if(ds->compress){
+    while((err = uncompress(ds->data_cache, &ds->data_cache_size, ds->data_LMDB.mv_data, ds->data_LMDB.mv_size)) != Z_OK){
+      if(err != Z_BUF_ERROR) {
+        fprintf(stderr,"zip error: %d\n", err);
+        exit(0);
+      }
+      ds->data_cache_size *= 1.2;
+      free(ds->data_cache);
+      ds->data_cache = malloc(ds->data_cache_size);
     }
-    data_cache_size *= 1.2;
-    free(data_cache);
-    data_cache = malloc(data_cache_size);
+    dataptr = ds->data_cache;
   }
-  memcpy(data_size, data_cache, sizeof(size_t));
-  if(*data_size > allocedsize) {
-    fprintf(stderr,"memory allocated for data is not enough : %lu < %lu\n", allocedsize, *data_size);
-    exit(0);
+  *ndata = *(int*)dataptr;
+  *data = (void**)malloc(sizeof(void**)*(*ndata));
+  *data_size = dataptr + sizeof(int);
+  size_t shift = sizeof(int) + *ndata*sizeof(size_t);
+  for(int i = 0; i < *ndata; i++){
+    (*data)[i] = dataptr+shift;
+    shift+=(*data_size)[i];
   }
-  *label_size = data_LMDB.mv_size - sizeof(size_t) - *data_size;
-  *data = data_cache+sizeof(size_t);
-  *label = data_cache+sizeof(size_t)+*data_size;
 }

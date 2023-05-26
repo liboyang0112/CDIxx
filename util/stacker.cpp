@@ -131,7 +131,7 @@ int main(int argc, char** argv )
       rowo[y]=std::max(0.,floor(log2(intensity/maxratio)*pow(2,12)));//log2(rowp[y])*pow(2,11);
       if(maxIntensity < rowfi[y]) maxIntensity = rowfi[y];
       tot+= rowp[y];
-      if(rowfi[y] >= 0.4){
+      if(rowfi[y] >= 0.7){
       totx += Real(rowp[y]);
       toty += Real(rowp[y]);
       sumx += Real(rowp[y])*x/row;

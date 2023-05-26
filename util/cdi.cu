@@ -181,7 +181,7 @@ int main(int argc, char** argv )
       setups.prepareIter();
       setups.phaseRetrieve(); 
     }
-    //setups.saveState();
+    setups.saveState();
   }
   setups.checkAutoCorrelation();
 

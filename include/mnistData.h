@@ -16,15 +16,16 @@ class mnistData{
   ~mnistData();
 };
 
-class cuMnist : mnistData{
+class cuMnist : public mnistData{
   void *cuOut, *cuRaw, *cuRefine;
   int rowrf;
   int colrf;
   int row;
   int col;
   int refinement;
+  int nmerge;
   public:
-  cuMnist(const char* dir, int re, int r, int c);
+  cuMnist(const char* dir, int nm, int re, int r, int c);
   void cuRead(void*);
 };
 #endif

@@ -10,11 +10,13 @@ class monoChromo{
     double *lambdas;  //normalized lambdas, 1 is the shortest
     Real *pixel_weight;
     int jump = 20;
+    int skip = 10;
     int nlambda;
     int *rows;
     int *cols;
     int row;
     int column;
+    void *devstates = 0;
     monoChromo(){};
     void calcPixelWeights();
     void writeSpectra(const char* filename);
