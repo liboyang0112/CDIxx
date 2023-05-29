@@ -13,6 +13,7 @@
     <p>Working folder: <input type="text" value="" name="path" id="path"><!-- onchange="loadlog(event)"-->
     <button id="setpath">Confirm Folder</button>
     <a href="images">Show repository</a></p>
+    <a href="" id="showpath"></a>
     <p>Monochromatization Config:</p>
     <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
@@ -32,6 +33,8 @@
     <button id="prepare">Prepare Monochromatization</button>
     <button id="monochrome_btn">Run Monochromatization</button>
     <button id="cdi_btn">Run CDI</button>
+    <button id="rotate_btn">Rotate image</button>
+    <button id="flip_btn">Flip image</button>
     <p><img id="logimg" width="200"><img id="solved" width="200"><img id="recon" width="200"></p>
     <p><img id="residual" width="200"><img id="spectrum_plt" width="400"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
@@ -45,6 +48,14 @@
   const repo = 'images/'
   document.getElementById("setpath").addEventListener('click',async ()=>{
     url_path = "setpath.php"
+    if(document.getElementById('path').value == "") {
+      document.getElementById('showpath').innerText = "Path not filled, please fill the text before click confirm";
+      return;
+    }else{
+      ele = document.getElementById('showpath');
+      ele.href=repo+document.getElementById('path').value;
+      ele.innerText = "Path: " + repo+document.getElementById('path').value;
+    }
     await fetch(url_path, {
       method: 'POST',
       body: repo+document.getElementById('path').value
@@ -97,6 +108,8 @@
     });
   });
   document.getElementById("prepare").addEventListener('click',async ()=>{
+    button = document.getElementById("prepare");
+    button.disabled = true;
     var timestamp = new Date().getTime();
     const path = repo + document.getElementById('path').value +"/"
     const comd = "./runStacker.sh "+ path + " "
@@ -110,10 +123,13 @@
     }).then(data => {
       document.getElementById('preparelog').innerText = data;
       document.getElementById('logimg').src = path+"logimagemerged.png?t=" + timestamp;
+      button.removeAttribute("disabled");
     });
     return;
   })
   document.getElementById("monochrome_btn").addEventListener('click',async ()=>{
+    button = document.getElementById("monochrome_btn");
+    button.disabled = true;
     const path = repo + document.getElementById('path').value +"/"
     var timestamp = new Date().getTime();
     fetch(url_cmd, {
@@ -123,13 +139,28 @@
       return response.text();
     }).then(data => {
       document.getElementById('monolog').innerText = data;
+      document.getElementById('logimg').src = path+"mergedlog0.png?t=" + timestamp;
       document.getElementById('solved').src = path+"solvedlog0.png?t=" + timestamp;
       document.getElementById('residual').src = path+"residual_pulseGen.png?t=" + timestamp;
       document.getElementById('spectrum_plt').src = path+"spectra.png?t=" + timestamp;
+      button.removeAttribute("disabled");
     });
     return;
   });
+  let degree = 0;
+  let flip = 1;
+  document.getElementById("rotate_btn").addEventListener('click',async ()=>{
+    degree += 90;
+    if(degree == 360) degree = 0;
+    document.getElementById('recon').style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+  });
+  document.getElementById("flip_btn").addEventListener('click',async ()=>{
+    flip *=-1;
+    document.getElementById('recon').style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+  });
   document.getElementById("cdi_btn").addEventListener('click',async ()=>{
+    button = document.getElementById("cdi_btn");
+    button.disabled = true;
     const path = repo + document.getElementById('path').value +"/"
     var timestamp = new Date().getTime();
     fetch(url_cmd, {
@@ -139,7 +170,8 @@
       return response.text();
     }).then(data => {
       document.getElementById('cdilog').innerText = data;
-      image = document.getElementById('recon').src = path+"recon_intensity_cropped.png?t=" + timestamp;
+      document.getElementById('recon').src = path+"recon_intensity_cropped.png?t=" + timestamp;
+      button.removeAttribute("disabled");
     });
     return;
   });

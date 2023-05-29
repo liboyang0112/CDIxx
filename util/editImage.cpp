@@ -1,12 +1,13 @@
 #include <stdio.h>
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgcodecs.hpp>
 using namespace cv;
 using namespace std;
 int main(int argc, char** argv )
 {
     Mat img = imread( argv[1], IMREAD_UNCHANGED );
     unsigned char *input = (unsigned char*)(img.data);
-    printf("%d,%d,%d\n", img.rows, img.cols,img.step*1);
+    printf("%d,%d,%lu\n", img.rows, img.cols,img.step*1);
     for(int j = 0;j < img.rows;j++){
         for(int i = 0;i < img.cols*3;i++){
             unsigned char &b = input[img.step * j + i ] ;

@@ -17,6 +17,7 @@ cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force
   // interpolate with walls
   if(m * f < 0) m = f*(1-dx);
   else m = m*dx + f*(1-dx);
+  //m = m*dx + f*(1-dx);
   //if(m * f < 0) m = f*dx;
   //else m = m + f*dx;
   mom[index].x = m;
@@ -168,10 +169,10 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
     cudaF(applyNorm,d_patternAmp, sqrt(spectra[i]/(thiscol*thisrow)));
     if(i==0) {
       cudaF(getMod2,(Real*)d_patternSum, d_patternAmp);
-      //if(single!=0) {
-      //  cudaF(extendToComplex,(Real*)d_patternSum, (complexFormat*)single);
-      //  cudaF(applyNorm,(complexFormat*)single, 1./spectra[i]);
-      //}
+      if(single!=0) {
+        cudaF(extendToComplex,(Real*)d_patternSum, (complexFormat*)single);
+        cudaF(applyNorm,(complexFormat*)single, 1./spectra[i]);
+      }
     }else{
       cudaF(getMod2,d_pattern, d_patternAmp);
       cudaF(add,(Real*)d_patternSum, (Real*)d_pattern, 1);
@@ -229,8 +230,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   init_cuda_image(row, column);
-  Real lr = 0.7;
-  Real beta1 = 0.6;//0.1;
+  Real lr = 2.4;
+  Real beta1 = 0.5;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
   if(restart) {
