@@ -15,10 +15,10 @@ cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force
   Real m = mom[index].x;
   Real f = force[index].x;
   // interpolate with walls
-  //if(m * f < 0) m = f*(1-dx);
-  //else m = m*dx + f*(1-dx);
-  if(m * f < 0) m = f*dx;
-  else m = m + f*dx;
+  if(m * f < 0) m = f*(1-dx);
+  else m = m*dx + f*(1-dx);
+  //if(m * f < 0) m = f*dx;
+  //else m = m + f*dx;
   mom[index].x = m;
 })
 
@@ -222,15 +222,15 @@ void applyC(Real* input, Real* output){
 
 void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter, bool updateX, bool updateA)
 {
-  useOrth = 1;
+  useOrth = 0;
   bool writeResidual = 1;
   if(nlambda<0) printf("nlambda not initialized: %d\n",nlambda);
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   init_cuda_image(row, column);
-  Real lr = 0.5;
-  Real beta1 = 1;//0.1;
+  Real lr = 0.7;
+  Real beta1 = 0.6;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
   if(restart) {
@@ -269,6 +269,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   if(!updateX) {
     myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
     cudaF(cudaConvertFO,fftb);
+  }
+  if(updateA) {
     gs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
     for(int j = 0; j < nlambda; j++){
       gs[j] = memMngr.borrowCache(sz);
@@ -277,7 +279,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   if(!gs) fbi = (complexFormat*)memMngr.borrowCache(sz);
  // Real tk = 1;
   for(int i = 0; i < nIter; i++){
-    bool updateAIter = (updateA&&(i%5==0) || updateX==0) && (i > 0);
+    bool updateAIter = !useOrth && (updateA&&(i%5==0) || updateX==0) && (i > 0);
     if(updateAIter){
       auto tmp_swap = deltabprev;
       deltabprev = deltab;
@@ -336,10 +338,11 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
         sumspect+=spectra[j];
       }
     }
-    if(useOrth&&!updateX){
+    if(useOrth&&updateA){
       Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1);
       init_cuda_image(row, column);
-      break;
+      printf("Fit spectrum done. %f\n", spectra[10]);
+      if(!updateX) break;
     }
     if(updateAIter){
       for(int j = 0; j < nlambda; j++){
