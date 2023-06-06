@@ -1,0 +1,16 @@
+Experimental Setups:
+    Light source: fs laser, with filter
+    Lens: 300mm, focus on CCD
+    Apeture: No apeture
+    Sample-CCD distance: 200mm
+    Files: bg_30ms.tif, withbg_30ms.tif, ...
+    Spectrum: spectrum_aftersample_fs.txt
+    Additional info: ...
+Experimental Setups:
+    Light source: continuum source, with apeture
+    Lens: 300mm, focus on CCD
+    Apeture: 100um, right after source.
+    Sample-CCD distance: 200mm
+    Data Files: bg_40ms.tif, withbg_40ms.tif, ...
+    Spectrum: spectrum_after_sample.txt
+    Additional info:

@@ -76,8 +76,8 @@ int main(int argc, char** argv){
   printf("lambda range = (%f, %f), ratio=%f\n", startlambda, endlambda*startlambda, endlambda);
 #endif
   //mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  mwl.jump = 10;
-  mwl.skip = 5;
+  mwl.jump = 20;
+  mwl.skip = 10;
   Real tot = mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   int sz = mwl.row*mwl.column*sizeof(Real);
   Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
@@ -108,12 +108,12 @@ int main(int argc, char** argv){
     if(cdi.runSim){
       mwl.generateMWL(d_input, d_patternSum, d_single, cdi.oversampling);
       if(maxmerged==0) maxmerged = findMax(d_patternSum);
-      if(cdi.simCCDbit) cudaF(ccdRecord,d_patternSum, d_patternSum, cdi.noiseLevel, devstates, 1./maxmerged);
-      else cudaF(applyNorm, d_patternSum, 1./maxmerged);
+      if(cdi.simCCDbit) cudaF(ccdRecord,d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
+      else cudaF(applyNorm, d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "floatimage");
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
-      plt.plotComplex(d_single, MOD, 0, cdi.exposure, ("singlelog"+to_string(j)).c_str(), 1);
+      plt.plotComplex(d_single, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
       cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
       cudaF(getMod, realcache, d_single);
       cudaF(applyNorm, realcache, 1./findMax(realcache));
@@ -131,7 +131,10 @@ int main(int argc, char** argv){
       cudaF(extendToComplex,d_patternSum, d_CpatternSum);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
-      mwl.solveMWL(d_CpatternSum, d_solved, 1, cdi.nIter, 1, 0);
+      mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 1, cdi.nIter, 1, 0);
+      //cudaF(applyNorm, d_CpatternSum, 20);
+      //cudaF(applyNorm, d_solved, 20);
+      //mwl.solveMWL(d_CpatternSum, d_solved, 0, 10, 1, 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1);
       cudaF(getMod,d_patternSum, d_solved);

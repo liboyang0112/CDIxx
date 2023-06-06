@@ -244,7 +244,11 @@ void CDI::prepareIter(){
       cudaF(applyNorm,patternData, 1./exposure);
       cudaF(cudaConvertFO,patternData);
     }
-    plt.saveFloat(patternData, "pattern");
+    cudaF(cudaConvertFO,patternData);
+    cudaF(applyNorm,patternData, exposure);
+    plt.saveFloat(patternData, "sim_pattern");
+    cudaF(applyNorm,patternData, 1./exposure);
+    cudaF(cudaConvertFO,patternData);
   }
   if(restart){
     complexFormat *wf = (complexFormat*) readComplexImage(common.restart);
@@ -415,10 +419,10 @@ complexFormat* CDI::phaseRetrieve(){
     propagate(cuda_gkprime, cuda_gkprime, 1);
     plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
   }
-  plt.plotFloat(support, MOD, 0, 1, "support", 0);
   plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   cudaF(bitMap, support, support, cudaVarLocal->threshold);
+  plt.plotFloat(support, MOD, 0, 1, "support", 0);
   auto mid = findMiddle(support, row*column);
   init_cuda_image(row/oversampling_spt,column/oversampling_spt);
   complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat*)*(row/oversampling_spt)*(column/oversampling_spt));

@@ -1,6 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 
+<style>
+* {
+  box-sizing: border-box;
+}
+body {
+  font: 16px Arial;
+}
+/*the container must be positioned relative:*/
+.autocomplete {
+  position: relative;
+  display: inline-block;
+  width: 30%;
+}
+
+input {
+  border: 1px solid transparent;
+  background-color: #f1f1f1;
+  padding: 10px;
+  font-size: 16px;
+}
+
+input[type=text] {
+  background-color: #f1f1f1;
+  width: 100%;
+}
+
+.warning {
+  color: #f00000;
+}
+
+button {
+  border: 1px solid transparent;
+  background-color: DodgerBlue;
+  padding: 10px;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled,
+button[disabled] {
+  border: 1px solid #999999;
+  background-color: darkgrey;
+  padding: 10px;
+  color: #f1f1f1;
+  cursor: not-allowed;
+}
+
+.images{
+  border-color: red;
+}
+.autocomplete-items {
+  position: absolute;
+  border: 1px solid #d4d4d4;
+  border-bottom: none;
+  border-top: none;
+  z-index: 99;
+  /*position the autocomplete items to be the same width as the container:*/
+  top: 100%;
+  left: 0;
+  right: 0;
+}
+
+.autocomplete-items div {
+  padding: 5px;
+  cursor: pointer;
+  background-color: #fff;
+  border-bottom: 1px solid #d4d4d4;
+}
+
+/*when hovering an item:*/
+.autocomplete-items div:hover {
+  background-color: #e9e9e9;
+}
+
+/*when navigating through the items using the arrow keys:*/
+.autocomplete-active {
+  background-color: DodgerBlue !important;
+  color: #ffffff;
+}
+</style>
+
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,10 +91,15 @@
 
   </head>
   <body>
-    <p>Working folder: <input type="text" value="" name="path" id="path"><!-- onchange="loadlog(event)"-->
+    <center>
+    Working folder:<div class="autocomplete"><input type="text" autocomplete="off" placeholder="Your Subdirectory" id="path"><!-- onchange="loadlog(event)"--></div>
     <button id="setpath">Confirm Folder</button>
-    <a href="images">Show repository</a></p>
-    <a href="" id="showpath"></a>
+    <a href="images">Show repository</a>
+    <p><a href="" id="showpath"></a></p>
+    <p>Experiment note:</p>
+    <p><textarea id="note" contenteditable="true" rows="20" cols="80">
+      After selecting working folder, you can edit file here</textarea></p>
+    <button id="savenote">Save</button>
     <p>Monochromatization Config:</p>
     <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
@@ -22,59 +108,124 @@
     <p><textarea id="cdiconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit config file here</textarea></p>
     <button id="savecdi">Save</button>
-    <p>Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
+    <p class="warning">Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
     <p>Upload background: <input type="file" id="background" >
     Upload pattern: <input type="file" id="image" ></p>
     <button id="uploadimg">Upload</button>
-    <p>Upload Spectrum: <input type="file" id="spectrum" ></p>
-    <button id="uploadspect">Upload</button>
-    <p>Select Background: <input type="text" name="runbkgfile" id="runbkgfile">
-    Select Pattern: <input type="text" name="runimgfile" id="runimgfile"></p>
-    <button id="prepare">Prepare Monochromatization</button>
+    <p>Upload Files: <input type="file" id="filestoupload" multiple="multiple"></p>
+    <p><button id="uploadfiles">Upload</button></p>
+    Select Background: <div class="autocomplete"><input type="text" autocomplete="off" name="runbkgfile" id="runbkgfile"></div>
+    Select Pattern: <div class="autocomplete"><input type="text" autocomplete="off" name="runimgfile" id="runimgfile"></div>
+    <p><button id="prepare">Process experimental data</button>
     <button id="monochrome_btn">Run Monochromatization</button>
     <button id="cdi_btn">Run CDI</button>
     <button id="rotate_btn">Rotate image</button>
+    <button id="rotate180_btn">Transpose</button>
     <button id="flip_btn">Flip image</button>
-    <p><img id="logimg" width="200"><img id="solved" width="200"><img id="recon" width="200"></p>
+    <button id="reset_btn">Reset image</button></p>
+    <p><img class="images" id="logimg" width="200" border="0"><img class="images" id="solved" width="200" border="0"><img class="images" id="residual_img" width="200"></p>
+    <p><img class="images" id="recon_input" width="200" border="0"><img class="images" id="recon" width="200" border="0"><img class="images" id="recon_phase" width="200" border="0"></p>
     <p><img id="residual" width="200"><img id="spectrum_plt" width="400"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
     <p>Monochromatization log:</p><code id="monolog"></code>
     <p>CDI log:</p><code id="cdilog"></code>
+    </center>
   </body>
 </html>
 <script>
   const nodeurl = window.location.origin+':8080'
   const url_cmd = "runcommand.php"
   const repo = 'images/'
+  let autoFillDictionary = {
+    "path": {},
+    "bkg" : {},
+    "pattern": {}
+  };
+  const myPromise = new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve();
+    }, 300);
+  });
+  myPromise.then(()=>{
+    return listFiles("cd " + repo + " ; find * -maxdepth 0 -type d");
+  }).then(data=>{
+    autoFillDictionary["path"] = data;
+  })
+  function loadImage(){
+    var timestamp = new Date().getTime();
+    postfix = "?t=" + timestamp;
+    path = repo + document.cookie + "/";
+    document.getElementById('recon').src = path+"recon_intensity_cropped.png"+postfix;
+    document.getElementById('recon').title = "CDI reconstruction";
+    document.getElementById('recon_phase').src = path+"recon_phase_cropped.png"+postfix;
+    document.getElementById('recon_phase').title = "CDI reconstruction";
+    document.getElementById('recon_input').src = path+"init_logpattern.png"+postfix;
+    document.getElementById('recon_input').title = "CDI input";
+    document.getElementById('logimg').src = path+"mergedlog0.png"+postfix;
+    document.getElementById('logimg').title="Monochromatization input";
+    document.getElementById('solved').src = path+"solvedlog0.png"+postfix;
+    document.getElementById('solved').title = "Solved monochromatic pattern";
+    document.getElementById('residual').src = path+"residual_iter_pulseGen.png"+postfix;
+    document.getElementById('residual').title = "Residual of monochromatization";
+    document.getElementById('residual_img').src = path+"residual_pulseGen.png"+postfix;
+    document.getElementById('residual_img').title = "Residual of monochromatization";
+    document.getElementById('spectrum_plt').src = path+"spectra.png"+postfix;
+    document.getElementById('spectrum_plt').title = "Spectrum";
+  }
+  if(document.cookie != "") {
+    setPath(document.cookie);
+    document.getElementById('path').value = document.cookie;
+    loadImage();
+  }
   document.getElementById("setpath").addEventListener('click',async ()=>{
+    document.cookie=document.getElementById('path').value;
+    setPath(document.cookie);
+  })
+  function setPath(path){
     url_path = "setpath.php"
-    if(document.getElementById('path').value == "") {
+    if(path == "") {
       document.getElementById('showpath').innerText = "Path not filled, please fill the text before click confirm";
       return;
     }else{
+      path = repo + path;
       ele = document.getElementById('showpath');
-      ele.href=repo+document.getElementById('path').value;
-      ele.innerText = "Path: " + repo+document.getElementById('path').value;
+      ele.href=path;
+      ele.innerText = "Path: "+ path;
     }
-    await fetch(url_path, {
+    fetch(url_path, {
       method: 'POST',
-      body: repo+document.getElementById('path').value
+      body: path
     }).then(response => {
       return response.text();
+    }).then(data=>{
+      if(data == "exists"){
+        loadImage();
+      }
+      fetch(nodeurl+"/read",{
+        method: 'POST',
+        body: path+"/pulse.cfg"
+      }).then(response=>{return response.text()}).then(data=>{
+        document.getElementById('monoconfig').value = data;
+      })
+      fetch(nodeurl+"/read",{
+        method: 'POST',
+        body: path+"/ExperimentLog.txt"
+      }).then(response=>{return response.text()}).then(data=>{
+        document.getElementById('note').value = data;
+      })
+      fetch(nodeurl+"/read",{
+        method: 'POST',
+        body: path+"/cdi.cfg"
+      }).then(response=>{return response.text()}).then(data=>{
+        document.getElementById('cdiconfig').value = data;
+      })
+    }).then(()=>{
+      return listFiles("cd " + repo + document.getElementById('path').value +" ; ls *.tif");
+    }).then(data=>{
+      autoFillDictionary["bkg"] = data;
+      autoFillDictionary["pattern"] = data;
     });
-    fetch(nodeurl+"/read",{
-      method: 'POST',
-      body: repo+document.getElementById('path').value+"/pulse.cfg"
-    }).then(response=>{return response.text()}).then(data=>{
-      document.getElementById('monoconfig').value = data;
-    })
-    fetch(nodeurl+"/read",{
-      method: 'POST',
-      body: repo+document.getElementById('path').value+"/cdi.cfg"
-    }).then(response=>{return response.text()}).then(data=>{
-      document.getElementById('cdiconfig').value = data;
-    })
-  })
+  }
   document.getElementById("uploadimg").addEventListener('click',async ()=>{
     const path = repo + document.getElementById('path').value +"/"
     const url = 'process.php';
@@ -91,15 +242,22 @@
       body: formData
     }).then(response => {
       return response.text();
+    }).then(()=>{
+      return listFiles("cd " + repo + document.getElementById('path').value +" ; ls *.tif");
+    }).then(data=>{
+      autoFillDictionary["bkg"] = data;
+      autoFillDictionary["pattern"] = data;
     });
   });
-  document.getElementById("uploadspect").addEventListener('click',async ()=>{
+  document.getElementById("uploadfiles").addEventListener('click',async ()=>{
     const path = repo + document.getElementById('path').value +"/"
     const url = 'process.php';
-    const file = document.getElementById('spectrum').files;
+    const filearray = document.getElementById('filestoupload').files;
     const formData = new FormData();
     formData.append('path', path);
-    formData.append('files[]', file[0]);
+    Array.from(filearray).forEach(file => {
+        formData.append('files[]', file);
+    });
     fetch(url, {
       method: 'POST',
       body: formData
@@ -140,23 +298,54 @@
     }).then(data => {
       document.getElementById('monolog').innerText = data;
       document.getElementById('logimg').src = path+"mergedlog0.png?t=" + timestamp;
+      document.getElementById('logimg').title="Monochromatization input";
       document.getElementById('solved').src = path+"solvedlog0.png?t=" + timestamp;
-      document.getElementById('residual').src = path+"residual_pulseGen.png?t=" + timestamp;
+      document.getElementById('solved').title = "Solved monochromatic pattern";
+      document.getElementById('residual').src = path+"residual_iter_pulseGen.png?t=" + timestamp;
+      document.getElementById('residual').title = "Residual of monochromatization";
+      document.getElementById('residual_img').src = path+"residual_pulseGen.png?t=" + timestamp;
+      document.getElementById('residual_img').title = "Residual of monochromatization";
       document.getElementById('spectrum_plt').src = path+"spectra.png?t=" + timestamp;
+      document.getElementById('spectrum_plt').title = "Spectrum";
       button.removeAttribute("disabled");
     });
     return;
   });
   let degree = 0;
   let flip = 1;
+  let operateImage = "recon";
+
+  function selectListener(imageid){
+    document.getElementById(imageid).addEventListener('click',async ()=>{
+      document.getElementById(operateImage).border = '0';
+      operateImage = imageid;
+      document.getElementById(operateImage).border = '3';
+    });
+  }
+  selectListener("recon");
+  selectListener("recon_phase");
+  selectListener("recon_input");
+  selectListener("solved");
+  selectListener("residual_img");
+  selectListener("logimg");
   document.getElementById("rotate_btn").addEventListener('click',async ()=>{
     degree += 90;
     if(degree == 360) degree = 0;
-    document.getElementById('recon').style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+  });
+  document.getElementById("rotate180_btn").addEventListener('click',async ()=>{
+    degree += 180;
+    if(degree == 360) degree = 0;
+    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("flip_btn").addEventListener('click',async ()=>{
     flip *=-1;
-    document.getElementById('recon').style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+  });
+  document.getElementById("reset_btn").addEventListener('click',async ()=>{
+    flip=1;
+    degree=0;
+    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("cdi_btn").addEventListener('click',async ()=>{
     button = document.getElementById("cdi_btn");
@@ -171,20 +360,32 @@
     }).then(data => {
       document.getElementById('cdilog').innerText = data;
       document.getElementById('recon').src = path+"recon_intensity_cropped.png?t=" + timestamp;
+      document.getElementById('recon').title = "CDI reconstruction";
+      document.getElementById('recon_input').src = path+"init_logpattern.png?t=" + timestamp;
+      document.getElementById('recon_input').title = "CDI input";
+      document.getElementById('recon_phase').src = path+"recon_phase_cropped.png?t=" + timestamp;
+      document.getElementById('recon_phase').title = "CDI reconstruction phase";
       button.removeAttribute("disabled");
     });
     return;
   });
-  document.getElementById("savepulse").addEventListener('click',async ()=>{
-    fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/pulse.cfg",{
-      method: 'POST',
-      body: document.getElementById('monoconfig').value
-    });
-  })
-  document.getElementById("savecdi").addEventListener('click',async ()=>{
-    fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/cdi.cfg",{
-      method: 'POST',
-      body: document.getElementById('cdiconfig').value
-    });
-  })
+  function saveText(buttonID, filename, contentId){
+    button = document.getElementById(buttonID);
+    button.addEventListener('click',async ()=>{
+      button.disabled = true;
+      await fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/" + filename,{
+        method: 'POST',
+        body: document.getElementById(contentId).value
+      }).then(response=>{
+        return response.text();
+      }).then(data=>{
+        button.removeAttribute("disabled");
+        console.log(data);
+      });
+    })
+  }
+  saveText("savepulse", "pulse.cfg", "monoconfig");
+  saveText("savenote", "ExperimentLog.txt", "note");
+  saveText("savecdi", "cdi.cfg", "cdiconfig");
 </script>
+<script src="autofill.js"></script>

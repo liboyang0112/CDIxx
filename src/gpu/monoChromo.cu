@@ -15,17 +15,18 @@ cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force
   Real m = mom[index].x;
   Real f = force[index].x;
   // interpolate with walls
-  if(m * f < 0) m = f*(1-dx);
-  else m = m*dx + f*(1-dx);
+  //if(m * f < 0) m = f*(1-dx);
+  //else m = m*dx + f*(1-dx);
   //m = m*dx + f*(1-dx);
-  //if(m * f < 0) m = f*dx;
-  //else m = m + f*dx;
+  if(m * f < 0) m = f*dx;
+  else m = m + f*dx;
   mom[index].x = m;
 })
 
-cuFunc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b),(deltab, b),{
+cuFunc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b, int noiseLevel),(deltab, b, noiseLevel),{
   cudaIdx();
   if(b[index].x >= vars->scale*0.99 && deltab[index].x < 0) deltab[index].x = 0;
+  if(fabs(deltab[index].x)*vars->rcolor < sqrtf(noiseLevel)) deltab[index].x = 0;
   deltab[index].y = 0;
 })
 
@@ -221,7 +222,7 @@ void applyC(Real* input, Real* output){
   cudaF(forcePositive, output);
 }
 
-void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter, bool updateX, bool updateA)
+void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
 {
   useOrth = 0;
   bool writeResidual = 1;
@@ -230,7 +231,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   init_cuda_image(row, column);
-  Real lr = 2.4;
+  Real lr = 1.;
   Real beta1 = 0.5;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
@@ -353,7 +354,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, bool restart, int nIter
       }
     }
     if(updateX){
-      //cudaF(overExposureZeroGrad, deltab, (complexFormat*)d_input);
+      cudaF(overExposureZeroGrad, deltab, (complexFormat*)d_input, noiseLevel);
       cudaMemset(deltabprev, 0, sz);
       cudaF(add, deltabprev, deltab, spectra[0]);
       if(i==nIter-1) {

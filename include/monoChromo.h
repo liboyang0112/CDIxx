@@ -24,5 +24,5 @@ class monoChromo{
     void init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_);
     Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray);
     void generateMWL(void* d_input, void* d_patternSum, void* single = 0, Real oversampling = 2);
-    void solveMWL(void* d_input, void* d_patternSum, bool restart = 0, int nIter = 200, bool updateX = 1, bool updateY = 0);
+    void solveMWL(void* d_input, void* d_patternSum, int noiseLevel = 0, bool restart = 0, int nIter = 200, bool updateX = 1, bool updateY = 0);
 };

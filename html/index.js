@@ -3,6 +3,7 @@ const http = require("http"),
 var server = http.createServer(function(request,response){
   dat = '';
   response.setHeader("Access-Control-Allow-Origin","*");
+  console.log("received request: "+ request.url);
   request.on('error', (err) => {
     console.error(err.stack);
   }).on('data', data=>{
@@ -10,13 +11,17 @@ var server = http.createServer(function(request,response){
     response.statusCode = 200;
     response.on('error', err=>{console.error(err.stack);});
     if(request.url == "/read"){
-      const data = fs.readFileSync(dat,"utf8");
-      response.end(data);
-      return;
+      if(fs.existsSync (dat))
+        response.write(fs.readFileSync(dat,"utf8"));
     }else if(request.url.startsWith("/save/")){
       const file = request.url.replace("/save/","");
-      fs.writeFile(file,dat,err => {if (err) throw err; console.log('Saved!');});
+      fs.writeFile(file,dat,err => {if (err) throw err; console.log('Saved to '+file + ' !');});
+      response.write("saved");
+    }else{
+      response.write("URL not accessible!");
     }
+    response.end();
+    return;
   });
   return;
 }).listen(8080);
