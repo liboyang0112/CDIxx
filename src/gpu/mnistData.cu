@@ -24,25 +24,26 @@ cuFunc(paste, (Real* out, Real* in, int rowin, int colin, int posx, int posy),(o
 })
 void cuMnist::cuRead(void* out){
   Real val = nmerge;
-  init_cuda_image(rowrf, colrf, 65536, 1);
+  resize_cuda_image(rowrf, colrf);
+  init_cuda_image(65536,1);
   //cudaMemcpy(cuRaw, read(), rowraw*colraw*sizeof(Real), cudaMemcpyHostToDevice);
-  //cudaF(refine,(Real*)cuRaw, (Real*)cuRefine, refinement);
+  //refine((Real*)cuRaw, (Real*)cuRefine, refinement);
   auto media = (refinement==1?cuRefine:out);
   cudaMemset(media,0,rowrf*colrf*sizeof(Real));
   for(int i = 0; i < val; i++){
     for(int j = 0; j < val; j++){
       cudaMemcpy(cuRaw, read(), rowraw*colraw*sizeof(Real), cudaMemcpyHostToDevice);
-      cudaF(paste, (Real*)media, (Real*)cuRaw, rowraw, colraw, rowraw*i*2/3, colraw*j*2/3);
+      paste( (Real*)media, (Real*)cuRaw, rowraw, colraw, rowraw*i*2/3, colraw*j*2/3);
     }
   }
   if(refinement!=1){
-    init_cuda_image(rowrf*refinement, colrf*refinement, 65536, 1);
-    cudaF(refine,(Real*)out, (Real*)cuRefine, refinement);
-    init_cuda_image(row, col, 65536, 1);
-    cudaF(pad, (Real*)cuRefine, (Real*)out,rowrf*refinement, colrf*refinement);
+    resize_cuda_image(rowrf*refinement, colrf*refinement);
+    refine((Real*)out, (Real*)cuRefine, refinement);
+    resize_cuda_image(row, col);
+    pad( (Real*)cuRefine, (Real*)out,rowrf*refinement, colrf*refinement);
   }else{
-    init_cuda_image(row, col, 65536, 1);
-    cudaF(pad, (Real*)media, (Real*)out,rowrf, colrf);
+    resize_cuda_image(row, col);
+    pad( (Real*)media, (Real*)out,rowrf, colrf);
   }
   gpuErrchk(cudaGetLastError());
 }

@@ -31,12 +31,12 @@ cuFunc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor,
 })
 
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
-  cudaF(multiplyFresnelPhase_Device,(complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/cudaVarLocal->rows/cudaVarLocal->cols));
-  cudaF(cudaConvertFO,(complexFormat*)field);
+  multiplyFresnelPhase_Device((complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/(cuda_imgsz.x*cuda_imgsz.y)));
+  cudaConvertFO((complexFormat*)field);
   myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_FORWARD);
-  cudaF(applyNorm,(complexFormat*)field, 1./sqrt(cudaVarLocal->rows*cudaVarLocal->cols));
-  cudaF(cudaConvertFO,(complexFormat*)field);
-  cudaF(multiplyPatternPhase_Device,(complexFormat*)field, M_PI*lambda*d/(imagesize*imagesize), 2*d*M_PI/lambda - M_PI/2);
+  applyNorm((complexFormat*)field, 1./sqrt(cuda_imgsz.x*cuda_imgsz.y));
+  cudaConvertFO((complexFormat*)field);
+  multiplyPatternPhase_Device((complexFormat*)field, M_PI*lambda*d/(imagesize*imagesize), 2*d*M_PI/lambda - M_PI/2);
 }
 
 cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{
@@ -49,10 +49,10 @@ cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{
 })
 void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambda, Real z_over_lambda){
   myCufftExec(*plan, (complexFormat*)input, (complexFormat*)field, CUFFT_FORWARD);
-  cudaF(applyNorm,(complexFormat*)field, 1./(cudaVarLocal->rows*cudaVarLocal->cols));
-  cudaF(cudaConvertFO,(complexFormat*)field);
-  cudaF(multiplyPropagatePhase,(complexFormat*)field, 2*M_PI*z_over_lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
-  cudaF(cudaConvertFO,(complexFormat*)field);
+  applyNorm((complexFormat*)field, 1./(cuda_imgsz.x*cuda_imgsz.y));
+  cudaConvertFO((complexFormat*)field);
+  multiplyPropagatePhase((complexFormat*)field, 2*M_PI*z_over_lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
+  cudaConvertFO((complexFormat*)field);
   myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_INVERSE);
 }
 
@@ -66,7 +66,7 @@ void experimentConfig::createBeamStop(){
   cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
   cudaMemcpy(cuda_spt, &cir, sizeof(cir), cudaMemcpyHostToDevice);
   beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  cudaF(createMask,beamstop, cuda_spt,1);
+  createMask(beamstop, cuda_spt,1);
   memMngr.returnCache(cuda_spt);
 }
 void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforward){
@@ -74,46 +74,46 @@ void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforw
 }
 void experimentConfig::propagate(void* datain, void* dataout, bool isforward){
   myCufftExec( *plan, (complexFormat*)datain, (complexFormat*)dataout, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
-  cudaF(applyNorm,(complexFormat*)dataout, isforward? forwardFactor: inverseFactor);
+  applyNorm((complexFormat*)dataout, isforward? forwardFactor: inverseFactor);
 }
 void experimentConfig::multiplyPatternPhase(void* amp, Real distance){
   if(costheta == 1){
-    cudaF(multiplyPatternPhase_Device,(complexFormat*)amp,
+    multiplyPatternPhase_Device((complexFormat*)amp,
          pixelsize*pixelsize*M_PI/(distance*lambda),  2*distance*M_PI/lambda-M_PI/2);
   }else{
-    cudaF(multiplyPatternPhaseOblique_Device,(complexFormat*)amp,
+    multiplyPatternPhaseOblique_Device((complexFormat*)amp,
          pixelsize*pixelsize*M_PI/(distance*lambda),  2*distance*M_PI/lambda-M_PI/2, costheta);
   }
 }
 void experimentConfig::multiplyPatternPhase_reverse(void* amp, Real distance){
   if(costheta == 1){
-    cudaF(multiplyPatternPhase_Device,(complexFormat*)amp,
+    multiplyPatternPhase_Device((complexFormat*)amp,
         -pixelsize*pixelsize*M_PI/(distance*lambda), -2*distance*M_PI/lambda+M_PI/2);
   }else{
-    cudaF(multiplyPatternPhaseOblique_Device,(complexFormat*)amp,
+    multiplyPatternPhaseOblique_Device((complexFormat*)amp,
         -pixelsize*pixelsize*M_PI/(distance*lambda), -2*distance*M_PI/lambda+M_PI/2, costheta);
   }
 }
 void experimentConfig::multiplyPatternPhase_factor(void* amp, Real factor1, Real factor2){
   if(costheta == 1){
-    cudaF(multiplyPatternPhase_Device,(complexFormat*)amp, factor1, factor2-M_PI/2);
+    multiplyPatternPhase_Device((complexFormat*)amp, factor1, factor2-M_PI/2);
   }else{
-    cudaF(multiplyPatternPhaseOblique_Device,(complexFormat*)amp, factor1, factor2-M_PI/2, costheta);
+    multiplyPatternPhaseOblique_Device((complexFormat*)amp, factor1, factor2-M_PI/2, costheta);
   }
 }
 void experimentConfig::multiplyFresnelPhase(void* amp, Real distance){
   Real fresfactor = M_PI*lambda*distance/(pow(pixelsize*row,2));
   if(costheta == 1){
-    cudaF(multiplyFresnelPhase_Device,(complexFormat*)amp, fresfactor);
+    multiplyFresnelPhase_Device((complexFormat*)amp, fresfactor);
   }else{
-    cudaF(multiplyFresnelPhaseOblique_Device,(complexFormat*)amp, fresfactor, 1./costheta);
+    multiplyFresnelPhaseOblique_Device((complexFormat*)amp, fresfactor, 1./costheta);
   }
 }
 void experimentConfig::multiplyFresnelPhase_factor(void* amp, Real factor){
   if(costheta == 1){
-    cudaF(multiplyFresnelPhase_Device,(complexFormat*)amp, factor);
+    multiplyFresnelPhase_Device((complexFormat*)amp, factor);
   }else{
-    cudaF(multiplyFresnelPhaseOblique_Device,(complexFormat*)amp, factor, 1./costheta);
+    multiplyFresnelPhaseOblique_Device((complexFormat*)amp, factor, 1./costheta);
   }
 }
 void experimentConfig::calculateParameters(){

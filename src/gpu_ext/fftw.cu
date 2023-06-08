@@ -15,7 +15,7 @@ Mat* fftw ( Mat* in, Mat *out, bool isforward, Real ratio)
 {
   int row = in->rows;
   int column = in->cols;
-  init_cuda_image(row, column);
+  resize_cuda_image(row, column);
   if(ratio==0) ratio = 1./sqrt(row*column);
   if(out == 0) out = new Mat(row,column,float_cv_format(2));
 
@@ -36,7 +36,7 @@ Mat* fftw ( Mat* in, Mat *out, bool isforward, Real ratio)
     
   myCufftExec( *plan, cudaData,cudaData, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
 
-  cudaF(applyNorm,cudaData, ratio);
+  applyNorm(cudaData, ratio);
 
   gpuErrchk(cudaMemcpy(out->data, cudaData, sz, cudaMemcpyDeviceToHost));
   

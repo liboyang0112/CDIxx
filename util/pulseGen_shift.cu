@@ -42,7 +42,7 @@ int main(int argc, char** argv){
     }
     else {
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
-      cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
+      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       cudaMemcpy(d_input, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
       objrow *= cdi.oversampling;
@@ -87,11 +87,12 @@ int main(int argc, char** argv){
   Real *merged = (Real*)ccmemMngr.borrowCache(sz);
   complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
   complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
-  init_cuda_image(mwl.row, mwl.column,65536,1);
+  resize_cuda_image(mwl.row, mwl.column);
+  init_cuda_image(rcolor, 1);
   plt.init(mwl.row, mwl.column);
   curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  cudaF(initRand,devstates,seed);
+  initRand(devstates,seed);
   mwl.devstates = 0;//devstates;
   Real maxmerged = 0;
   //mwl.writeSpectra("spectra.txt");
@@ -108,15 +109,15 @@ int main(int argc, char** argv){
     if(cdi.runSim){
       mwl.generateMWL(d_input, d_patternSum, d_single, cdi.oversampling);
       if(maxmerged==0) maxmerged = findMax(d_patternSum);
-      if(cdi.simCCDbit) cudaF(ccdRecord,d_patternSum, d_patternSum, cdi.noiseLevel, devstates, 1./maxmerged);
-      else cudaF(applyNorm, d_patternSum, 1./maxmerged);
+      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel, devstates, 1./maxmerged);
+      else applyNorm( d_patternSum, 1./maxmerged);
       plt.saveFloat(d_patternSum, "floatimage.tiff");
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
       //plt.plotComplex(d_single, MOD, 0, cdi.exposure, ("single"+to_string(j)).c_str(), 1);
       cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
-      cudaF(getMod, realcache, d_single);
-      cudaF(applyNorm, realcache, 1./findMax(realcache));
+      getMod( realcache, d_single);
+      applyNorm( realcache, 1./findMax(realcache));
       cudaMemcpy(single, realcache, sz, cudaMemcpyDeviceToHost);
       void* ptrs[] = {merged, single};
       size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
@@ -128,38 +129,39 @@ int main(int argc, char** argv){
       ccmemMngr.returnCache(intensity);
     }
     if(cdi.doIteration){
-      cudaF(extendToComplex,d_patternSum, d_CpatternSum);
+      extendToComplex(d_patternSum, d_CpatternSum);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       mwl.solveMWL(d_CpatternSum, d_solved, 1, cdi.nIter, 1, 0);
       mwl.solveMWL(d_CpatternSum, d_solved, 0, 200, 1, 1);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1);
-      cudaF(getMod,d_patternSum, d_solved);
+      getMod(d_patternSum, d_solved);
       plt.saveFloat(d_patternSum, "pattern");
       //run Phase retrievial;
       /*
       cdi.row = objrow;
       cdi.column = objcol;
       cdi.init();
-      cudaF(applyNorm,d_patternSum, 1./cdi.exposure);
+      applyNorm(d_patternSum, 1./cdi.exposure);
       cdi.setPattern(d_patternSum);
       init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
       cdi.phaseRetrieve();
       */
 
       for(int i = 0; i < 0; i++){
-        cudaF(getMod2,cdi.patternData, cdi.patternWave);
-        cudaF(applyNorm,cdi.patternData, cdi.exposure);
-        cudaF(extendToComplex,cdi.patternData, d_solved);
-        cudaF(cudaConvertFO,d_solved);
+        getMod2(cdi.patternData, cdi.patternWave);
+        applyNorm(cdi.patternData, cdi.exposure);
+        extendToComplex(cdi.patternData, d_solved);
+        cudaConvertFO(d_solved);
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 20); // starting point
         plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(i)).c_str(), 0);
         plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(i)).c_str(), 1);
-        cudaF(getMod,d_patternSum, d_solved);
-        cudaF(applyNorm,d_patternSum, 1./cdi.exposure);
+        getMod(d_patternSum, d_solved);
+        applyNorm(d_patternSum, 1./cdi.exposure);
         cdi.setPattern(d_patternSum);
-        init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
+        resize_cuda_image(objrow, objcol);
+        init_cuda_image(65535, 1./cdi.exposure);
         cdi.phaseRetrieve();
       }
       //if(cdi.runSim){

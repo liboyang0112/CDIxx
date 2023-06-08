@@ -38,7 +38,7 @@ void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma){
   size = size>>1;
   int width = (size<<1)+1;
   createGauss(gaussMem, width, sigma);
-  cudaFShared(applyConvolution,(pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
+  applyConvolution((pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
 }
 
 cuFunc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(data,dataout,factor),{
@@ -65,8 +65,6 @@ cuFuncShared(applyConvolution,(Real *input, Real *output, Real* kernel, int kern
   int x = blockIdx.x*blockDim.x + threadIdx.x;
   int y = blockIdx.y*blockDim.y + threadIdx.y;
   int blockindex = threadIdx.x*blockDim.y+threadIdx.y;
-  int cuda_row = vars->rows;
-  int cuda_column = vars->cols;
   int tilewidth = kernelwidth*2+blockDim.x;
   int tilesize = tilewidth*tilewidth;
   int blocksize = blockDim.x*blockDim.y;
@@ -234,11 +232,11 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
     if(tmpsz!=sz){
       Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
       gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
-      init_cuda_image(objrow, objcol);
+      resize_cuda_image(objrow, objcol);
       if(tmpsz > sz){
-        cudaF(crop,d_phasetmp, d_phase, tmprow, tmpcol);
+        crop(d_phasetmp, d_phase, tmprow, tmpcol);
       }else{
-        cudaF(pad,d_phasetmp, d_phase, tmprow, tmpcol);
+        pad(d_phasetmp, d_phase, tmprow, tmpcol);
       }
       memMngr.returnCache(d_phasetmp);
     }
@@ -429,3 +427,44 @@ cuFunc(applyRandomPhase,(complexFormat* wave, Real* beamstop, curandStateMRG32k3
   }
   wave[index] = tmp;
 })
+
+cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
+  cudaIdx()
+	int targetx = x >= cuda_row/2 ? x + row - cuda_row : x;
+	int targety = y >= cuda_column/2 ? y + col - cuda_column : y;
+  int targetidx = targetx * col + targety;
+	dest[index] = src[targetidx]*norm;
+})
+
+cuFunc(cropinner,(complexFormat* src, complexFormat* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
+  cudaIdx()
+	int targetx = x >= cuda_row/2 ? x + row - cuda_row : x;
+	int targety = y >= cuda_column/2 ? y + col - cuda_column : y;
+  int targetidx = targetx * col + targety;
+	dest[index].x = src[targetidx].x*norm;
+	dest[index].y = src[targetidx].y*norm;
+})
+cuFunc(padinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
+  cudaIdx()
+	if((x >= row/2 && x < (cuda_row - row/2)) || (y >= col/2 && y < (cuda_column - col/2))){
+		dest[index] = 0;
+		return;
+	}
+	int targetx = x >= cuda_row/2 ? x - (cuda_row - row) : x;
+	int targety = y >= cuda_column/2 ? y - (cuda_column - col) : y;
+	dest[index] = src[targetx*col+targety]*norm;
+})
+
+cuFunc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Real norm), (src, dest, row, col, norm),{
+  cudaIdx()
+	if((x >= row/2 && x < (cuda_row - row/2)) || (y >= col/2 && y < (cuda_column - col/2))){
+		dest[index].x = dest[index].y = 0;
+		return;
+	}
+	int targetx = x >= cuda_row/2 ? x - (cuda_row - row) : x;
+	int targety = y >= cuda_column/2 ? y - (cuda_column - col) : y;
+  int targetidx = targetx*col+targety;
+	dest[index].x = src[targetidx].x*norm;
+	dest[index].y = src[targetidx].y*norm;
+})
+

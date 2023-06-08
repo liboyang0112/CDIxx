@@ -120,12 +120,12 @@ cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
 complexFormat findMiddle(complexFormat* d_in, int num){
   int num_items = memMngr.getSize(d_in)/sizeof(complexFormat);
   Real* tmp = (Real*) memMngr.borrowCache(num_items*sizeof(Real));
-  cudaF(getMod,tmp,d_in);
+  getMod(tmp,d_in);
   Real norm = findSum(tmp, num_items);
-  cudaF(multiplyx,d_in,tmp);
+  multiplyx(d_in,tmp);
   complexFormat mid;
   mid.x = findSum(tmp, num_items)/norm;
-  cudaF(multiplyy,d_in,tmp);
+  multiplyy(d_in,tmp);
   mid.y = findSum(tmp, num_items)/norm;
   memMngr.returnCache(tmp);
   return mid;
@@ -135,10 +135,10 @@ complexFormat findMiddle(Real* d_in, int num){
   Real* tmp = (Real*) memMngr.borrowCache(num_items);
   num_items/=sizeof(Real);
   Real norm = findSum(d_in, num_items);
-  cudaF(multiplyx,d_in,tmp);
+  multiplyx(d_in,tmp);
   complexFormat mid;
   mid.x = findSum(tmp, num_items)/norm;
-  cudaF(multiplyy,d_in,tmp);
+  multiplyy(d_in,tmp);
   mid.y = findSum(tmp, num_items)/norm;
   memMngr.returnCache(tmp);
   return mid;

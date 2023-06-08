@@ -3,36 +3,29 @@
 #include <cufft.h>
 #include "format.h"
 #include "memManager.h"
-#define addVarArg(x...) cudaVars* vars, x
-#define addVar(x...) vars, x
-#define cuFuncDec(funcname, ...) void funcname##Wrap(cudaVars* vars, __VA_ARGS__)
+#define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
+#define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, x
 #define cuFunc(name,args,param,content...)\
-__global__ void name(addVarArg args) content \
-void name##Wrap(addVarArg args){\
-  name<<<numBlocks, threadsPerBlock>>>(addVar param);\
-}
+  __global__ void name##Wrap(addVarArg args) content \
+  void name args{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+  }
 #define addSize(args...) size_t size, args
-#define cuFuncSharedDec(funcname, ...) void funcname##Wrap (size_t size, cudaVars* vars, __VA_ARGS__)
+#define cuFuncSharedDec(funcname, ...) void funcname (size_t size, __VA_ARGS__)
 #define cuFuncShared(name,args,param,content...)\
-__global__ void name(addVarArg args) content \
-void name##Wrap( addSize(addVarArg args) ){\
-  name<<<numBlocks, threadsPerBlock, size>>>(addVar param);\
-}
-
-#define cudaF(funcname, ...) funcname##Wrap (cudaVar,__VA_ARGS__)
-#define cudaFShared(funcname, size, ...) funcname##Wrap (size, cudaVar,__VA_ARGS__)
+  __global__ void name##Wrap(addVarArg args) content \
+  void name( addSize args){\
+    name##Wrap<<<numBlocks, threadsPerBlock, size>>>(addVar param);\
+  }
 #define cudaIdx() \
-int x = blockIdx.x * blockDim.x + threadIdx.x;\
-int y = blockIdx.y * blockDim.y + threadIdx.y;\
-int cuda_row = vars->rows;\
-int cuda_column = vars->cols;\
-if(x >= cuda_row || y >= cuda_column) return;\
-int index = x*cuda_column + y;
+  int x = blockIdx.x * blockDim.x + threadIdx.x;\
+  int y = blockIdx.y * blockDim.y + threadIdx.y;\
+  if(x >= cuda_row || y >= cuda_column) return;\
+  int index = x*cuda_column + y;
+#define cudaArgs cudaVars* vars, int cuda_row, int cuda_column
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
 struct cudaVars{
-  int rows;
-  int cols;
   int rcolor;
   Real beta_HIO;
   Real scale;
@@ -42,23 +35,26 @@ extern cudaVars* cudaVar;
 extern cudaVars* cudaVarLocal;
 extern complexFormat *cudaData;
 extern cufftHandle *plan, *planR2C;
-extern int cuda_row_, cuda_column_;
-void init_cuda_image(int rows, int cols, int rcolor=0, Real scale=NAN);
+extern int2 cuda_imgsz;
+void resize_cuda_image(int row, int col);
+void init_cuda_image(int rcolor=0, Real scale=NAN);
 
 class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);
   public:
-    cuMemManager():memManager(){};
+  cuMemManager():memManager(){
+    //cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
+  };
 };
 extern cuMemManager memMngr;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line)
 {
-   if (code != cudaSuccess)
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      abort();
-   }
+  if (code != cudaSuccess)
+  {
+    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+    abort();
+  }
 }
 
 #endif

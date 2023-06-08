@@ -23,13 +23,13 @@ int main(int argc, char** argv){
       objrow = 128;
       objcol = 128;
       mnist_dat = new cuMnist(cdi.mnistData,1, 3, objrow, objcol);
-      cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
+      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
     }
     else {
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
-      cudaMalloc((void**)&d_input, objrow*objcol*sizeof(Real));
+      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       cudaMemcpy(d_input, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
       objrow *= cdi.oversampling;
@@ -80,7 +80,7 @@ int main(int argc, char** argv){
   plt.init(mwl.row, mwl.column);
   curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  cudaF(initRand,devstates, seed);
+  initRand(devstates, seed);
   mwl.writeSpectra("spectra.txt");
   for(int j = 0; j < 1; j++){
     if(cdi.runSim && cdi.domnist) {
@@ -93,7 +93,7 @@ int main(int argc, char** argv){
     }
     if(cdi.runSim){
       mwl.generateMWL(d_input, d_patternSum, single, cdi.oversampling);
-      cudaF(applyPoissonNoise_WO,d_patternSum, cdi.noiseLevel, devstates);
+      applyPoissonNoise_WO(d_patternSum, cdi.noiseLevel, devstates);
       plt.plotFloat(d_patternSum, MOD, 0, cdi.exposure, ("merged"+to_string(j)).c_str(), 0);
       plt.plotFloat(d_patternSum, MOD, 0, cdi.exposure, ("mergedlog"+to_string(j)).c_str(), 1);
       plt.plotComplex(single, MOD, 0, cdi.exposure, ("single"+to_string(j)).c_str(), 1);
@@ -101,10 +101,10 @@ int main(int argc, char** argv){
     }else{
       intensity = readImage(cdi.common.Pattern, objrow, objcol);
     }
-    cudaF(extendToComplex,d_patternSum, d_CpatternSum);
+    extendToComplex(d_patternSum, d_CpatternSum);
     init_fft(objrow,objcol);
     myCufftExec(*plan, d_CpatternSum, d_CpatternSum, CUFFT_FORWARD);
-    cudaF(applyNorm,d_CpatternSum, 1./sqrt(objrow*objcol));
+    applyNorm(d_CpatternSum, 1./sqrt(objrow*objcol));
     plt.plotComplex(d_CpatternSum, MOD, 1, 2./mwl.row, ("autocsolved"+to_string(j)).c_str(), 1);
   }
   mwl.writeSpectra("spectra_new.txt");

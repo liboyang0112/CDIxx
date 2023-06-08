@@ -44,12 +44,10 @@ __device__ T minmod(T data1, T data2){
 
 
 template <typename T>
-__global__ void calcBracketLambda(cudaVars* vars, T *srcImage, T *bracket, T* u0, T* lambdacore, T noiseLevel)
+__global__ void calcBracketLambda(cudaVars* vars,int cuda_row, int cuda_column, T *srcImage, T *bracket, T* u0, T* lambdacore, T noiseLevel)
 {
   int x = blockIdx.x*blockDim.x + threadIdx.x;
   int y = blockIdx.y*blockDim.y + threadIdx.y;
-  int cuda_row = vars->rows;
-  int cuda_column = vars->cols;
   extern __shared__ float tile[];
   if(threadIdx.x<blockDim.x/2+FILTER_WIDTH && threadIdx.y<blockDim.y/2+FILTER_HEIGHT)
     tile[threadIdx.x*(tilewidth)+threadIdx.y]=(x>=FILTER_WIDTH && y>=FILTER_HEIGHT)?srcImage[(x-FILTER_WIDTH)*cuda_column+y-FILTER_HEIGHT]:0;
@@ -94,7 +92,7 @@ __global__ void calcBracketLambda(cudaVars* vars, T *srcImage, T *bracket, T* u0
 }
 
 template <typename T>
-__global__ void tvFilter(cudaVars* vars, T *srcImage, T *bracket, T* u0, T* slambda)
+__global__ void tvFilter(int cuda_row, int cuda_column, T *srcImage, T *bracket, T* u0, T* slambda)
 {
   cudaIdx()
   srcImage[index]+=bracket[index]-(*slambda)*(srcImage[index]-u0[index]);
@@ -115,9 +113,9 @@ void inittvFilter(int row, int col){
 Real* tvFilterWrap(Real* d_input, Real noiseLevel, int nIters){
   gpuErrchk(cudaMemcpy(d_output,d_input,sz,cudaMemcpyDeviceToDevice));
 	for(int i = 0; i<nIters; i++){
-    calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(cudaVar, d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
+    calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
     gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, sz, d_lambdacore, lambda, rows*cols, sum_op, 0));
-    tvFilter<<<numBlocks,threadsPerBlock>>>(cudaVar, d_output, d_bracket, d_input, lambda);
+    tvFilter<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, d_output, d_bracket, d_input, lambda);
 	}
   cudaMemcpy(d_input,d_output,sz,cudaMemcpyDeviceToDevice);
 	return d_input;

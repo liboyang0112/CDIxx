@@ -7,6 +7,18 @@
   x = y;\
   y = x##swapTMPVariable
 
+//__attribute__((global)) void partialxWrap(cudaVars* vars, int cuda_row, int cuda_column, Real* b, Real* p) {
+//  int x = blockIdx.x * blockDim.x + threadIdx.x;
+//  int y = blockIdx.y * blockDim.y + threadIdx.y;
+//  if(x >= cuda_row || y >= cuda_column) return;
+//  int index = x*cuda_column + y;
+//  Real target;
+//  if(x == cuda_row-1) target = b[index]-b[index%cuda_column];
+//  else target = b[index]-b[index+cuda_column];
+//  p[index] = target;
+//}
+//
+//void partialx((Real* b, Real* p)){ partialxWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.b,p, cuda_imgsz.y, b,p);}
 cuFunc(partialx, (Real* b, Real* p), (b,p),{
   cudaIdx()
   Real target;
@@ -16,29 +28,29 @@ cuFunc(partialx, (Real* b, Real* p), (b,p),{
   p[index] = target;
 })
 cuFunc(partialy, (Real* b, Real* p), (b,p),{
-  cudaIdx()
-  Real target;
-  if(y == cuda_column-1) target = b[index]-b[index-cuda_column+1];
-  else target = b[index]-b[index+1];
-  //if(fabs(target) > 3e-2) target = 0;
-  p[index] = target;
-})
+    cudaIdx()
+    Real target;
+    if(y == cuda_column-1) target = b[index]-b[index-cuda_column+1];
+    else target = b[index]-b[index+1];
+    //if(fabs(target) > 3e-2) target = 0;
+    p[index] = target;
+    })
 cuFunc(diffMax, (Real* p, Real* q), (p,q),{
-  cudaIdx()
-  Real mod = hypot(p[index],q[index]);
-  if(mod <= 1) return;
-  p[index] /= mod;
-  q[index] /= mod;
-})
+    cudaIdx()
+    Real mod = hypot(p[index],q[index]);
+    if(mod <= 1) return;
+    p[index] /= mod;
+    q[index] /= mod;
+    })
 cuFunc(calcLpq, (Real* out, Real* p, Real* q), (out,p,q),{
-  cudaIdx()
-  Real tmp = p[index]+q[index];
-  if(x >= 1) tmp -= p[index-cuda_column];
-  else tmp-=p[index+(cuda_row-1)*cuda_column];
-  if(y >= 1) tmp -= q[index-1];
-  else tmp-=q[index+cuda_column-1];
-  out[index] = tmp;
-})
+    cudaIdx()
+    Real tmp = p[index]+q[index];
+    if(x >= 1) tmp -= p[index-cuda_column];
+    else tmp-=p[index+(cuda_row-1)*cuda_column];
+    if(y >= 1) tmp -= q[index-1];
+    else tmp-=q[index+cuda_column-1];
+    out[index] = tmp;
+    })
 void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, Real*)){
   size_t sz = memMngr.getSize(b);
   Real tk = 0.5+sqrt(1.25);
@@ -59,21 +71,21 @@ void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, R
   for(int iter = 0; iter < niter ; iter++){
     swap(pij, pijprev);
     swap(qij, qijprev);
-    cudaF(applyNorm, output, 0.125/lambda);
-    cudaF(partialx, output, pij);
-    cudaF(partialy, output, qij);
-    cudaF(add, pij, pijprev, 1);
-    cudaF(add, qij, qijprev, 1);
-    cudaF(diffMax, pij, qij);
+    applyNorm( output, 0.125/lambda);
+    partialx( output, pij);
+    partialy( output, qij);
+    add( pij, pijprev, 1);
+    add( qij, qijprev, 1);
+    diffMax( pij, qij);
     Real tkp1 = 0.5+sqrt(0.25+tk*tk);
     Real fact1 = (tk-1)/tkp1;
     tk = tkp1;
-    cudaF(applyNorm, pij, 1+fact1);
-    cudaF(applyNorm, qij, 1+fact1);
-    cudaF(add, pij, pijprev, -fact1);
-    cudaF(add, qij, qijprev, -fact1);
-    cudaF(calcLpq, lpq, pij, qij);
-    cudaF(add, output, b, lpq, -lambda);
+    applyNorm( pij, 1+fact1);
+    applyNorm( qij, 1+fact1);
+    add( pij, pijprev, -fact1);
+    add( qij, qijprev, -fact1);
+    calcLpq( lpq, pij, qij);
+    add( output, b, lpq, -lambda);
     if(applyC) applyC(output, output);
   }
   memMngr.returnCache(pij);

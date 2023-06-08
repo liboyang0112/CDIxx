@@ -1,4 +1,4 @@
-power = -3
+power = 3
 mult = 10**(-power)
 
 stats "spectra_raw.txt" nooutput

@@ -140,8 +140,8 @@ cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Rea
 
 int main(int argc, char** argv )
 {
+  cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   CDI setups(argv[1]);
-  cudaFree(0); // to speed up the cudaMalloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   if(argc < 2){
     printf("please feed the object intensity and phase image\n");
   }
@@ -199,7 +199,7 @@ int main(int argc, char** argv )
       setups.multiplyFresnelPhase(cuda_pupilAmp, -setups.d);
       setups.multiplyFresnelPhaseMid(cuda_pupilAmp, setups.d-setups.dpupil);
       setups.propagateMid(cuda_pupilAmp, cuda_pupilAmp, 1);
-      cudaF(cudaConvertFO,cuda_pupilAmp);
+      cudaConvertFO(cuda_pupilAmp);
       setups.multiplyPatternPhaseMid(cuda_pupilAmp, setups.d-setups.dpupil);
 
       m_verbose(setups,2,plt.plotComplex(cuda_pupilAmp, MOD2, 0, 1, "ISW"));
@@ -207,9 +207,9 @@ int main(int argc, char** argv )
       Real* pupilInput = readImage(setups.pupil.Intensity, row, column);
       cudaMemcpy(cuda_pupilmod, pupilInput, sz/2, cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(pupilInput);
-      cudaF(createWaveFront,cuda_pupilmod, 0, cuda_ESW, row, column);
+      createWaveFront(cuda_pupilmod, 0, cuda_ESW, row, column);
       m_verbose(setups,1,plt.plotComplex(cuda_ESW, MOD2, 0, 1, "pupilsample", 0));
-      cudaF(calcESW,cuda_ESW, cuda_pupilAmp);
+      calcESW(cuda_ESW, cuda_pupilAmp);
       m_verbose(setups,2,plt.plotComplex(cuda_ESW, MOD2, 0, 1, "ESW"));
 
       setups.multiplyFresnelPhase(cuda_ESW, setups.dpupil);
@@ -218,14 +218,14 @@ int main(int argc, char** argv )
       m_verbose(setups,2,plt.plotComplex(cuda_ESW, MOD2, 0, setups.exposure, "ESWPattern",1));
 
       setups.propagate(cuda_pupilAmp_SIM, cuda_pupilAmp_SIM, 1); // equivalent to fftresult
-      cudaF(cudaConvertFO,cuda_pupilAmp_SIM);
+      cudaConvertFO(cuda_pupilAmp_SIM);
       setups.multiplyPatternPhase(cuda_pupilAmp_SIM, setups.d);
 
       plt.plotComplex(cuda_pupilAmp_SIM, MOD2, 0, setups.exposure, "srcPattern",0);
 
-      cudaF(add,cuda_pupilAmp_SIM, cuda_ESW);
-      cudaF(getMod2,cuda_pupilmod, cuda_pupilAmp_SIM);
-      cudaF(applyPoissonNoise_WO,cuda_pupilmod, setups.noiseLevel_pupil, setups.devstates, 1./setups.exposurepupil);
+      add(cuda_pupilAmp_SIM, cuda_ESW);
+      getMod2(cuda_pupilmod, cuda_pupilAmp_SIM);
+      applyPoissonNoise_WO(cuda_pupilmod, setups.noiseLevel_pupil, setups.devstates, 1./setups.exposurepupil);
       plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, "pupil_logintensity", 1);
       plt.plotComplex(cuda_pupilAmp, PHASE, 0, 1, "pupil_phase", 0);
       plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, setups.pupil.Pattern, 0);
@@ -233,7 +233,7 @@ int main(int argc, char** argv )
       int row, column;
       Real* pattern = readImage(setups.pupil.Pattern,row,column); //reconstruction is better after integerization
       cudaMemcpy(cuda_pupilmod, pattern, sz/2, cudaMemcpyHostToDevice);
-      cudaF(applyNorm,cuda_pupilmod, 1./setups.exposurepupil);
+      applyNorm(cuda_pupilmod, 1./setups.exposurepupil);
       ccmemMngr.returnCache(pattern);
     }
     //pupil reconstruction needs:
@@ -263,7 +263,7 @@ int main(int argc, char** argv )
     cudaMemcpy(cuda_pupilAmp, setups.patternWave, sz, cudaMemcpyDeviceToDevice);
     //cudaMemcpy(cuda_pupilAmp, cuda_pupilAmp_SIM, sz, cudaMemcpyHostToDevice);
 
-    cudaF(cudaConvertFO,cuda_pupilAmp);
+    cudaConvertFO(cuda_pupilAmp);
     setups.multiplyPatternPhase(cuda_pupilAmp, setups.d);
     setups.multiplyPatternPhase_reverse(cuda_pupilAmp, setups.dpupil);
     plt.plotComplex(cuda_pupilAmp, MOD2, 0, setups.exposure, "amp",0);
@@ -271,14 +271,14 @@ int main(int argc, char** argv )
 
     plt.plotComplex(cuda_ISW, MOD2, 0, 1, "ISW_debug",0);
 
-    cudaF(initESW,cuda_ESW, cuda_pupilmod, cuda_pupilAmp);
+    initESW(cuda_ESW, cuda_pupilmod, cuda_pupilAmp);
     setups.propagatepupil(cuda_ESW, cuda_ESW, 0);
     cudaMemcpy(cuda_ESWP, cuda_ESW, sz, cudaMemcpyDeviceToDevice);
     Real *cuda_steplength, *steplength;//, lengthsum;
     steplength = (Real*)malloc(sz/2);
     cuda_steplength = (Real*)memMngr.borrowCache(sz/2);
     for(int iter = 0; iter < setups.nIterpupil ;iter++){
-      cudaF(applyESWSupport,cuda_ESW, cuda_ISW, cuda_ESWP, cuda_steplength);
+      applyESWSupport(cuda_ESW, cuda_ISW, cuda_ESWP, cuda_steplength);
       cudaMemcpy(steplength, cuda_steplength, sz/2, cudaMemcpyDeviceToHost);
       /*
          lengthsum = 0;
@@ -287,19 +287,19 @@ int main(int argc, char** argv )
          if(lengthsum<1e-6) break;
        */
       setups.propagatepupil(cuda_ESW, cuda_ESWPattern, 1);
-      cudaF(applyESWMod,cuda_ESWPattern, cuda_pupilmod, cuda_pupilAmp, 0);//setups.noiseLevel);
+      applyESWMod(cuda_ESWPattern, cuda_pupilmod, cuda_pupilAmp, 0);//setups.noiseLevel);
       setups.propagatepupil(cuda_ESWPattern, cuda_ESWP, 0);
     }
 
     //convert from ESW to object
     setups.propagatepupil(cuda_ESW, cuda_ESWPattern, 1);
-    cudaF(add,cuda_ESWPattern,cuda_pupilAmp);
+    add(cuda_ESWPattern,cuda_pupilAmp);
     plt.plotComplex(cuda_ESWPattern, MOD2, 0, setups.exposurepupil, "ESW_pattern_recon", 1);
 
     plt.plotComplex(cuda_ESWP, MOD2, 0, 1, "ESW_recon");
 
-    //cudaF(//applyESWSupport,cuda_ESW, cuda_ISW, cuda_ESWP,cuda_steplength);
-    cudaF(calcO,cuda_ESWP, cuda_ISW);
+    ////applyESWSupport(cuda_ESW, cuda_ISW, cuda_ESWP,cuda_steplength);
+    calcO(cuda_ESWP, cuda_ISW);
     plt.plotComplex(cuda_ESWP, MOD2, 0, 1, "object");
   }
   return 0;

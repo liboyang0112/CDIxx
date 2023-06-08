@@ -16,7 +16,6 @@
 int main(int argc, char** argv )
 {
   holo setups(argv[1]);
-  cudaFree(0); // to speed up the cudaMalloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   if(argc < 2){
     printf("please feed the object intensity and phase image\n");
   }

@@ -2,7 +2,7 @@
 #include "cudaDefs.h"
 #include "matrixGen.h"
 
-__global__ void calcElement(cudaVars* vars, float* matrixEle, int shiftx, int shifty, int paddingx, int paddingy){
+__global__ void calcElement(cudaVars* vars, int cuda_row, int cuda_column, float* matrixEle, int shiftx, int shifty, int paddingx, int paddingy){
   cudaIdx()
   //shift to middle
   x-=cuda_row/2;
@@ -30,18 +30,17 @@ __global__ void calcElement(cudaVars* vars, float* matrixEle, int shiftx, int sh
   matrixEle[index] = sum/cuda_row/cuda_column;
 }
 void matrixGen(Sparse *matrix, int rows, int cols, int paddingx, int paddingy, float weight){
-  init_cuda_image(rows,cols);
   int widthx = 2;
   int widthy = 2;
   float *cuda_matrix;
   float *matrixEle;
   size_t sz = sizeof(float)*rows*cols;
   matrixEle = (float*)malloc(sz);
-  gpuErrchk(cudaMalloc((void**)&cuda_matrix, sz));
+  cuda_matrix = (float*) memMngr.borrowCache(sz);
   for(int shiftx = -widthx; shiftx <= widthx; shiftx++){
     for(int shifty = -widthy; shifty <= widthy; shifty++){
       //if(abs(shiftx)>2 && abs(shifty)>2) continue;
-      calcElement<<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_matrix, shiftx, shifty, paddingx, paddingy);
+      calcElement<<<numBlocks,threadsPerBlock>>>(cudaVar, rows, cols, cuda_matrix, shiftx, shifty, paddingx, paddingy);
       cudaMemcpy(matrixEle, cuda_matrix, sz, cudaMemcpyDeviceToHost);
       for(int index = 0; index < rows*cols; index ++){
         if(fabs(matrixEle[index]) > 1e-5){
@@ -58,4 +57,6 @@ void matrixGen(Sparse *matrix, int rows, int cols, int paddingx, int paddingy, f
     printf("matrix size: %lu\n", matrix->matrix.size());
     //printf("\n");
   }
+  free(matrixEle);
+  memMngr.returnCache(cuda_matrix);
 }
