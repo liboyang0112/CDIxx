@@ -19,6 +19,43 @@ void init_fft(int rows, int cols){
   }
 }
 
+cuFunc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(object,shiftx,shifty),{
+  cudaIdx();
+  Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
+  complexFormat tmp = {cos(phi),sin(phi)};
+  object[index] = cuCmulf(object[index],tmp);
+})
+
+
+void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
+  myCufftExec( *plan, wave, wave, CUFFT_FORWARD);
+  cudaConvertFO(wave);
+  multiplyShift(wave, shiftx, shifty);
+  cudaConvertFO(wave);
+  applyNorm(wave, 1./(cuda_imgsz.x*cuda_imgsz.y));
+  myCufftExec( *plan, wave, wave, CUFFT_INVERSE);
+}
+
+cuFunc(rotateToReal,(complexFormat* data),(data),{
+  cudaIdx();
+  data[index].x = cuCabsf(data[index]);
+  data[index].y = 0;
+})
+
+cuFunc(removeImag,(complexFormat* data),(data),{
+  cudaIdx();
+  data[index].y = 0;
+})
+
+void shiftMiddle(complexFormat* wave){
+  cudaConvertFO(wave);
+  myCufftExec( *plan, wave, wave, CUFFT_FORWARD);
+  rotateToReal(wave);
+  applyNorm(wave, 1./(cuda_imgsz.x*cuda_imgsz.y));
+  myCufftExec( *plan, wave, wave, CUFFT_INVERSE);
+  cudaConvertFO(wave);
+}
+
 __global__ void createGaussKernel(Real* data, int sz, Real sigma){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -344,6 +381,11 @@ cuFunc(bitMap,(Real* store, Real* amp, Real threshold),(store,amp, threshold),{
   store[index] = amp[index] > threshold;
 })
 
+cuFunc(applyThreshold,(Real* store, Real* input, Real threshold),(store,input,threshold),{
+  cudaIdx()
+  store[index] = input[index] > threshold? input[index] : 0;
+})
+
 cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data, fact, shift),{
   cudaIdx();
   store[index] = fact*data[index]+shift;
@@ -434,6 +476,19 @@ cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,
 	int targety = y >= cuda_column/2 ? y + col - cuda_column : y;
   int targetidx = targetx * col + targety;
 	dest[index] = src[targetidx]*norm;
+})
+cuFunc(mergePixel, (Real* output, Real* input, int row, int col, int nmerge),(output, input, row, col, nmerge),{
+  cudaIdx()
+  int idx0 = x*nmerge*col+y*nmerge;
+  Real out = 0;
+  for(int dx = 0; dx < nmerge; dx ++){
+    for(int dy = 0; dy < nmerge; dy ++){
+      out += input[idx0];
+      idx0++;
+    }
+    idx0+=col-nmerge;
+  }
+	output[index] = out/(nmerge*nmerge);
 })
 
 cuFunc(cropinner,(complexFormat* src, complexFormat* dest, int row, int col, Real norm),(src,dest,row,col,norm),{

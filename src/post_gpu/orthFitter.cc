@@ -29,26 +29,26 @@ void runIter(int n, int niter, int niter1, Real step_lambda, Real step_bi, doubl
   ccmemMngr.returnCache(grads);
 }
 
-void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm){
+void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm, void* param){
   double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); //orthogalized ai
   double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double));  //normalization of each vector
   double *matrix = (double*)ccmemMngr.borrowCache(n*(n+1)/2*sizeof(double));  // b_i = M_ij*a_j
   void **orthedVector = (void**)ccmemMngr.borrowCache(n*sizeof(void*));
   memset(matrix, 0, n*(n+1)/2*sizeof(double));
   for(int i = 0; i < n; i++){
-    if(renorm) ni[i] = sqrt(innerProd(vectors[i],vectors[i]));
+    if(renorm) ni[i] = sqrt(innerProd(vectors[i],vectors[i],param));
     mult(vectors[i], 1./ni[i]);
     orthedVector[i] = createCache(vectors[i]);
   }
 
-  Real maxnorm = 0;
+  Real maxnorm = 1;
 
   matrix[0] = 1.;
   //calculate matrix and orthedVector
 
   for(int i = 1; i < n; i++){
     for(int j = 0; j < i; j++){
-      Real prod = innerProd(vectors[i], orthedVector[j]);
+      Real prod = innerProd(vectors[i], orthedVector[j],param);
       add(orthedVector[i],orthedVector[j], -prod);
       for(int k = 0; k <= j; k++){
         matrix[i*(i+1)/2+k]-=prod*matrix[j*(j+1)/2+k];
@@ -59,7 +59,7 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
     //  printf("norm is negative, this is impossible, please check!\n");
     //  abort();
     //}
-    double norms = sqrt(innerProd(orthedVector[i],orthedVector[i]));
+    double norms = sqrt(innerProd(orthedVector[i],orthedVector[i],param));
     int idxii = i*(i+3)/2;
     matrix[idxii] = 1./norms;
     if(maxnorm < matrix[idxii]) maxnorm = matrix[idxii];
@@ -69,23 +69,24 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
     }
   }
 
-  Real step_lambda = 1./(n*maxnorm*maxnorm);
+  Real step_lambda = 2./(n*maxnorm*maxnorm);
   //printf("step_lambda = %e\n", step_lambda);
-  Real step_bi = 0.5/n;
+  Real step_bi = 1.5/n;
   int niter = 10000;
   int niter1 = 5;
   //now lets solve dual problem
   double *prods = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // b_i without positive constraints
   for(int i = 0; i < n; i++){
-    bi[i] = prods[i] = innerProd(right,orthedVector[i]);
+    bi[i] = prods[i] = innerProd(right,orthedVector[i],param);
   }
   runIter_cu(n, niter, niter1, step_lambda, step_bi, bi, prods, matrix);
   ccmemMngr.returnCache(prods);
   //calculate a.
   memset(out, 0, n*sizeof(double));
-  for(int i = 0; i < n; i++){
-    for(int j = 0; j < i+1; j++){
-      out[j] += matrix[i*(i+1)/2+j]*bi[i];
+  for(int j = 0; j < n; j++){
+  for(int i = j; i < n; i++){
+    int rs = i*(i+1)/2;
+      out[j] += matrix[rs+j]*bi[i];
     }
   }
   ccmemMngr.returnCache(matrix);

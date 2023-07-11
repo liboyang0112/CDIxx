@@ -118,3 +118,29 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 }
+void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, double* spectrum){
+  std::vector<double> ccd_lambda;
+  std::vector<double> ccd_rate;
+  std::ifstream file_ccd_response;
+  file_ccd_response.open(ccd_response);
+  double lambda, val;
+  while(file_ccd_response>>lambda>>val){
+    ccd_lambda.push_back(lambda);
+    ccd_rate.push_back(val);
+  }
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
+  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
+  for(int i = 0; i < nlambda; i++){
+    if(lambdas[i] < ccd_lambda[0]){
+      printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
+      spectrum[i] /= ccd_rate[0];
+    }else if(lambdas[i] > ccd_lambda.back()){
+      printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
+      spectrum[i] /= ccd_rate.back();
+    }else
+    spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
+  }
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
+}

@@ -41,6 +41,7 @@ void init_cuda_image(int rcolor=0, Real scale=NAN);
 
 class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);
+  void c_memset(void*& ptr, size_t sz);
   public:
   cuMemManager():memManager(){
     //cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238

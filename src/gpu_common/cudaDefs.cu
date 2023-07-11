@@ -7,6 +7,7 @@ complexFormat *cudaData = 0;
 cufftHandle *plan, *planR2C;
 int2 cuda_imgsz = {0,0};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
+void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
 cuMemManager memMngr;
 void resize_cuda_image(int rows, int cols){
   cuda_imgsz.x = rows;

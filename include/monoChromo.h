@@ -21,6 +21,7 @@ class monoChromo{
     void calcPixelWeights();
     void writeSpectra(const char* filename);
     void resetSpectra();
+    void init(int nrow, int ncol, double minlambda, double maxlambda);
     void init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_);
     Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray);
     void generateMWL(void* d_input, void* d_patternSum, void* single = 0, Real oversampling = 2);

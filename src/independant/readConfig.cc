@@ -90,8 +90,8 @@ AlgoParser::AlgoParser(const char* f){
 		if(f[i]!=' ')
 			formula[j++]=f[i];
 	}
-	formula[j]='\0';
   formula.resize(j+1);
+	formula[j]='\0';
   printf("%s\n",formula.c_str());
   auto position = formula.find("(");
   while(position!= std::string::npos){
@@ -105,7 +105,7 @@ AlgoParser::AlgoParser(const char* f){
     }
     subParsers.push_back(new AlgoParser(formula.substr(position+1, positione-position-1).c_str()));
     formula.replace(position, positione-position+1, "subParser");
-    std::cout<<formula<<std::endl;
+    printf("%s\n",formula.c_str());
     position = formula.find("(");
   }
   char* term = const_cast<char*>(formula.c_str());

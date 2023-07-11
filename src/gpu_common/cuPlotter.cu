@@ -3,36 +3,27 @@
 #include <cassert>
 cuPlotter plt;
 
-void cuPlotter::initcuData(size_t sz){
-  if(cuCache_data) memMngr.returnCache(cuCache_data);
-  if(cuCache_float_data) memMngr.returnCache(cuCache_float_data);
-  if(cuCache_complex_data) memMngr.returnCache(cuCache_complex_data);
-  cuCache_data = (pixeltype*) memMngr.borrowCache(sz*sizeof(pixeltype));
-  cuCache_float_data = (Real*) memMngr.borrowCache(sz*sizeof(Real));
-  cuCache_complex_data = (complexFormat*) memMngr.borrowCache(sz*sizeof(complexFormat));
-}
-
 void cuPlotter::freeCuda(){
-  if(cuCache_data) memMngr.returnCache(cuCache_data);
-  if(cuCache_float_data) memMngr.returnCache(cuCache_float_data);
-  if(cuCache_complex_data) memMngr.returnCache(cuCache_complex_data);
+  if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
+  if(cuCache_float_data) { memMngr.returnCache(cuCache_float_data); cuCache_float_data = 0;}
 }
-
-__device__ Real cugetVal(mode m, complexFormat &data){
-  if(m==IMAG) return data.y;
-  if(m==MOD) return cuCabsf(data);
-  if(m==MOD2) return data.x*data.x+data.y*data.y;
+__device__ Real cugetVal(mode m, complexFormat &data, Real decay){
+  if(m==IMAG) return data.y*decay;
+  if(m==MOD) return cuCabsf(data)*decay;
+  if(m==MOD2) return (data.x*data.x+data.y*data.y)*decay;
   if(m==PHASE){
     return atan2(data.y,data.x)/2/M_PI+0.5;
   }
   if(m==PHASERAD){
     return atan2(data.y,data.x);
   }
-  return data.x;
+  return data.x*decay;
 }
-__device__ Real cugetVal(mode m, Real &data){
-  if(m==MOD2) return data*data;
-  return data;
+__device__ Real cugetVal(mode m, Real &data, Real decay){
+  if(m==MOD2) return data*data*decay;
+  if(m==MOD) return fabs(data)*decay;
+  if(m==REAL) return data*decay+0.5;
+  return data*decay;
 }
 
 template <typename T>
@@ -50,7 +41,7 @@ __global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cud
     targetx = cuda_row-x-1;
   }
   T data = ((T*)cudaData)[index];
-  Real target = decay*cugetVal(m,data);
+  Real target = cugetVal(m,data,decay);
   if(target < 0) target = 0;
   if(islog){
     if(target!=0)
@@ -78,10 +69,11 @@ __global__ void getPhase(cudaVars* vars, int cuda_row, int cuda_column, void* cu
   if(isFlip){
     targetx = cuda_row-x;
   }
-  cache[targetx*cuda_column+targety] =decay*cugetVal(m,((complexFormat*)cudaData)[index]);
+  cache[targetx*cuda_column+targety] =cugetVal(m,((complexFormat*)cudaData)[index],decay);
 }
 
 void cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){
+  if(!cuCache_float_data) cuCache_float_data = (Real*) memMngr.borrowCache(rows*cols*sizeof(Real));
   getPhase<<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, (Real*)cuCache_float_data, m, isFrequency, decay, isFlip);
   cudaMemcpy(cv_float_data, cuCache_float_data,rows*cols*sizeof(Real), cudaMemcpyDeviceToHost); 
 };
@@ -93,10 +85,12 @@ void cuPlotter::saveComplexData(void* cudaData){
   cudaMemcpy(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat), cudaMemcpyDeviceToHost); 
 };
 void cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
   process<Real><<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, cuCache_data, m, isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
 };
 void cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
   process<complexFormat><<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
 };

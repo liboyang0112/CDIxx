@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <cstdlib>
+#include <string.h>
 
 ccMemManager ccmemMngr;
 
@@ -32,6 +33,12 @@ void* memManager::borrowCache(size_t sz){
   }
   void* bb = ret;
   rentBook[bb] = sz;
+  return ret;
+}
+
+void* memManager::borrowCleanCache(size_t sz){
+  void* ret = borrowCache(sz);
+  c_memset(ret, sz);
   return ret;
 }
 
@@ -93,3 +100,4 @@ void memManager::returnCache(void* mem){
   rentBook.erase(iter);
 }
 void ccMemManager::c_malloc(void* &ptr, size_t sz){ptr = malloc(sz);}
+void ccMemManager::c_memset(void* &ptr, size_t sz){memset(ptr, 0, sz);}

@@ -10,6 +10,7 @@
 #include "cdi.h"
 #include "cdilmdb.h"
 #include "cub_wrap.h"
+using namespace std;
 
 int main(int argc, char** argv){
   cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
@@ -18,8 +19,6 @@ int main(int argc, char** argv){
   bool training = 1;
   int ntraining = 1000;
   int testingstart = ntraining;
-  initLMDB(&handle, training?"traindb":"testdb");
-  //setCompress(&handle);
   monoChromo mwl;
   CDI cdi(argv[1]);
   int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
@@ -33,6 +32,8 @@ int main(int argc, char** argv){
   Real* intensity;
   if(cdi.runSim){
     if(cdi.domnist) {
+      initLMDB(&handle, training?"traindb":"testdb");
+      //setCompress(&handle);
       objrow = 256;
       objcol = 256;
       for(int iconfig  = 0; iconfig < nconfig; iconfig++)
@@ -53,37 +54,43 @@ int main(int argc, char** argv){
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
     ccmemMngr.returnCache(intensity);
   }
+  double* lambdas, *spectra;
+  mwl.jump = cdi.spectrumSamplingStep;
+  mwl.skip = mwl.jump/2;
+  Real monoLambda = cdi.lambda;
 #if 0
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
-  double *lambdas;
-  double *spectra;
   lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 2.*i/objrow;
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
+  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 0
   const int nlambda = 5;
   double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
-#else
-  int nlambda;
-  double* lambdas, *spectra;
-  Real startlambda = 480;
-  Real endlambda = 1000;
-  getNormSpectrum(cdi.ccd_response,cdi.spectrum,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-  printf("lambda range = (%f, %f), ratio=%f\n", startlambda, endlambda*startlambda, endlambda);
+  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+#elif 1
+  if(cdi.solveSpectrum) {
+    Real minlambda = 480./monoLambda;
+    Real maxlambda = 1000./monoLambda;
+    mwl.init(objrow, objcol, minlambda, maxlambda);
+    //mwl.init(objrow, objcol, 1, 2);
+  }else{
+    int nlambda;
+    Real startlambda = 480;
+    Real endlambda = 1000;
+    getNormSpectrum(cdi.ccd_response,cdi.spectrum,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+    printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
+    mwl.init(objrow, objcol, lambdas, spectra, nlambda);
+  }
 #endif
-  //mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  mwl.jump = 10;
-  mwl.skip = 5;
-  Real tot = mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   int sz = mwl.row*mwl.column*sizeof(Real);
   Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
   Real *realcache = (Real*)memMngr.borrowCache(sz);
-  complexFormat *d_single = (complexFormat*)memMngr.borrowCache(sz*2);
   Real *single = (Real*)ccmemMngr.borrowCache(sz);
   Real *merged = (Real*)ccmemMngr.borrowCache(sz);
   complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
@@ -99,58 +106,86 @@ int main(int argc, char** argv){
   //mwl.writeSpectra("spectra.txt");
   for(int j = 0; j < (cdi.domnist? (training? ntraining:ntesting):1); j++){
     if(cdi.runSim && cdi.domnist) {
-        mnist_dat[j%nconfig]->setIndex((training?0:testingstart)+j);
-        mnist_dat[j%nconfig]->cuRead(d_input);
-        init_cuda_image(objrow/cdi.oversampling, objcol/cdi.oversampling);
-        plt.init(objrow/cdi.oversampling, objcol/cdi.oversampling);
-        //plt.plotFloat(d_input, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
-        init_cuda_image(objrow, objcol);
-        plt.init(objrow, objcol);
+      mnist_dat[j%nconfig]->setIndex((training?0:testingstart)+j);
+      mnist_dat[j%nconfig]->cuRead(d_input);
+      init_cuda_image(objrow/cdi.oversampling, objcol/cdi.oversampling);
+      plt.init(objrow/cdi.oversampling, objcol/cdi.oversampling);
+      //plt.plotFloat(d_input, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
+      init_cuda_image(objrow, objcol);
+      plt.init(objrow, objcol);
     }
     if(cdi.runSim){
-      mwl.generateMWL(d_input, d_patternSum, d_single, cdi.oversampling);
+      mwl.generateMWL(d_input, d_patternSum, d_solved, cdi.oversampling);
       if(maxmerged==0) maxmerged = findMax(d_patternSum);
       if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "floatimage");
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       //plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
-      plt.plotComplex(d_single, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
+      plt.plotComplex(d_solved, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
       cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
-      getMod( realcache, d_single);
+      getMod( realcache, d_solved);
       applyNorm( realcache, 1./findMax(realcache));
       cudaMemcpy(single, realcache, sz, cudaMemcpyDeviceToHost);
-      void* ptrs[] = {merged, single};
-      size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
-      int key = j+1000;
-      fillLMDB(handle, &key, 2, ptrs, sizes);
+      if(cdi.domnist) {
+        int key = j+1000;
+        void* ptrs[] = {merged, single};
+        size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
+        fillLMDB(handle, &key, 2, ptrs, sizes);
+      }
     }else{
       intensity = readImage(cdi.common.Pattern, objrow, objcol);
       cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
+      if(cdi.solveSpectrum){
+        int tmprow, tmpcol;
+        intensity = readImage(cdi.pupil.Pattern, tmprow, tmpcol);
+        cudaMemcpy(d_solved, intensity, tmprow*tmpcol*sizeof(Real), cudaMemcpyHostToDevice);
+        if(tmprow > objrow) crop((Real*)d_solved, realcache, tmprow, tmpcol);
+        else pad((Real*)d_solved, realcache, tmprow,tmpcol);
+        extendToComplex(realcache, d_solved);
+        ccmemMngr.returnCache(intensity);
+      }
     }
     if(cdi.doIteration){
       extendToComplex(d_patternSum, d_CpatternSum);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
-      mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 1, cdi.nIter, 1, 0);
-      //applyNorm( d_CpatternSum, 20);
-      //applyNorm( d_solved, 20);
-      //mwl.solveMWL(d_CpatternSum, d_solved, 0, 10, 1, 0);
+      if(!cdi.solveSpectrum) {
+        mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 1, cdi.nIter, 1, 0);
+        //applyNorm( d_CpatternSum, 20);
+        //applyNorm( d_solved, 20);
+        getMod(d_patternSum, d_solved);
+        plt.saveFloat(d_patternSum, "pattern");
+      }
       plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
       plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1);
-      getMod(d_patternSum, d_solved);
-      plt.saveFloat(d_patternSum, "pattern");
+      if(cdi.solveSpectrum) {
+        mwl.solveMWL(d_CpatternSum, d_solved, 0, 0, 1, 0, 1);
+        mwl.writeSpectra("spectra.txt");
+        lambdas = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
+        spectra = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
+        memcpy(spectra, mwl.spectra, mwl.nlambda*sizeof(double));
+        for(int i = 0; i < mwl.nlambda ; i++) {
+          lambdas[i] = monoLambda*mwl.rows[i]/mwl.row;
+        }
+        getRealSpectrum(cdi.ccd_response, mwl.nlambda, lambdas, spectra);
+        ofstream fout("spectrum_solved.txt", ios::out);
+        for(int i = 0; i < mwl.nlambda ; i++) {
+          fout << lambdas[i] << " " << (spectra[i]>0?spectra[i]:0) << endl;
+        }
+        break;
+      }
       //run Phase retrievial;
       /*
-      cdi.row = objrow;
-      cdi.column = objcol;
-      cdi.init();
-      applyNorm(d_patternSum, 1./cdi.exposure);
-      cdi.setPattern(d_patternSum);
-      init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
-      cdi.phaseRetrieve();
-      */
+         cdi.row = objrow;
+         cdi.column = objcol;
+         cdi.init();
+         applyNorm(d_patternSum, 1./cdi.exposure);
+         cdi.setPattern(d_patternSum);
+         init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
+         cdi.phaseRetrieve();
+       */
 
       for(int i = 0; i < 0; i++){
         getMod2(cdi.patternData, cdi.patternWave);
@@ -169,7 +204,7 @@ int main(int argc, char** argv){
       }
       //if(cdi.runSim){
       //  mwl.resetSpectra();
-      //  mwl.solveMWL(d_CpatternSum, d_single, 0, 2000, 0, 1);
+      //  mwl.solveMWL(d_CpatternSum, d_solved, 0, 2000, 0, 1);
       //  mwl.writeSpectra("spectra_new.txt");
       //}
 
@@ -178,7 +213,7 @@ int main(int argc, char** argv){
     }
 
   }
-  saveLMDB(handle);
+  if(cdi.domnist) saveLMDB(handle);
 
   return 0;
 }

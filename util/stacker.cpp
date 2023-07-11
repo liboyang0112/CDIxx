@@ -9,13 +9,15 @@ using namespace std;
 //using pixeltype=char;
 //auto format_cv = CV_8UC(1);
 
+const  int mergeDepth = 3;
 Mat centerCrop(Mat input, Real centxr, Real centyr){
+  int step = mergeDepth*4;
   int rows = input.rows;
   int cols = input.cols;
-  int centx = centxr*rows;
-  int centy = centyr*cols;
-  int outrow = (rows-abs(centx-rows/2)*2)/16*16;
-  int outcol = (cols-abs(centy-cols/2)*2)/16*16;
+  int centx = round(centxr*rows);
+  int centy = round(centyr*cols);
+  int outrow = (rows-abs(centx-rows/2)*2)/step*step;
+  int outcol = (cols-abs(centy-cols/2)*2)/step*step;
   outrow = outcol = min(outrow, outcol);
   Mat output(outrow, outcol, float_cv_format(1));
   Real* inputrow;
@@ -23,8 +25,10 @@ Mat centerCrop(Mat input, Real centxr, Real centyr){
   for(int x = 0; x < outrow; x++){
     inputrow = input.ptr<Real>(centx-outrow/2+x);
     outputrow = output.ptr<Real>(x);
-    for(int y = 0; y < outcol; y++)
+    for(int y = 0; y < outcol; y++){
       outputrow[y] = inputrow[centy-outcol/2+y];
+      if(outputrow[y]>1) printf("outrow=%d, %d\n", centx-outrow/2+x+1, centy-outcol/2+y+1);
+    }
   }
   return output;
 }
@@ -59,7 +63,6 @@ int main(int argc, char** argv )
     return -1;
   }
   vector<Mat> imagein;
-  int mergeDepth = 4;
   vector<Mat*> imageout;
   for(int i = 2 ; i < argc; i++){
     imagein.push_back( imread( argv[i], IMREAD_UNCHANGED ) );

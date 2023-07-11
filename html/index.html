@@ -24,7 +24,7 @@ input {
 
 input[type=text] {
   background-color: #f1f1f1;
-  width: 100%;
+  width: 100%
 }
 
 .warning {
@@ -100,32 +100,50 @@ button[disabled] {
     <p><textarea id="note" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
     <button id="savenote">Save</button>
+    <button id="savenote_def">Save As Default</button>
     <p>Monochromatization Config:</p>
     <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
     <button id="savepulse">Save</button>
+    <button id="savepulse_def">Save As Default</button>
     <p>CDI Reconstruction Config:</p>
     <p><textarea id="cdiconfig" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit config file here</textarea></p>
     <button id="savecdi">Save</button>
+    <button id="savecdi_def">Save As Default</button>
     <p class="warning">Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
     <p>Upload background: <input type="file" id="background" >
     Upload pattern: <input type="file" id="image" ></p>
     <button id="uploadimg">Upload</button>
-    <p>Upload Files: <input type="file" id="filestoupload" multiple="multiple"></p>
+    <p>Upload Spectrum: <input type="file" id="filestoupload" multiple="multiple"></p>
     <p><button id="uploadfiles">Upload</button></p>
     Select Background: <div class="autocomplete"><input type="text" autocomplete="off" name="runbkgfile" id="runbkgfile"></div>
     Select Pattern: <div class="autocomplete"><input type="text" autocomplete="off" name="runimgfile" id="runimgfile"></div>
-    <p><button id="prepare">Process experimental data</button>
+    Output:  <div class="autocomplete"><input type="text" autocomplete="off" name="runimgout" id="runimgout" value="floatimage"></div>
+    <br>
+    Select Spectrum: <div class="autocomplete"><input type="text" autocomplete="off" name="runspectfile" id="runspectfile"></div>  <button id="setspect">Confirm Spectrum</button>
+    <a href="images/spectrum">Show spectrum files</a>
+    <p>
+    <select id="nmerge">
+        <option value="">--Merge NxN pixels--</option>
+        <option value="1">Do not merge</option>
+        <option value="2">2x2</option>
+        <option value="3">3x3</option>
+        <option value="4">4x4</option>
+    </select>
+    <input type="checkbox" id="symmetric" name="symmetric"><label for="symmetric">Apply Symmetrization</label>
+    <button id="prepare">Process experimental data</button>
     <button id="monochrome_btn">Run Monochromatization</button>
     <button id="cdi_btn">Run CDI</button>
+    <br>
+    <br>
     <button id="rotate_btn">Rotate image</button>
     <button id="rotate180_btn">Transpose</button>
     <button id="flip_btn">Flip image</button>
     <button id="reset_btn">Reset image</button></p>
-    <p><img class="images" id="logimg" width="200" border="0"><img class="images" id="solved" width="200" border="0"><img class="images" id="residual_img" width="200"></p>
+    <p><img class="images" id="logimg" width="200" border="0"><img id="spectrum_plt" width="400"></p>
+    <p><img class="images" id="solved" width="200" border="0"><img class="images" id="residual_img" width="200"><img id="residual" width="200"></p>
     <p><img class="images" id="recon_input" width="200" border="0"><img class="images" id="recon" width="200" border="0"><img class="images" id="recon_phase" width="200" border="0"></p>
-    <p><img id="residual" width="200"><img id="spectrum_plt" width="400"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
     <p>Monochromatization log:</p><code id="monolog"></code>
     <p>CDI log:</p><code id="cdilog"></code>
@@ -136,10 +154,12 @@ button[disabled] {
   const nodeurl = window.location.origin+':8080'
   const url_cmd = "runcommand.php"
   const repo = 'images/'
+  let workpath = document.cookie.split("; ").find((row) => row.startsWith("cdiworkpath="))?.split("=")[1];
   let autoFillDictionary = {
     "path": {},
     "bkg" : {},
-    "pattern": {}
+    "pattern": {},
+    "spect": {}
   };
   const myPromise = new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -154,7 +174,7 @@ button[disabled] {
   function loadImage(){
     var timestamp = new Date().getTime();
     postfix = "?t=" + timestamp;
-    path = repo + document.cookie + "/";
+    path = repo + workpath + "/";
     document.getElementById('recon').src = path+"recon_intensity_cropped.png"+postfix;
     document.getElementById('recon').title = "CDI reconstruction";
     document.getElementById('recon_phase').src = path+"recon_phase_cropped.png"+postfix;
@@ -172,17 +192,20 @@ button[disabled] {
     document.getElementById('spectrum_plt').src = path+"spectra.png"+postfix;
     document.getElementById('spectrum_plt').title = "Spectrum";
   }
-  if(document.cookie != "") {
-    setPath(document.cookie);
-    document.getElementById('path').value = document.cookie;
+  if(workpath != null) {
+    setPath(workpath);
+    document.getElementById('path').value = workpath;
     loadImage();
   }
   document.getElementById("setpath").addEventListener('click',async ()=>{
-    document.cookie=document.getElementById('path').value;
-    setPath(document.cookie);
+    console.log(document.getElementById('path').value);
+    workpath=document.getElementById('path').value;
+    document.cookie = 'cdiworkpath=' + workpath;
+    setPath(workpath);
   })
   function setPath(path){
     url_path = "setpath.php"
+    url_read = "readfile.php";
     if(path == "") {
       document.getElementById('showpath').innerText = "Path not filled, please fill the text before click confirm";
       return;
@@ -201,29 +224,33 @@ button[disabled] {
       if(data == "exists"){
         loadImage();
       }
-      fetch(nodeurl+"/read",{
+      fetch(url_read, {
         method: 'POST',
         body: path+"/pulse.cfg"
-      }).then(response=>{return response.text()}).then(data=>{
+      }).then(response => {return response.text();}).then(data => {
         document.getElementById('monoconfig').value = data;
-      })
-      fetch(nodeurl+"/read",{
+      });
+      fetch(url_read, {
         method: 'POST',
         body: path+"/ExperimentLog.txt"
-      }).then(response=>{return response.text()}).then(data=>{
+      }).then(response => {return response.text();}).then(data => {
         document.getElementById('note').value = data;
-      })
-      fetch(nodeurl+"/read",{
+      });
+      fetch(url_read, {
         method: 'POST',
         body: path+"/cdi.cfg"
-      }).then(response=>{return response.text()}).then(data=>{
+      }).then(response => {return response.text();}).then(data => {
         document.getElementById('cdiconfig').value = data;
-      })
+      });
     }).then(()=>{
-      return listFiles("cd " + repo + document.getElementById('path').value +" ; ls *.tif");
+      return listFiles("cd " + repo + document.getElementById('path').value +" ; ls -t *.tif");
     }).then(data=>{
       autoFillDictionary["bkg"] = data;
       autoFillDictionary["pattern"] = data;
+      console.log(data)
+      return listFiles("cd " + repo + "spectrum" + " ; ls *.txt")
+    }).then(data=>{
+      autoFillDictionary["spect"] = data;
     });
   }
   document.getElementById("uploadimg").addEventListener('click',async ()=>{
@@ -250,9 +277,10 @@ button[disabled] {
     });
   });
   document.getElementById("uploadfiles").addEventListener('click',async ()=>{
-    const path = repo + document.getElementById('path').value +"/"
+    const path = repo + "spectrum/"
     const url = 'process.php';
     const filearray = document.getElementById('filestoupload').files;
+    document.getElementById('runspectfile').value = filearray[0].name;
     const formData = new FormData();
     formData.append('path', path);
     Array.from(filearray).forEach(file => {
@@ -272,15 +300,36 @@ button[disabled] {
     const path = repo + document.getElementById('path').value +"/"
     const comd = "./runStacker.sh "+ path + " "
       + document.getElementById('runbkgfile').value
-      + " " + document.getElementById('runimgfile').value;
+      + " " + document.getElementById('runimgfile').value + " " + document.getElementById('nmerge').value + " "+ document.getElementById('runimgout').value + " " + (document.getElementById('symmetric').checked?"1":"0");
+    console.log(comd)
     fetch(url_cmd, {
       method: 'POST',
       body: comd,
     }).then(response => {
       return response.text();
     }).then(data => {
+      console.log(data);
       document.getElementById('preparelog').innerText = data;
       document.getElementById('logimg').src = path+"logimagemerged.png?t=" + timestamp;
+      button.removeAttribute("disabled");
+    });
+    return;
+  })
+  document.getElementById("setspect").addEventListener('click',async ()=>{
+    button = document.getElementById("setspect");
+    button.disabled = true;
+    var timestamp = new Date().getTime();
+    const path = repo + document.getElementById('path').value +"/"
+    const comd = "./setSpectrum.sh "+ path + " " + repo+"spectrum/"+document.getElementById('runspectfile').value;
+    console.log(comd)
+    fetch(url_cmd, {
+      method: 'POST',
+      body: comd,
+    }).then(response => {
+      return response.text();
+    }).then(data => {
+      console.log(data);
+      document.getElementById('spectrum_plt').src = path+"rawspectrum.png?t=" + timestamp;
       button.removeAttribute("disabled");
     });
     return;
@@ -373,7 +422,8 @@ button[disabled] {
     button = document.getElementById(buttonID);
     button.addEventListener('click',async ()=>{
       button.disabled = true;
-      await fetch(nodeurl+"/save/"+repo+document.getElementById('path').value+"/" + filename,{
+      url_write = "writefile.php/";
+      await fetch(url_write + filename,{
         method: 'POST',
         body: document.getElementById(contentId).value
       }).then(response=>{
@@ -384,8 +434,27 @@ button[disabled] {
       });
     })
   }
-  saveText("savepulse", "pulse.cfg", "monoconfig");
-  saveText("savenote", "ExperimentLog.txt", "note");
-  saveText("savecdi", "cdi.cfg", "cdiconfig");
+  function saveTextDir(buttonID, filename, contentId){
+    button = document.getElementById(buttonID);
+    button.addEventListener('click',async ()=>{
+      button.disabled = true;
+      url_write = "writefile.php/";
+      await fetch(url_write +repo+document.getElementById('path').value+"/"+ filename,{
+        method: 'POST',
+        body: document.getElementById(contentId).value
+      }).then(response=>{
+        return response.text();
+      }).then(data=>{
+        button.removeAttribute("disabled");
+        console.log(data);
+      });
+    })
+  }
+  saveTextDir("savepulse", "pulse.cfg", "monoconfig");
+  saveTextDir("savenote", "ExperimentLog.txt", "note");
+  saveTextDir("savecdi", "cdi.cfg", "cdiconfig");
+  saveText("savepulse_def", "default/pulse.cfg", "monoconfig");
+  saveText("savenote_def", "default/ExperimentLog.txt", "note");
+  saveText("savecdi_def", "default/cdi.cfg", "cdiconfig");
 </script>
 <script src="autofill.js"></script>

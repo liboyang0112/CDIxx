@@ -113,3 +113,4 @@ function listFiles(comd){
 autocomplete(document.getElementById("runbkgfile"), "bkg");
 autocomplete(document.getElementById("runimgfile"), "pattern");
 autocomplete(document.getElementById("path"), "path");
+autocomplete(document.getElementById("runspectfile"), "spect");

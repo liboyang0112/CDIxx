@@ -9,28 +9,30 @@ class cuPlotter
   int rows;
   int cols;
   Real phaseMax = 2*M_PI;
-  void *cv_cache;
-  void *cv_data; //cv_data = cv_cache->data
+  void *cv_cache = 0;
+  void *cv_data = 0; //cv_data = cv_cache->data
   pixeltype *cuCache_data = 0; //cv format
                                //
-  void *cv_float_cache;
-  void *cv_float_data; //cv_data = cv_cache->data
+  void *cv_float_cache = 0;
+  void *cv_float_data = 0; //cv_data = cv_cache->data
   Real *cuCache_float_data = 0; //cv format
 
-  void *cv_complex_cache;
-  void *cv_complex_data; //cv_data = cv_cache->data
-  void *cuCache_complex_data = 0; //cv format
+  void *cv_complex_cache = 0;
+  void *cv_complex_data = 0; //cv_data = cv_cache->data
+  
+  void *videoWriter = 0;
   public:
-  cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_cache(0),cv_complex_data(0),cuCache_complex_data(0){};
+  cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_cache(0),cv_complex_data(0){};
   void init(int rows_, int cols_);
-  void initcuData(size_t sz);
+  void initVideo(const char* filename);
+  void saveVideo();
   void freeCuda();
   void saveFloat(void* cudaData, const char* label= "default");  //call saveData
   void saveComplex(void* cudaData, const char* label= "default");  //call saveData
   void saveFloatData(void* cudaData);
   void saveComplexData(void* cudaData);
   void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0);  //call processData
-  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0);
+  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);
   void plotPhase(void* cudaData, const mode m=PHASERAD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0); //phase unwrapping
   void processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data

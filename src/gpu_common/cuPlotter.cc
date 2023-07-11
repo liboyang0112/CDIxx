@@ -1,45 +1,65 @@
 #include "cuPlotter.h"
+#include "memManager.h"
 #include "opencv2/opencv.hpp"
 #include "opencv2/phase_unwrapping/histogramphaseunwrapping.hpp"
 using namespace cv;
+void cuPlotter::initVideo(const char* filename){
+  videoWriter = ccmemMngr.borrowCache(sizeof(VideoWriter));
+  new((VideoWriter*)videoWriter)VideoWriter(filename, 0x7634706d, 24, Size(rows,cols), true);
+  printf("create movie %s\n", filename);
+}
+void cuPlotter::saveVideo(){
+  ((VideoWriter*)videoWriter)->release();
+  free((VideoWriter*)videoWriter);
+  videoWriter = 0;
+}
 void cuPlotter::init(int rows_, int cols_){
-  if(cv_cache){
-    delete (Mat*)cv_cache;
-    delete (Mat*)cv_float_cache;
-    delete (Mat*)cv_complex_cache;
-  }
+  if(rows==rows_ && cols==cols_) return;
+  if(cv_cache) delete (Mat*)cv_cache;
+  if(cv_float_cache) delete (Mat*)cv_float_cache;
+  if(cv_complex_cache) delete (Mat*)cv_complex_cache;
+  printf("init plot %d, %d\n",rows_,cols_);
   rows=rows_;
   cols=cols_;
   Mat *tmp = new Mat(rows_, cols_, CV_16UC1, Scalar(0));
   cv_cache = tmp;
   cv_data = tmp->data;
-  Mat *tmpfloat = new Mat(rows_, cols_, CV_32FC1, Scalar(0));
-  cv_float_cache = tmpfloat;
-  cv_float_data = tmpfloat->data;
-  Mat *tmpcomplex = new Mat(rows_, cols_, CV_32FC2, Scalar(0));
-  cv_complex_cache = tmpcomplex;
-  cv_complex_data = tmpcomplex->data;
-  initcuData(rows*cols);
+  freeCuda();
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
   cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, islog);
 }
-void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
   cuPlotter::processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
-  plot(label, islog);
+  plot(label, islog || isColor);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
+  if(!cv_complex_cache){
+    Mat *tmpcomplex = new Mat(rows, cols, CV_32FC2, Scalar(0));
+    cv_complex_cache = tmpcomplex;
+    cv_complex_data = tmpcomplex->data;
+  }
   saveComplexData(cudaData);
   FileStorage fs(label,FileStorage::WRITE);
-  fs<<"data"<<*((Mat*)cv_float_cache);
+  fs<<"data"<<*((Mat*)cv_complex_cache);
   fs.release();
 }
 void cuPlotter::saveFloat(void* cudaData, const char* label){
+  if(!cv_float_cache){
+    Mat *tmpfloat = new Mat(rows, cols, CV_32FC1, Scalar(0));
+    cv_float_cache = tmpfloat;
+    cv_float_data = tmpfloat->data;
+  }
   saveFloatData(cudaData);
   imwrite(std::string(label)+".tiff",*((Mat*)cv_float_cache));
 }
 void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  if(!cv_float_cache){
+    Mat *tmpfloat = new Mat(rows, cols, CV_32FC1, Scalar(0));
+    cv_float_cache = tmpfloat;
+    cv_float_data = tmpfloat->data;
+  }
   cuPlotter::processPhaseData(cudaData,m,isFrequency,decay, isFlip);
   cv::phase_unwrapping::HistogramPhaseUnwrapping::Params pars;
   pars.height = cols;
@@ -53,7 +73,6 @@ void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, 
 void cuPlotter::plot(const char* label, bool iscolor){
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
-  printf("written to file %s\n", fname.c_str());
   if(iscolor){
     Mat* tmp = (Mat*)cv_cache;
 	  Mat dst8 = Mat::zeros(tmp->size(), CV_8U);
@@ -61,9 +80,14 @@ void cuPlotter::plot(const char* label, bool iscolor){
     *tmp *= 1./256;
 	  convertScaleAbs(*tmp, dst8);
 	  applyColorMap(dst8, dst8, COLORMAP_TURBO);
-	  imwrite(fname,dst8);
+    if(videoWriter) {
+      ((VideoWriter*)videoWriter)->write(dst8);
+      return;
+    }
+    else imwrite(fname,dst8);
   }else
     imwrite(fname, *(Mat*)cv_cache);
+  printf("written to file %s\n", fname.c_str());
 }
 cuPlotter::~cuPlotter(){
   freeCuda();

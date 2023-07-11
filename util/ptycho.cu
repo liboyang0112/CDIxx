@@ -106,13 +106,6 @@ cuFunc(pupilFunc,(complexFormat* object),(object),{
   object[index].y = 0;
 })
 
-cuFunc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(object,shiftx,shifty),{
-  cudaIdx();
-  Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
-  complexFormat tmp = {cos(phi),sin(phi)};
-  object[index] = cuCmulf(object[index],tmp);
-})
-
 cuFunc(multiplyx,(complexFormat* object),(object),{
   cudaIdx();
   object[index].x *= Real(x)/cuda_row-0.5;
@@ -147,15 +140,6 @@ cuFunc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Rea
   //if(ret>1) printf("FIND larget ret %f at (%d, %d): (%f, %f), (%f, %f), %f, %f\n",ret, x, y, object[index].x, object[index].y, fntmp.x, fntmp.y, pattern[index], beamstop[index]);
   object[index].x = ret;
 })
-
-void shiftWave(complexFormat* wave, int npix, Real shiftx, Real shifty){
-  myCufftExec( *plan, wave, wave, CUFFT_FORWARD);
-  cudaConvertFO(wave);
-  multiplyShift(wave, shiftx, shifty);
-  cudaConvertFO(wave);
-  myCufftExec( *plan, wave, wave, CUFFT_INVERSE);
-  applyNorm(wave, 1./npix);
-}
 
 class ptycho : public experimentConfig{
   public:
@@ -277,7 +261,7 @@ class ptycho : public experimentConfig{
           int shiftypix = shiftx[idx]-round(shifty[idx]);
           getWindow((complexFormat*)objectWave, i*stepSize+round(shiftx[idx]), j*stepSize+round(shifty[idx]), row_O, column_O, window);
           if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
-            shiftWave((complexFormat*)window, row*column, shiftxpix, shiftypix);
+            shiftWave((complexFormat*)window, shiftxpix, shiftypix);
           }
           multiply(esw, (complexFormat*)pupilpatternWave, window);
           verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)+"_"+to_string(j)).c_str()));
@@ -352,7 +336,7 @@ class ptycho : public experimentConfig{
             getWindow((complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
             bool shiftpix = fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3;
             if(shiftpix){
-              shiftWave((complexFormat*)objCache, row*column, shiftxpix, shiftypix);
+              shiftWave((complexFormat*)objCache, shiftxpix, shiftypix);
             }
             multiply(esw, (complexFormat*)pupilpatternWave, objCache);
             propagate(esw,Fn,1);
@@ -367,7 +351,7 @@ class ptycho : public experimentConfig{
             else updateObjectAndProbe(objCache, (complexFormat*)pupilpatternWave, esw,//1,1);
                 probeMax, objMax);
             if(shiftpix){
-              shiftWave(objCache, row*column, -shiftxpix, -shiftypix);
+              shiftWave(objCache, -shiftxpix, -shiftypix);
             }
             updateWindow((complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
             idx++;

@@ -1,6 +1,6 @@
 #include "cudaDefs.h"
 
-__global__ void calcLambdas(int rows, double* lambdas, double step_lambda, double* matrix, double* bi){
+__global__ void calcLambdas(int rows, double* lambdas, double step_lambda, double* matrix, double* bi, bool debug = 0){
   int y = blockIdx.x * blockDim.x + threadIdx.x;
   if(y >= rows) return;
   double tmp = lambdas[y];
@@ -40,7 +40,7 @@ void runIter_cu(int n, int niter, int niter1, Real step_lambda, Real step_bi, do
   dim3 nblk;
   nblk.x = ceil(Real(n)/nthd.x);
   for(int iter = 0; iter < niter; iter++){
-    calcLambdas<<<nblk,nthd>>>(n, lambdas, step_lambda, d_matrix, d_bi);
+    calcLambdas<<<nblk,nthd>>>(n, lambdas, step_lambda, d_matrix, d_bi, iter == niter - 1);
     calcGrads<<<nblk,nthd>>>(n, grads, d_matrix, lambdas);
     for(int iter1 = 0; iter1 < niter1; iter1 ++){
       calcbi<<<nblk,nthd>>>(n, d_bi, grads, d_prods, step_bi);
