@@ -10,6 +10,13 @@
   void name args{\
     name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
   }
+#define cuFuncTemplate(name,args,param,content...)\
+  template<typename T>\
+  __global__ void name##Wrap(addVarArg args) content \
+  template<typename T>\
+  void name args{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+  }
 #define addSize(args...) size_t size, args
 #define cuFuncSharedDec(funcname, ...) void funcname (size_t size, __VA_ARGS__)
 #define cuFuncShared(name,args,param,content...)\

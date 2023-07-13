@@ -60,16 +60,12 @@ void monoChromo::calcPixelWeights(){
 
 cuFunc(multiplyReal_inner,(complexFormat* a, complexFormat* b, Real* c, int d),(a,b,c,d),{
   cudaIdx();
+  int removeCent = 50;
   if(x < d || x >= cuda_row - d || y < d || y > cuda_column - d 
-    ||(x > cuda_row/2-10 && x < cuda_row/2+10 && y > cuda_column/2-10 && y < cuda_column/2+10)
+    ||(abs(x-cuda_row/2) < removeCent && abs(y-cuda_column/2) < removeCent)
       )
     c[index] = 0;
   else c[index] = a[index].x*b[index].x;
-})
-
-cuFunc(multiplyReal,(complexFormat* a, complexFormat* b, Real* c),(a,b,c),{
-  cudaIdx();
-  c[index] = a[index].x*b[index].x;
 })
 
 void monoChromo::init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_){
@@ -239,10 +235,9 @@ void mult(void* a, Real b){
   applyNorm((complexFormat*)a, b);
 }
 Real innerProd(void* a, void* b, void* param){
-  auto c = (monoChromo*)param;
-  int d = 0;//(c->row - c->rows[0])/2;
   Real* tmp = (Real*)memMngr.borrowCache(memMngr.getSize(a)/2);
-  multiplyReal_inner((complexFormat*)a, (complexFormat*)b,tmp,d);
+  multiplyReal(tmp,(complexFormat*)a, (complexFormat*)b);
+  applyMask(tmp, (Real*)param);
   Real sum = findSum(tmp);
   memMngr.returnCache(tmp);
   return sum;
@@ -264,6 +259,18 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       break;
     }
   }
+  int d = 1;//(row - rows[0])/2;
+  rect spt;
+  spt.starty = spt.startx = d;
+  spt.endx = spt.endy = row-d;
+  rect *cuda_spt;
+  cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
+  cudaMemcpy(cuda_spt, &spt, sizeof(spt), cudaMemcpyHostToDevice);
+  Real *sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  createMask(sptimg, cuda_spt, 0);
+  memMngr.returnCache(cuda_spt);
+  applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
+  plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   if(nlambda<0) printf("nlambda not initialized: %d\n",nlambda);
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
@@ -335,7 +342,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     if(updateX || updateAIter) cudaMemcpy(deltab, d_input, sz, cudaMemcpyDeviceToDevice);
     if(updateX || updateAIter) add(deltab, (complexFormat*)d_output, -spectra[monoidx]);
     if(updateAIter) {
-      multiplyReal(deltabprev, (complexFormat*)d_output, multiplied);
+      multiplyReal(multiplied, deltabprev, (complexFormat*)d_output);
       Real sum =findSum(multiplied, false);
       if(fabs(sum) > 1e3) {
         sum =findSum(multiplied, false);
@@ -361,10 +368,13 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         resize_cuda_image(row, column);
         if(rows[j] > row) crop(padded, fbi, rows[j], cols[j]);
         else pad(padded, fbi, rows[j], cols[j]);
+        if(j == 11) {
+          plt.plotComplex(fbi, MOD, 0, 1, "debug", 1);
+        }
       }
       if((updateX || updateAIter)) add(deltab, fbi, -spectra[j]);
       if(updateAIter) {
-        multiplyReal(deltabprev, fbi, multiplied);
+        multiplyReal(multiplied, deltabprev, fbi);
         Real sum = findSum(multiplied);
         if(fabs(sum) > 1e3) {
           sum = findSum(multiplied);
@@ -381,11 +391,11 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     }
     if(writeResidual) {
       getMod2(multiplied, deltab);
-      fresidual<<i<<" "<<findSum(multiplied)<<endl;
+      fresidual<<i<<" "<<findSum(multiplied)/row/column<<endl;
     }
     if(calcDeltab) break;
     if(useOrth&&updateA){
-      Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1, this);
+      Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1, sptimg);
       //spectra[nlambda-2] = spectra[nlambda-1] = 0;
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;

@@ -20,12 +20,14 @@ class cuPlotter
   void *cv_complex_cache = 0;
   void *cv_complex_data = 0; //cv_data = cv_cache->data
   
-  void *videoWriter = 0;
+  void *videoWriterVec[100];
+  int nvid = 0;
   public:
+  int toVideo = -1;
   cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_cache(0),cv_complex_data(0){};
   void init(int rows_, int cols_);
-  void initVideo(const char* filename);
-  void saveVideo();
+  int initVideo(const char* filename);
+  void saveVideo(int handle = 0);
   void freeCuda();
   void saveFloat(void* cudaData, const char* label= "default");  //call saveData
   void saveComplex(void* cudaData, const char* label= "default");  //call saveData

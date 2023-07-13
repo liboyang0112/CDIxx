@@ -2,16 +2,34 @@
 #include "memManager.h"
 #include "opencv2/opencv.hpp"
 #include "opencv2/phase_unwrapping/histogramphaseunwrapping.hpp"
+#include <map>
+#include <string>
+#define videoWriters(x) ((VideoWriter*)videoWriterVec[x])
 using namespace cv;
-void cuPlotter::initVideo(const char* filename){
-  videoWriter = ccmemMngr.borrowCache(sizeof(VideoWriter));
-  new((VideoWriter*)videoWriter)VideoWriter(filename, 0x7634706d, 24, Size(rows,cols), true);
+int cuPlotter::initVideo(const char* filename){
+  int handle = nvid;
+  if(handle == 100){
+    for(int i = 0; i < 100; i++){
+      if(videoWriters(i) == 0){
+        handle = i;
+      }
+    }
+  }else
+    nvid++;
+  if(handle==100) {
+    printf("You created too many videos (100), please release some before create new ones");
+    exit(0);
+  }
+  videoWriterVec[handle] = ccmemMngr.borrowCache(sizeof(VideoWriter));
+  new(videoWriters(handle))VideoWriter(filename, 0x7634706d, 24, Size(rows,cols), true);
   printf("create movie %s\n", filename);
+  toVideo = handle;
+  return handle;
 }
-void cuPlotter::saveVideo(){
-  ((VideoWriter*)videoWriter)->release();
-  free((VideoWriter*)videoWriter);
-  videoWriter = 0;
+void cuPlotter::saveVideo(int handle){
+  videoWriters(handle)->release();
+  free(videoWriters(handle));
+  videoWriterVec[handle] = 0;
 }
 void cuPlotter::init(int rows_, int cols_){
   if(rows==rows_ && cols==cols_) return;
@@ -80,8 +98,8 @@ void cuPlotter::plot(const char* label, bool iscolor){
     *tmp *= 1./256;
 	  convertScaleAbs(*tmp, dst8);
 	  applyColorMap(dst8, dst8, COLORMAP_TURBO);
-    if(videoWriter) {
-      ((VideoWriter*)videoWriter)->write(dst8);
+    if(toVideo>=0) {
+      ((VideoWriter*)videoWriters(toVideo))->write(dst8);
       return;
     }
     else imwrite(fname,dst8);

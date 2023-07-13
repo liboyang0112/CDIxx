@@ -44,10 +44,29 @@ int main(int argc, char** argv )
   add(d_sig, d_bkg, -1);
   plt.init(row, col);
   plt.plotFloat(d_sig, MOD, 0, 1, "logimage", 1);
+  complexFormat mid;
   Real* d_bit = (Real*)memMngr.borrowCache(sz);
-  applyThreshold(d_bit, d_sig, 0.01);
-  auto mid = findMiddle(d_bit, row*col);
+  Real* d_mask = (Real*)memMngr.borrowCache(sz);
+  rect spt;
+  spt.startx = row/2-100;
+  spt.starty = col/2-100;
+  spt.endx = row/2+100;
+  spt.endy = col/2+100;
+  rect* cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
+  cudaMemcpy(cuda_spt, &spt, sizeof(rect), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_bit, d_sig, sz, cudaMemcpyDeviceToDevice);
+  createMask(d_mask, cuda_spt);
+  applyMask(d_bit, d_mask);
+  //applyThreshold(d_bit, d_sig, 0.99);
+  plt.plotFloat(d_bit, MOD, 0, 1, "bit", 1);
+  mid = findMiddle(d_bit, row*col);
   memMngr.returnCache(d_bit);
+  memMngr.returnCache(d_mask);
+  memMngr.returnCache(cuda_spt);
+  if(argc >= 7){
+    mid.y -= std::stold(argv[6])/row;
+    mid.x += std::stold(argv[7])/col;
+  }
   int step = nmerge*4;
   int outrow = (row-int(abs(mid.x)*row)*2)/step*step;
   int outcol = (col-int(abs(mid.y)*col)*2)/step*step;
@@ -68,7 +87,7 @@ int main(int argc, char** argv )
   resize_cuda_image(finsize,finsize);
   mergePixel(d_sig, tmp, outrow, outcol, nmerge);
   plt.init(finsize, finsize);
-  plt.plotFloat(d_sig, REAL, 0, 1, "logimagemerged", 1);
+  plt.plotFloat(d_sig, MOD, 0, 1, "logimagemerged", 1);
   plt.saveFloat(d_sig, argv[4]);
   return 0;
 }

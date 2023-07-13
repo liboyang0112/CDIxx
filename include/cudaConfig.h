@@ -63,8 +63,7 @@ void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
-template <typename T>
-__global__ void cudaConvertFOWrap(int cuda_row, int cuda_column, T* data, T* out){
+cuFuncTemplate(cudaConvertFO, (T* data, T* out = 0),(data,out==0?data:out),{
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
   if(x >= (cuda_row>>1) || y >= cuda_column) return;
@@ -73,23 +72,23 @@ __global__ void cudaConvertFOWrap(int cuda_row, int cuda_column, T* data, T* out
   T tmp = data[index];
   out[index]=data[indexp];
   out[indexp]=tmp;
-}
-template <typename T>
-void cudaConvertFO(T* data, T* out = 0){
-  if(out == 0) out = data;
-  cudaConvertFOWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x,cuda_imgsz.y,data,out);
-}
+})
 
-template <typename T>
-__global__ void zeroEdgeWrap(int cuda_row, int cuda_column, T* a, int n){
+cuFuncTemplate(applyMask, (T* data, Real* mask, Real threshold = 0.5),(data,mask,threshold),{
+  cudaIdx();
+  if(mask[index]<=threshold) data[index] = T();
+})
+cuFuncTemplate(applyMaskBar, (T* data, complexFormat* mask, Real threshold = 0.5),(data,mask,threshold),{
+  cudaIdx();
+  if(mask[index].x>threshold) data[index] = T();
+})
+
+
+cuFuncTemplate(zeroEdge, (T* a, int n), (a,n),{
   cudaIdx()
   if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
     a[index] = T();
-}
-template <typename T>
-void zeroEdge(T* a, int n){
-  zeroEdgeWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y ,a,n);
-}
+})
 
 template <typename T1, typename T2>
 __global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
@@ -100,23 +99,12 @@ template <typename T1, typename T2>
 void assignVal(T1* out, T2* input){
   assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,out,input);
 }
-
-
-template <typename T>
-__global__ void cropWrap(int cuda_row, int cuda_column, T* src, T* dest, int row, int col, Real midx, Real midy){
+cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0),(src,dest,row,col,midx,midy),{
   cudaIdx()
 	int targetindex = (x+(row-cuda_row)/2+int(row*midx))*col + y+(col-cuda_column)/2+int(col*midy);
 	dest[index] = src[targetindex];
-}
-
-template <typename T>
-void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0){
-  cropWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,src,dest,row,col,midx,midy);
-}
-
-
-template <typename T>
-__global__ void padWrap(int cuda_row, int cuda_column, T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0){
+})
+cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0),(src, dest, row, col, shiftx, shifty),{
   cudaIdx()
 	int marginx = (cuda_row-row)/2+shiftx;
 	int marginy = (cuda_column-col)/2+shifty;
@@ -126,14 +114,8 @@ __global__ void padWrap(int cuda_row, int cuda_column, T* src, T* dest, int row,
 	}
 	int targetindex = (x-marginx)*col + y-marginy;
 	dest[index] = src[targetindex];
-}
-template <typename T>
-void pad(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0){
-  padWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, src, dest, row, col, shiftx, shifty);
-}
-
-template <typename T>
-__global__ void refineWrap(int cuda_row, int cuda_column, T* src, T* dest, int refinement){
+})
+cuFuncTemplate(refine,(T* src, T* dest, int refinement),(src,dest,refinement),{
   cudaIdx()
 	int indexlu = (x/refinement)*(cuda_row/refinement) + y/refinement;
 	int indexld = (x/refinement)*(cuda_row/refinement) + y/refinement+1;
@@ -146,12 +128,7 @@ __global__ void refineWrap(int cuda_row, int cuda_column, T* src, T* dest, int r
 		+((y<cuda_column-refinement)?src[indexld]*(1-dx)*dy:0)
 		+((x<cuda_row-refinement)?src[indexru]*dx*(1-dy):0)
 		+((y<cuda_column-refinement&&x<cuda_row-refinement)?src[indexrd]*dx*dy:0);
-}
-template <typename T>
-void refine(T* src, T* dest, int refinement){
-  refineWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,src,dest,refinement);
-}
-
+})
 
 class rect{
   public:
@@ -175,8 +152,7 @@ class C_circle{
       return false;
     }
 };
-template <typename sptType>
-__global__ void createMaskWrap(int cuda_row, int cuda_column, Real* data, sptType* spt, bool isFrequency=0){
+cuFuncTemplate(createMask,(Real* data, T* spt, bool isFrequency=0),(data,spt,isFrequency),{
   cudaIdx()
   if(isFrequency){
     if(x>=cuda_row/2) x-=cuda_row/2;
@@ -185,10 +161,5 @@ __global__ void createMaskWrap(int cuda_row, int cuda_column, Real* data, sptTyp
     else y+=cuda_column/2;
   }
   data[index]=spt->isInside(x,y);
-}
-
-template <typename sptType>
-void createMask(Real* data, sptType* spt, bool isFrequency=0){
-  createMaskWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,data,spt,isFrequency);
-}
+})
 #endif

@@ -24,7 +24,6 @@ input {
 
 input[type=text] {
   background-color: #f1f1f1;
-  width: 100%
 }
 
 .warning {
@@ -115,14 +114,15 @@ button[disabled] {
     <p>Upload background: <input type="file" id="background" >
     Upload pattern: <input type="file" id="image" ></p>
     <button id="uploadimg">Upload</button>
-    <p>Upload Spectrum: <input type="file" id="filestoupload" multiple="multiple"></p>
-    <p><button id="uploadfiles">Upload</button></p>
+    <p>Upload Spectrum: <input type="file" id="filestoupload" multiple="multiple">
+    <button id="uploadfiles">Upload</button></p>
+    Select Spectrum: <div class="autocomplete"><input type="text" autocomplete="off" name="runspectfile" id="runspectfile"></div>  <button id="setspect">Confirm Spectrum</button>
+    <a href="images/spectrum">Show spectrum files</a></p>
     Select Background: <div class="autocomplete"><input type="text" autocomplete="off" name="runbkgfile" id="runbkgfile"></div>
     Select Pattern: <div class="autocomplete"><input type="text" autocomplete="off" name="runimgfile" id="runimgfile"></div>
     Output:  <div class="autocomplete"><input type="text" autocomplete="off" name="runimgout" id="runimgout" value="floatimage"></div>
     <br>
-    Select Spectrum: <div class="autocomplete"><input type="text" autocomplete="off" name="runspectfile" id="runspectfile"></div>  <button id="setspect">Confirm Spectrum</button>
-    <a href="images/spectrum">Show spectrum files</a>
+    <br>
     <p>
     <select id="nmerge">
         <option value="">--Merge NxN pixels--</option>
@@ -131,12 +131,14 @@ button[disabled] {
         <option value="3">3x3</option>
         <option value="4">4x4</option>
     </select>
-    <input type="checkbox" id="symmetric" name="symmetric"><label for="symmetric">Apply Symmetrization</label>
+    <input type="checkbox" id="symmetric" name="symmetric"><label for="symmetric">Apply Symmetrization,</label>
+    Shift:(<input type="text" id="shiftx" style="width:100px">,
+    <input type="text" id="shifty" style="width:100px">)
     <button id="prepare">Process experimental data</button>
+    <br>
+    <br>
     <button id="monochrome_btn">Run Monochromatization</button>
     <button id="cdi_btn">Run CDI</button>
-    <br>
-    <br>
     <button id="rotate_btn">Rotate image</button>
     <button id="rotate180_btn">Transpose</button>
     <button id="flip_btn">Flip image</button>
@@ -248,7 +250,7 @@ button[disabled] {
       autoFillDictionary["bkg"] = data;
       autoFillDictionary["pattern"] = data;
       console.log(data)
-      return listFiles("cd " + repo + "spectrum" + " ; ls *.txt")
+      return listFiles("cd " + repo + "spectrum" + " ; ls -t *.txt")
     }).then(data=>{
       autoFillDictionary["spect"] = data;
     });
@@ -300,7 +302,7 @@ button[disabled] {
     const path = repo + document.getElementById('path').value +"/"
     const comd = "./runStacker.sh "+ path + " "
       + document.getElementById('runbkgfile').value
-      + " " + document.getElementById('runimgfile').value + " " + document.getElementById('nmerge').value + " "+ document.getElementById('runimgout').value + " " + (document.getElementById('symmetric').checked?"1":"0");
+      + " " + document.getElementById('runimgfile').value + " " + document.getElementById('nmerge').value + " "+ document.getElementById('runimgout').value + " " + (document.getElementById('symmetric').checked?"1":"0") + " "+document.getElementById('shiftx').value + " " + document.getElementById('shifty').value;
     console.log(comd)
     fetch(url_cmd, {
       method: 'POST',
