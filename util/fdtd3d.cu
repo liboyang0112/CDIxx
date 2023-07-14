@@ -42,36 +42,47 @@ __global__ void updateE(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* 
     Ez[index] += mE*(Hy[index]-Hy[index-1]-Hx[index]+Hx[index-nx]);
   }
 }
-__global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Ez, Real* Eprevx1, int interval){
-  int y =threadIdx.x;
-  int edgeIdx = (y+1)*interval-1;
+__global__ void applyPMLx1(Real* Hz, Real* Ey, Real* Hy, Real* Ez, Real* Ezprevx1, Real* Eyprevx1, int nx, int ny, int nz){
+  int y = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(y >= ny || z >= nz) return;
+  int edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
   Real a = Ez[edgeIdx];
-  Hy[edgeIdx-1] += (Eprevx1[y] + a)/2;
-  Eprevx1[y] = a;
+  Hy[edgeIdx-1] += (Ezprevx1[y+z*ny] + a)/2;
+  Ezprevx1[y+z*ny] = a;
   Ez[edgeIdx] = 0;
+  a = Ey[edgeIdx];
+  Hz[edgeIdx] += (Eyprevx1[y+z*ny] + a)/2;
+  Eyprevx1[y+z*ny] = a;
+  Ey[edgeIdx] = 0;
 }
-__global__ void applyPMLx0(Real* Hx, Real* Hy, Real* Ez, Real* Hprevx0, int interval){
-  int y =threadIdx.x;
-  int edgeIdx = y*interval;
-  Real a = Hy[edgeIdx];
-  Ez[edgeIdx+1] -= (a+Hprevx0[y])/2;
-  Hprevx0[y] = a;
+__global__ void applyPMLy1(Real* Hx, Real* Ez, Real *Hz, Real* Ex, Real* Ezprevy1, Real* Hzprevy1, int nx, int ny, int nz){
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(x >= nx || z >= nz) return;
+  int edgeIdx = nx*ny*z + nx*(ny-1)+ x;
+  Real a = Ez[edgeIdx];
+  Hx[edgeIdx-nx] -= (Ezprevy1[x+nx*z] + a)/2;
+  Ezprevy1[x+nx*z] = a;
+  Ez[edgeIdx] = 0;
+  a = Hz[edgeIdx];
+  Ex[edgeIdx] -= (Hzprevy1[x+nx*z] + a)/2;
+  Hzprevy1[x+nx*z] = a;
+  Hz[edgeIdx] = 0;
+}
+__global__ void applyPMLz1(Real* Hx, Real* Ey, Real* Hy, Real* Ex, Real* Hyprevz1, Real* Eyprevz1, int nx, int ny, int nz){
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+  if(x >= nx || y >= ny) return;
+  int edgeIdx = nx*ny*(nz-1) + nx*y + x;
+  Real a = Ey[edgeIdx];
+  Hx[edgeIdx-nx*ny] -= (Eyprevz1[x+nx*y] + a)/2;
+  Eyprevz1[x+nx*y] = a;
+  Ey[edgeIdx] = 0;
+  a = Hy[edgeIdx];
+  Ex[edgeIdx] -= (Hyprevz1[x+nx*y] + a)/2;
+  Hyprevz1[x+nx*y] = a;
   Hy[edgeIdx] = 0;
-}
-__global__ void applyPMLy1(Real* Hx, Real* Hy, Real* Ez, Real* Eprevy1, int interval, int nx){
-  int x =threadIdx.x;
-  int edgeIdx = interval+x;
-  Real a = Ez[edgeIdx];
-  Hx[edgeIdx-nx] -= (Eprevy1[x] + a)/2;
-  Eprevy1[x] = a;
-  Ez[edgeIdx] = 0;
-}
-__global__ void applyPMLy0(Real* Hx, Real* Hy, Real* Ez, Real* Hprevy0, int nx){
-  int x =threadIdx.x;
-  Real a = Hx[x];
-  Ez[x+nx] += (a+Hprevy0[x])/2;
-  Hprevy0[x] = a;
-  Hx[x] = 0;
 }
 __global__ void applyPeriodicx_H(Real* Hx, Real* Hy, int nx){
   int y =threadIdx.x;
@@ -109,14 +120,24 @@ cuFunc(getXYSlice,(Real* slice, Real* data, int nx, int ny, int iz), (slice, dat
   int index = x + nx*y;
   slice[index] = data[index+iz*nx*ny];
 })
+cuFunc(getXZSlice,(Real* slice, Real* data, int nx, int ny, int nz, int iy), (slice, data, nx, ny, nz, iy), {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(x >= nx || z >= nz) return;
+  int index = x + nx*z;
+  slice[index] = data[x+nx*iy+nx*ny*z];
+})
 int main(){
-  int nsteps = 2000;
+  int nsteps = 5000;
   const int nx = 200;
   const int ny = 200;
   const int nz = 200;
   dim3 nblk, nthd, nblkx,nblky,nblkz, nthd2d;
-  nthd.x = nthd.y = nthd.z = 8;
-  nthd2d.x = nthd2d.y = 16;
+  nthd.x = 256;
+  nthd.y = 1;
+  nthd.z = 1;
+  nthd2d.x = 256;
+  nthd2d.y = 1;
   nblk.x = (nx-1)/nthd.x+1;
   nblk.y = (ny-1)/nthd.y+1;
   nblk.z = (nz-1)/nthd.z+1;
@@ -135,12 +156,19 @@ int main(){
   Real* Ez = (Real*)memMngr.borrowCleanCache(memsz);
   Real* Hx = (Real*)memMngr.borrowCleanCache(memsz);
   Real* Hy = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Eprevx1 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
-  Real* Eprevy1 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
-  Real* Eprevz1 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
-  Real* Hprevx0 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
-  Real* Hprevy0 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
-  Real* Hprevz0 = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
+  //record boundaries for PML
+  Real* Ezprevx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
+  Real* Eyprevx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
+  Real* Ezprevy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
+  Real* Exprevy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
+  Real* Exprevz1 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
+  Real* Eyprevz1 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
+  Real* Hzprevx0 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
+  Real* Hyprevx0 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
+  Real* Hzprevy0 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
+  Real* Hxprevy0 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
+  Real* Hxprevz0 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
+  Real* Hyprevz0 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
   Real* slice = (Real*)memMngr.borrowCache(nx*ny*sizeof(Real));
   bool saveField = 0;
   int sourcePos = 50+nx*50 + nx*ny*50;
@@ -153,11 +181,12 @@ int main(){
   int hyvid = plt.initVideo("Hy.mp4v");
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
-    applySource<<<1,1>>>(Ez, sourcePos, 50*sin(M_PI/20*i));//50*exp(-pow(double(i-100)/30,2))); 
+    applySource<<<1,1>>>(Ez, sourcePos, 500*sin(M_PI/30*i));//50*exp(-pow(double(i-100)/30,2))); 
     //point source
     //applySourceV<<<1,ny>>>(Ez, Hy, nx, 50, exp(-pow(double(i-100)/30,2)), -exp(-pow(double(i-99.5)/30,2))); //plain wave source
-    //applyPMLx1<<<1,ny>>>(Hx, Hy, Ez, Eprevx1, nx);
-    //applyPMLy1<<<1,nx>>>(Hx, Hy, Ez, Eprevy1, nx*(ny-1), nx);
+    applyPMLx1<<<nblkx,nthd2d>>>(Hz, Ey, Hy, Ez, Ezprevx1, Eyprevx1, nx, ny, nz);
+    applyPMLy1<<<nblky,nthd2d>>>(Hx, Ez, Hz, Ex, Ezprevy1, Exprevy1, nx, ny, nz);
+    applyPMLz1<<<nblkz,nthd2d>>>(Hy, Ex, Hx, Ey, Eyprevz1, Exprevz1, nx, ny, nz);
     //applyPeriodicy_E<<<1,nx-1>>>(Ez, nx*(ny-1));
     //applyPeriodicx_E<<<1,ny-1>>>(Ez, nx);
     updateH<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);
@@ -166,16 +195,23 @@ int main(){
     //applyPeriodicx_H<<<1,ny-1>>>(Hx, Hy, nx);
     //applyPeriodicy_H<<<1,nx-1>>>(Hx, Hy, nx*(ny-1));
     updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);
+    if(i==nsteps-1){
+      //getXZSlice(slice, Ey , nx, ny, nz, 50);
+      getXYSlice(slice, Ez , nx, ny, 50);
+      plt.toVideo = -1;
+      plt.plotFloat(slice, REAL, 0, 1, "Eylast",0,0,1);
+    }
     if(saveField) {
-      getXYSlice(slice, Ez , nx, ny, 53);
+      getXYSlice(slice, Ez , nx, ny, 50);
+      //getXZSlice(slice, Ey , nx, ny, nz, 50);
       plt.toVideo = ezvid;
       plt.plotFloat(slice, REAL, 0, 1, "",0,0,1);
-      getXYSlice(slice, Hx , nx, ny, 50);
-      plt.toVideo = hxvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("Hx"+to_string(i)).c_str(),0,0,1);
-      getXYSlice(slice, Hx , nx, ny, 50);
-      plt.toVideo = hyvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("Hy"+to_string(i)).c_str(),0,0,1);
+      //getXYSlice(slice, Hx , nx, ny, 50);
+      //plt.toVideo = hxvid;
+      //plt.plotFloat(slice, REAL, 0, 1, ("Hx"+to_string(i)).c_str(),0,0,1);
+      //getXYSlice(slice, Hx , nx, ny, 50);
+      //plt.toVideo = hyvid;
+      //plt.plotFloat(slice, REAL, 0, 1, ("Hy"+to_string(i)).c_str(),0,0,1);
     }
   }
 }

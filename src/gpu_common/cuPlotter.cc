@@ -21,7 +21,7 @@ int cuPlotter::initVideo(const char* filename){
     exit(0);
   }
   videoWriterVec[handle] = ccmemMngr.borrowCache(sizeof(VideoWriter));
-  new(videoWriters(handle))VideoWriter(filename, 0x7634706d, 24, Size(rows,cols), true);
+  new(videoWriters(handle))VideoWriter(filename, VideoWriter::fourcc('M', 'P', '4', '3'), 24, Size(rows,cols), true);
   printf("create movie %s\n", filename);
   toVideo = handle;
   return handle;

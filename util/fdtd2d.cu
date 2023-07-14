@@ -89,7 +89,7 @@ __global__ void applySourceV(Real* Ez, Real* Hy, int nx, int pos, Real val, Real
   Hy[idx-1] += val1;
 }
 int main(){
-  int nsteps = 2000;
+  int nsteps = 20000;
   const int nx = 200;
   const int ny = 200;
   const int nz = 1;
@@ -125,7 +125,8 @@ int main(){
   int hyvid = plt.initVideo("Hy.mp4v");
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
-    applySource<<<1,1>>>(Ez, sourcePos, 50*exp(-pow(double(i-100)/30,2))); //point source
+    //applySource<<<1,1>>>(Ez, sourcePos, 50*exp(-pow(double(i-100)/30,2))); //point source
+    applySource<<<1,1>>>(Ez, sourcePos, 5*sin(M_PI/30*i)); //point source
     //applySourceV<<<1,ny>>>(Ez, Hy, nx, 50, exp(-pow(double(i-100)/30,2)), -exp(-pow(double(i-99.5)/30,2))); //plain wave source
     applyPMLx1<<<1,ny>>>(Hx, Hy, Ez, Eprevx1, nx);
     applyPMLy1<<<1,nx>>>(Hx, Hy, Ez, Eprevy1, nx*(ny-1), nx);
