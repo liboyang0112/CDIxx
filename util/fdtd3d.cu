@@ -52,32 +52,45 @@ __global__ void applyPMLx1Ez(Real* Hy, Real* Ez, Real* Ezprevx1, int nx, int ny,
   Ezprevx1[y+z*ny] = a;
   Ez[edgeIdx] = 0;
 }
-__global__ void applyPMLx1Ey(Real* Hz, Real* Ey, Real* Eyprevx1, int nx, int ny, int nz){
+__global__ void applyPMLx1Hz(Real* Hz, Real* Ey, Real* Eyprevx1, int nx, int ny, int nz){
   int y = blockIdx.x * blockDim.x + threadIdx.x;
   int z = blockIdx.y * blockDim.y + threadIdx.y;
   if(y >= ny || z >= nz) return;
   int edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
-  Real a = Ey[edgeIdx];
-  Hz[edgeIdx-1] -= (Eyprevx1[y+z*ny] + a)/2;
+  Real mH = 0.5;
+  Real a = mH*Ey[edgeIdx];  //change to Hz[edgeIdx] if edge is inside computation region
+  Ey[edgeIdx] -= (Eyprevx1[y+z*ny] + a)/2;
   Eyprevx1[y+z*ny] = a;
-  Ey[edgeIdx] = 0;
+  Hz[edgeIdx] = 0;
 }
-__global__ void applyPMLx0Hz(Real* Hz, Real* Ey, Real* Hzprevx0, int nx, int ny, int nz){
+__global__ void applyPMLx0Hz(Real* Hx, Real* Hz, Real* Ey, Real* Hzprevx0, int nx, int ny, int nz){
   int y = blockIdx.x * blockDim.x + threadIdx.x;
   int z = blockIdx.y * blockDim.y + threadIdx.y;
   if(y >= ny || z >= nz) return;
-  int edgeIdx = z*nx*ny + y*nx+5;  //large stride, unavoidable
+  int edgeIdx = z*nx*ny + y*nx+10;  //large stride, unavoidable
   Real a = Hz[edgeIdx];
   Ey[edgeIdx+1] += (Hzprevx0[y+z*ny] + a)/2;
   Hzprevx0[y+z*ny] = a;
   Hz[edgeIdx] = 0;
+  Hx[edgeIdx+1] = 0;
 }
-__global__ void applyPMLx0Hy(Real* Hy, Real* Ez, Real* Hyprevx0, int nx, int ny, int nz){
+__global__ void applyPMLx0Hy(Real* Ex, Real* Hy, Real* Ez, Real* Hyprevx0, int nx, int ny, int nz){
   int y = blockIdx.x * blockDim.x + threadIdx.x;
   int z = blockIdx.y * blockDim.y + threadIdx.y;
   if(y >= ny || z >= nz) return;
-  int edgeIdx = z*nx*ny + y*nx+5;  //large stride, unavoidable
-  Real a = Ez[edgeIdx];
+  int edgeIdx = z*nx*ny + y*nx+10;  //large stride, unavoidable
+  Real a = Hy[edgeIdx];  //change to Ez[edgeIdx] if the boundary is inside computing region
+  Ez[edgeIdx+1] -= (Hyprevx0[y+z*ny] + a)/2;
+  Hyprevx0[y+z*ny] = a;
+  Hy[edgeIdx] = 0;
+}
+__global__ void applyPMLx0Ez(Real* Hy, Real* Ez, Real* Hyprevx0, int nx, int ny, int nz){
+  int y = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(y >= ny || z >= nz) return;
+  Real mE = 0.5;
+  int edgeIdx = z*nx*ny + y*nx;  //large stride, unavoidable
+  Real a = Ez[edgeIdx];  //change to Ez[edgeIdx] if the boundary is inside computing region
   Hy[edgeIdx] -= (Hyprevx0[y+z*ny] + a)/2;
   Hyprevx0[y+z*ny] = a;
   Ez[edgeIdx] = 0;
@@ -92,15 +105,16 @@ __global__ void applyPMLy1Ez(Real* Hx, Real* Ez, Real* Ezprevy1, int nx, int ny,
   Ezprevy1[x+nx*z] = a;
   Ez[edgeIdx] = 0;
 }
-__global__ void applyPMLy1Ex(Real *Hz, Real* Ex, Real* Exprevy1, int nx, int ny, int nz){
+__global__ void applyPMLy1Hz(Real *Hz, Real* Ex, Real* Exprevy1, int nx, int ny, int nz){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int z = blockIdx.y * blockDim.y + threadIdx.y;
   if(x >= nx || z >= nz) return;
   int edgeIdx = nx*ny*z + nx*(ny-1)+ x;
-  Real a = Ex[edgeIdx];
-  Hz[edgeIdx-nx] += (Exprevy1[x+nx*z] + a)/2;
+  Real mH = 0.5;
+  Real a = mH*Hz[edgeIdx];
+  Ex[edgeIdx-nx] += (Exprevy1[x+nx*z] + a)/2;
   Exprevy1[x+nx*z] = a;
-  Ex[edgeIdx] = 0;
+  Hz[edgeIdx] = 0;
 }
 __global__ void applyPMLy0Hz(Real* Hz, Real* Ex, Real* Hzprevy0, int nx, int ny, int nz){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -112,15 +126,16 @@ __global__ void applyPMLy0Hz(Real* Hz, Real* Ex, Real* Hzprevy0, int nx, int ny,
   Hzprevy0[x+nx*z] = a;
   Hz[edgeIdx] = 0;
 }
-__global__ void applyPMLy0Hx(Real *Hx, Real* Ez, Real* Hxprevy0, int nx, int ny, int nz){
+__global__ void applyPMLy0Ez(Real *Hx, Real* Ez, Real* Hxprevy0, int nx, int ny, int nz){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int z = blockIdx.y * blockDim.y + threadIdx.y;
   if(x >= nx || z >= nz) return;
   int edgeIdx = nx*ny*z + x;
-  Real a = Hx[edgeIdx];
-  Ez[edgeIdx+nx] += (Hxprevy0[x+nx*z] + a)/2;
+  Real mH = 0.5;
+  Real a = -mH*Hx[edgeIdx];  // change to Ez[index] in cr
+  Hx[edgeIdx] += (Hxprevy0[x+nx*z] + a)/2;
   Hxprevy0[x+nx*z] = a;
-  Hx[edgeIdx] = 0;
+  Ez[edgeIdx] = 0;
 }
 __global__ void applyPMLz1Ex(Real* Hy, Real* Ex, Real* Exprevz1, int nx, int ny, int nz){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -185,11 +200,12 @@ __global__ void applyPeriodicy_E(Real* Ez, int displace){
 __global__ void applySource(Real* Ez, size_t idx, Real val){
   Ez[idx] += val;
 }
-__global__ void applySourceV(Real* Ez, Real* Hy, int nx, int pos, Real val, Real val1){
-  int y = threadIdx.x;
-  int idx = y*nx + pos;
+__global__ void applySourceV(Real* Ez, int nx, int ny, int nz, int pos, Real val){
+  int y = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(y >= ny || z >= nz) return;
+  int idx = z*nx*ny + y*nx + pos;
   Ez[idx] += val;
-  Hy[idx-1] += val1;
 }
 cuFunc(getXYSlice,(Real* slice, Real* data, int nx, int ny, int iz), (slice, data, nx, ny, iz), {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -260,20 +276,19 @@ int main(){
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
     applySource<<<1,1>>>(Ez, sourcePos, 500*sin(M_PI/30*i));//50*exp(-pow(double(i-100)/30,2))); 
-    //point source
-    //applySourceV<<<1,ny>>>(Ez, Hy, nx, 50, exp(-pow(double(i-100)/30,2)), -exp(-pow(double(i-99.5)/30,2))); //plain wave source
-    applyPMLx0Hy<<<nblkx,nthd2d>>>(Hy, Ez, Hyprevx0, nx, ny, nz);
+    //applySourceV<<<nblkx,nthd2d>>>(Ez, nx, ny, nz, 100, 5*sin(M_PI/30*i));
     //applyPMLx1Ez<<<nblkx,nthd2d>>>(Hy, Ez, Ezprevx1, nx, ny, nz);
-    //applyPMLy0Hx<<<nblky,nthd2d>>>(Hx, Ez, Hxprevy0, nx, ny, nz);
+    //applyPMLy0Ez<<<nblky,nthd2d>>>(Hx, Ez, Hxprevy0, nx, ny, nz);
     //applyPMLy1Ez<<<nblky,nthd2d>>>(Hx, Ez, Ezprevy1, nx, ny, nz);
     //applyPMLz0Hy<<<nblky,nthd2d>>>(Hy, Ex, Hyprevz0, nx, ny, nz);
     //applyPMLz1Ey<<<nblky,nthd2d>>>(Hx, Ey, Eyprevz1, nx, ny, nz);
 
     updateH<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);    //------------UPDATE H-----------
-    applyPMLx0Hz<<<nblkx,nthd2d>>>(Hz, Ey, Hzprevx0, nx, ny, nz);
-    //applyPMLx1Ey<<<nblkx,nthd2d>>>(Hz, Ey, Eyprevx1, nx, ny, nz);
+    applyPMLx0Hz<<<nblkx,nthd2d>>>(Hx, Hz, Ey, Hzprevx0, nx, ny, nz);
+    applyPMLx0Hy<<<nblkx,nthd2d>>>(Ex, Hy, Ez, Hyprevx0, nx, ny, nz);
+    //applyPMLx1Hz<<<nblkx,nthd2d>>>(Hz, Ey, Eyprevx1, nx, ny, nz);
     //applyPMLy0Hz<<<nblky,nthd2d>>>(Hz, Ex, Hzprevy0, nx, ny, nz);
-    //applyPMLy1Ex<<<nblky,nthd2d>>>(Hz, Ex, Exprevy1, nx, ny, nz);
+    //applyPMLy1Hz<<<nblky,nthd2d>>>(Hz, Ex, Exprevy1, nx, ny, nz);
     //applyPMLz0Hx<<<nblky,nthd2d>>>(Hx, Ey, Hxprevz0, nx, ny, nz);
     //applyPMLz1Ex<<<nblky,nthd2d>>>(Hy, Ex, Exprevz1, nx, ny, nz);
 
@@ -281,14 +296,14 @@ int main(){
     //applyPeriodicx_H<<<1,ny-1>>>(Hx, Hy, nx);
     //applyPeriodicy_H<<<1,nx-1>>>(Hx, Hy, nx*(ny-1));
     updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);
-    if(i==nsteps-1){
+    if(i==nsteps/2){
       getXZSlice(slice, Ey , nx, ny, nz, 50);
       //getXYSlice(slice, Ez , nx, ny, 100);
       plt.toVideo = -1;
       plt.plotFloat(slice, REAL, 0, 1, "Eylast",0,0,1);
     }
     if(saveField) {
-      getXYSlice(slice, Ez , nx, ny, 50);
+      getXYSlice(slice, Ez , nx, ny, 100);
       //getXZSlice(slice, Ey , nx, ny, nz, 50);
       plt.toVideo = ezvid;
       plt.plotFloat(slice, REAL, 0, 1, "",0,0,1);
