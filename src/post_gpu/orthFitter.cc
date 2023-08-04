@@ -53,7 +53,7 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
       for(int k = 0; k <= j; k++){
         matrix[i*(i+1)/2+k]-=prod*matrix[j*(j+1)/2+k];
       }
-      //norm-=pow(prod,2);
+      //norm-=sq(prod);
     }
     //if(norm<0) {
     //  printf("norm is negative, this is impossible, please check!\n");

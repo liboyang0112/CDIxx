@@ -117,7 +117,7 @@ cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Rea
   Real targetdata = target[index].x;
   Real retval = targetdata;
   source[index].y = 0;
-  Real maximum = pow(mergeDepth,2)*vars->scale*0.99;
+  Real maximum = sq(mergeDepth)*vars->scale*0.99;
   Real sourcedata = source[index].x;
   Real tolerance = 0.5/vars->rcolor*vars->scale;
   Real diff = sourcedata-targetdata;
@@ -161,7 +161,7 @@ int main(int argc, char** argv )
   printf("pupil fresnel factor = %f\n", setups.fresnelFactorpupil);
   printf("pupil enhancement = %f\n", setups.enhancementpupil);
 
-  Real fresnelNumber = M_PI*pow(setups.beamspotsize,2)/(setups.d*setups.lambda);
+  Real fresnelNumber = M_PI*sq(setups.beamspotsize)/(setups.d*setups.lambda);
   printf("Fresnel Number = %f\n",fresnelNumber);
 
   int sz = setups.row*setups.column*sizeof(complexFormat);

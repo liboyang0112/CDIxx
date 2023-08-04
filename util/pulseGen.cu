@@ -74,16 +74,17 @@ int main(int argc, char** argv){
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
+  Real startlambda = 480;
+  Real endlambda = 1000;
+  int nlambda;
   if(cdi.solveSpectrum) {
-    Real minlambda = 480./monoLambda;
-    Real maxlambda = 1000./monoLambda;
+    Real minlambda = startlambda/monoLambda;
+    Real maxlambda = endlambda/monoLambda;
     mwl.init(objrow, objcol, minlambda, maxlambda);
+    getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
     //mwl.init(objrow, objcol, 1, 2);
   }else{
-    int nlambda;
-    Real startlambda = 480;
-    Real endlambda = 1000;
-    getNormSpectrum(cdi.ccd_response,cdi.spectrum,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+    getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
     printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   }
@@ -149,7 +150,7 @@ int main(int argc, char** argv){
     }
     if(cdi.doIteration){
       extendToComplex(d_patternSum, d_CpatternSum);
-      plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
+      plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       if(!cdi.solveSpectrum) {
         mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 1, cdi.nIter, 1, 0);
@@ -159,7 +160,7 @@ int main(int argc, char** argv){
         plt.saveFloat(d_patternSum, "pattern");
       }
       plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
-      plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1);
+      plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1, 0, 1);
       if(cdi.solveSpectrum) {
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 0, 1, 0, 1);
         mwl.writeSpectra("spectra.txt");

@@ -64,7 +64,7 @@ void holo::calcXCorrelation(bool doplot){
   myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_FORWARD);
   applyNorm( patternWave_holo, 1./(row*column));
   applySupportBar( patternWave_holo, xcorrelation_support);
-  if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1);
+  if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1, 0, 1);
   myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
   getReal( xcorrelation, patternWave_holo);
 
@@ -87,9 +87,9 @@ void holo::initXCorrelation(){
   createMask( xcorrelation_support, cuda_spt, 1);
   
   applySupportBar( patternWave_holo, xcorrelation_support);
-  plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1);
+  plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1, 0, 1);
   myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
-  plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1);
+  plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1, 0, 1);
   getReal( xcorrelation, patternWave_holo);
 
   cudaMemset(support_holo, 0, memMngr.getSize(support_holo));

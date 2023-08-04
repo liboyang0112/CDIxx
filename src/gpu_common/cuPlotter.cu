@@ -7,23 +7,58 @@ void cuPlotter::freeCuda(){
   if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
   if(cuCache_float_data) { memMngr.returnCache(cuCache_float_data); cuCache_float_data = 0;}
 }
-__device__ Real cugetVal(mode m, complexFormat &data, Real decay){
-  if(m==IMAG) return data.y*decay;
-  if(m==MOD) return cuCabsf(data)*decay;
-  if(m==MOD2) return (data.x*data.x+data.y*data.y)*decay;
+__device__ Real cugetVal(cudaVars*vars, mode m, complexFormat &data, Real decay, bool islog){
+  Real target = 0;
+  if(m==REAL) {
+    target = data.x*decay;
+    if(islog){
+      if(target!=0){
+        Real ab = fabs(target);
+        Real logv = log2f(ab)/log2f(vars->rcolor)+1;
+        if(logv < 0) target = 0;
+        else target = target*logv/(2*ab);
+      }
+    }
+    return (target+0.5)*vars->rcolor;
+  }
+  if(m==IMAG) target = data.y*decay;
+  if(m==MOD) target = cuCabsf(data)*decay;
+  if(m==MOD2) target = (data.x*data.x+data.y*data.y)*decay;
   if(m==PHASE){
-    return atan2(data.y,data.x)/2/M_PI+0.5;
+    target = atan2(data.y,data.x)/2/M_PI+0.5;
   }
   if(m==PHASERAD){
-    return atan2(data.y,data.x);
+    target = atan2(data.y,data.x);
   }
-  return data.x*decay;
+  if(islog){
+    if(target!=0)
+      target = log2f(target)/log2f(vars->rcolor)+1;
+  }
+  target*=vars->rcolor;
+  return target;
 }
-__device__ Real cugetVal(mode m, Real &data, Real decay){
-  if(m==MOD2) return data*data*decay;
-  if(m==MOD) return fabs(data)*decay;
-  if(m==REAL) return data*decay+0.5;
-  return data*decay;
+__device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool islog){
+  Real ret = 0;
+  if(m==REAL) {
+    ret = data*decay; //-1~1
+    if(islog){
+      if(ret!=0){
+        Real ab = fabs(ret);
+        Real logv = log2f(ab)/log2f(vars->rcolor)+1;
+        if(logv < 0) ret = 0;
+        else ret = ret*logv/(2*ab);
+      }
+    }
+    return (ret+0.5)*vars->rcolor;
+  }
+  if(m==MOD2) ret = data*data*decay;
+  if(m==MOD) ret = fabs(data)*decay;
+  if(islog){
+    if(ret!=0)
+      ret = log2f(ret)/log2f(vars->rcolor)+1;
+  }
+  ret*=vars->rcolor;
+  return ret;
 }
 
 template <typename T>
@@ -41,12 +76,8 @@ __global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cud
     targetx = cuda_row-x-1;
   }
   T data = ((T*)cudaData)[index];
-  Real target = cugetVal(m,data,decay);
+  Real target = cugetVal(vars,m,data,decay,islog);
   if(target < 0) target = 0;
-  if(islog){
-    if(target!=0)
-      target = log2f(target)*vars->rcolor/log2f(vars->rcolor)+vars->rcolor;
-  }else target*=vars->rcolor;
   if(target>=vars->rcolor) {
     target=vars->rcolor-1;
   }
@@ -69,7 +100,7 @@ __global__ void getPhase(cudaVars* vars, int cuda_row, int cuda_column, void* cu
   if(isFlip){
     targetx = cuda_row-x;
   }
-  cache[targetx*cuda_column+targety] =cugetVal(m,((complexFormat*)cudaData)[index],decay);
+  cache[targetx*cuda_column+targety] =cugetVal(vars, m,((complexFormat*)cudaData)[index],decay,0);
 }
 
 void cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){

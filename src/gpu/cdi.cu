@@ -20,8 +20,8 @@
 //#define Bits 16
 
 __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
-  Real r2 = pow(x,2) + pow(y,2);
-  return exp(-r2/2/pow(sigma,2));
+  Real r2 = sq(x) + sq(y);
+  return exp(-r2/2/sq(sigma));
 }
 
 Real gaussian_norm(Real x, Real y, Real sigma){
@@ -30,7 +30,7 @@ Real gaussian_norm(Real x, Real y, Real sigma){
 
 cuFunc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(a,b,output,bs),{
   cudaIdx()
-    Real mod2 = pow(a[index].x,2)+pow(a[index].y,2);
+    Real mod2 = sq(a[index].x)+sq(a[index].y);
   Real tmp = b[index]-mod2;
   if(bs&&bs[index]>0.5) tmp=0;
   else if(b[index]>vars->scale) tmp = vars->scale-mod2;
@@ -39,7 +39,7 @@ cuFunc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(a,b,out
 
 cuFunc(takeMod2Sum,(complexFormat* a, Real* b),(a,b),{
   cudaIdx()
-    Real tmp = b[index]+pow(a[index].x,2)+pow(a[index].y,2);
+    Real tmp = b[index]+sq(a[index].x)+sq(a[index].y);
   if(tmp<0) tmp=0;
   b[index] = tmp;
 })
@@ -108,7 +108,7 @@ void CDI::multiplyPatternPhaseMid(complexFormat* amp, Real distance){
   multiplyPatternPhase_factor(amp, resolution*resolution*M_PI/(distance*lambda), 2*distance*M_PI/lambda);
 }
 void CDI::multiplyFresnelPhaseMid(complexFormat* amp, Real distance){
-  Real fresfactor = M_PI*lambda*distance/(pow(resolution*row,2));
+  Real fresfactor = M_PI*lambda*distance/(sq(resolution*row));
   multiplyFresnelPhase_factor(amp, fresfactor);
 }
 void CDI::allocateMem(){
@@ -167,16 +167,16 @@ void CDI::readPattern(){
 void CDI::calculateParameters(){
   experimentConfig::calculateParameters();
   if(dopupil) {
-    Real k = row*pow(pixelsize,2)/(lambda*d);
+    Real k = row*sq(pixelsize)/(lambda*d);
     dpupil = d*k/(k+1);
     resolution = lambda*dpupil/(row*pixelsize);
     printf("Resolution=%4.2fum\n", resolution);
-    enhancementpupil = pow(pixelsize,2)*sqrt(row*column)/(lambda*dpupil); // this guarentee energy conservation
-    fresnelFactorpupil = lambda*dpupil/pow(pixelsize,2)/row/column;
+    enhancementpupil = sq(pixelsize)*sqrt(row*column)/(lambda*dpupil); // this guarentee energy conservation
+    fresnelFactorpupil = lambda*dpupil/sq(pixelsize)/row/column;
     forwardFactorpupil = fresnelFactorpupil*enhancementpupil;
     inverseFactorpupil = 1./row/column/forwardFactorpupil;
-    enhancementMid = pow(resolution,2)*sqrt(row*column)/(lambda*(d-dpupil)); // this guarentee energy conservation
-    fresnelFactorMid = lambda*(d-dpupil)/pow(resolution,2)/row/column;
+    enhancementMid = sq(resolution)*sqrt(row*column)/(lambda*(d-dpupil)); // this guarentee energy conservation
+    fresnelFactorMid = lambda*(d-dpupil)/sq(resolution)/row/column;
     forwardFactorMid = fresnelFactorMid*enhancementMid;
     inverseFactorMid = 1./row/column/forwardFactorMid;
   }
@@ -260,7 +260,7 @@ void CDI::prepareIter(){
     createWaveFront(patternData, 0, patternWave, 1);
     applyRandomPhase(patternWave, useBS?beamstop:0, devstates);
   }
-  verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1));
+  verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1, 0, 1));
   plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0);
   cudaConvertFO( patternData);
   applyNorm( patternData, exposure);
@@ -309,7 +309,7 @@ cuFunc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, Algorit
   else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   if(fresnelFactor>1e-4 && iter < 400) {
     if(inside){
-      Real phase = M_PI*fresnelFactor*(pow((x-(cuda_row>>1))*costheta_r,2)+pow(y-(cuda_column>>1),2));
+      Real phase = M_PI*fresnelFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
       //Real mod = cuCabs(gkp1data);
       Real mod = fabs(gkp1data.x*cos(phase)+gkp1data.y*sin(phase)); //use projection (Error reduction)
       gkp1data.x=mod*cos(phase);
@@ -332,7 +332,7 @@ cuFunc(applySupport,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo
   else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   if(fresnelFactor>1e-4 && iter < 400) {
     if(inside){
-      Real phase = M_PI*fresnelFactor*(pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2));
+      Real phase = M_PI*fresnelFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
       //Real mod = cuCabs(gkp1data);
       Real mod = fabs(gkp1data.x*cos(phase)+gkp1data.y*sin(phase)); //use projection (Error reduction)
       gkp1data.x=mod*cos(phase);
@@ -341,6 +341,11 @@ cuFunc(applySupport,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo
   }
 })
 complexFormat* CDI::phaseRetrieve(){
+  int vidhandle = 0;
+  if(saveVideoEveryIter){
+    vidhandle = plt.initVideo("recon_intensity.mp4","avc1", 24);
+    plt.showVid = -1;
+  }
   Real beta = -1;
   Real gammas = -1./beta;
   Real gammam = 1./beta;
@@ -394,6 +399,11 @@ complexFormat* CDI::phaseRetrieve(){
     assignImag( cuda_objMod,cuda_gkp1);
     */
     propagate( cuda_gkp1, patternWave, 1);
+    if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
+      plt.toVideo = vidhandle;
+      plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
+      plt.toVideo = -1;
+    }
     if(iter%100==0) {
       std::string iterstr = to_string(iter);
       if(saveIter){
@@ -413,6 +423,7 @@ complexFormat* CDI::phaseRetrieve(){
       }
     }
   }
+  if(saveVideoEveryIter) plt.saveVideo(vidhandle);
   if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
   verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, 0))
   if(verbose >= 4){

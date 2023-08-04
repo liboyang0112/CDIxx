@@ -75,7 +75,7 @@ void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma){
   size = size>>1;
   int width = (size<<1)+1;
   createGauss(gaussMem, width, sigma);
-  applyConvolution((pow(width-1+threadsPerBlock.x,2)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
+  applyConvolution((sq(width-1+threadsPerBlock.x)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
 }
 
 cuFunc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(data,dataout,factor),{

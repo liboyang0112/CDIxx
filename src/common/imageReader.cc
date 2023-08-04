@@ -85,7 +85,7 @@ Real getVal(mode m, fftw_format &data){
       return std::abs(data);
       break;
     case MOD2:
-      return pow(std::abs(data),2);
+      return sq(std::abs(data));
       break;
     case IMAG:
       return data.imag();
@@ -254,9 +254,9 @@ Mat* multiWLGenAVG(Mat* original, Mat* output, Real m, Real step, Real *spectrum
 	Mat* mergedf = fftw(original,0,1);
 	int max = original->rows*(1-1./m)/2;
 	Real weight = step/max;
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         //imageLoop<decltype(f), complex<Real>>(mergedf, &f);
-        //auto f1 = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        //auto f1 = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(mergedf, &f);
 	Mat *autocorrelation = fftw(mergedf,0,0);
 	Mat *mergedt = convertFO<complex<Real>>(autocorrelation);
@@ -352,7 +352,7 @@ Mat* multiWLGenAVG_MAT(Mat* original, Mat* output, Real m, Real step, Real *spec
 	int starty = 0;
 	Mat* mergedf = fftw(original,0,1);
 	Real weight = 1;//step/(1-1./m);
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(mergedf, &f);
 	output = convertFO<complex<Real>>(mergedf);
 
@@ -383,7 +383,7 @@ Mat* multiWLGenAVG_MAT_AC(Mat* original, Mat* output, Real m, Real step, Real *s
 	Mat* mergedf = fftw(original,0,1);
 	if(output) delete output;
 	Real weight = 1./16;//step/(1-1./m);
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(mergedf, &f);
 	Mat *autocorrelation = fftw(mergedf,0,0);
 	Mat *mergedt = convertFO<complex<Real>>(autocorrelation);
@@ -412,7 +412,7 @@ Mat* multiWLGenAVG_MAT_AC(Mat* original, Mat* output, Real m, Real step, Real *s
 Mat* multiWLGenAVG_MAT_FFT(Mat* original, Mat* output, Real m, Real step, Real *spectrum){ //original image, ratio between long lambda and short lambda.
 	output = fftw(original,output,1);
 	Real weight = 1./16;//step/(1-1./m);
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(output, &f);
 	Mat *mergedt = convertFO<complex<Real>>(output);
 	//build C matrix
@@ -433,7 +433,7 @@ Mat* multiWLGenAVG_MAT_AC_FFT(Mat* original, Mat* output, Real m, Real step, Rea
 	Mat* mergedf = fftw(original,0,1);
 	if(output) delete output;
 	Real weight = 1./16;//step/(1-1./m);
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(mergedf, &f);
 	Mat *autocorrelation = fftw(mergedf,0,0);
 	Mat *mergedt = convertFO<complex<Real>>(autocorrelation);
@@ -448,7 +448,7 @@ Mat* multiWLGenAVG_MAT_AC_FFT(Mat* original, Mat* output, Real m, Real step, Rea
 	//for(Real rl = 0.3; rl > 1./m-0.01; rl -= step){
 	//matrixGen(matrix, original->rows, original->cols, 0, 0, 1);
 	//matrixGen(matrix, original->rows, original->cols, 50, 50);
-	matrixGen(matrix, original->rows, original->cols, pix, pix,1./pow(rl,2));
+	matrixGen(matrix, original->rows, original->cols, pix, pix,1./sq(rl));
 	//matrixGen(matrix, original->rows, original->cols, 150, 150, 1./4);
 	//printf("size = %lu, padding=%d\n",matrix->matrix.size(),padding);
 	complex<Real>* y = matrix->TMultiply((complex<Real>*)(mergedt->data));
@@ -465,7 +465,7 @@ Mat* multiWLGenAVG_AC_FFT(Mat* original, Mat* output, Real m, Real step, Real *s
 	Mat* mergedf = fftw(original,0,1);
 	if(output) delete output;
 	Real weight = 1./16;//step/(1-1./m);
-        auto f = [&](int x, int y, complex<Real> &data){ data = pow(abs(data),2); };
+        auto f = [&](int x, int y, complex<Real> &data){ data = sq(abs(data)); };
         imageLoop<decltype(f), complex<Real>>(mergedf, &f);
 	Mat *autocorrelation = fftw(mergedf,0,0);
 	//Mat *mergedt = new Mat(original->rows, original->cols, float_cv_format(2), Scalar(0));

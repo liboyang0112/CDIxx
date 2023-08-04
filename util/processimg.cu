@@ -57,15 +57,15 @@ int main(int argc, char** argv )
   cudaMemcpy(d_bit, d_sig, sz, cudaMemcpyDeviceToDevice);
   createMask(d_mask, cuda_spt);
   applyMask(d_bit, d_mask);
-  //applyThreshold(d_bit, d_sig, 0.99);
+  applyThreshold(d_bit, d_sig, 0.9);
   plt.plotFloat(d_bit, MOD, 0, 1, "bit", 1);
   mid = findMiddle(d_bit, row*col);
   memMngr.returnCache(d_bit);
   memMngr.returnCache(d_mask);
   memMngr.returnCache(cuda_spt);
   if(argc >= 7){
-    mid.y -= std::stold(argv[6])/row;
-    mid.x += std::stold(argv[7])/col;
+    mid.y -= std::stof(argv[6])/row;
+    mid.x += std::stof(argv[7])/col;
   }
   int step = nmerge*4;
   int outrow = (row-int(abs(mid.x)*row)*2)/step*step;
@@ -82,12 +82,13 @@ int main(int argc, char** argv )
   extendToComplex(tmp, tmp1);
   init_fft(outrow,outcol);
   if(argv[5][0]=='1') shiftMiddle(tmp1);
+  else shiftWave(tmp1, shiftx, shifty);
   getReal(tmp, tmp1);
   int finsize = outrow/nmerge;
   resize_cuda_image(finsize,finsize);
   mergePixel(d_sig, tmp, outrow, outcol, nmerge);
   plt.init(finsize, finsize);
-  plt.plotFloat(d_sig, MOD, 0, 1, "logimagemerged", 1);
+  plt.plotFloat(d_sig, MOD, 0, 1, "logimagemerged", 1, 0, 1);
   plt.saveFloat(d_sig, argv[4]);
   return 0;
 }

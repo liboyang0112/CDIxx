@@ -212,13 +212,6 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   memMngr.returnCache(d_intensity);
   memMngr.returnCache(d_patternAmp);
 }
-cuFunc(printpix,(Real* input, int x, int y),(input,x,y),{
-  printf("%f", input[x*cuda_column+y]);
-})
-cuFunc(printpixreal,(complexFormat* input, int x, int y),(input,x,y),{
-  printf("%f,", input[x*cuda_column+y].x);
-})
-
 void* createCache(void* b){
   size_t sz = memMngr.getSize(b);
   void* a = memMngr.borrowCache(sz);
@@ -259,15 +252,15 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       break;
     }
   }
-  int d = 1;//(row - rows[0])/2;
+  int d = row/2-10;
   rect spt;
   spt.starty = spt.startx = d;
-  spt.endx = spt.endy = row-d;
+  spt.endx = spt.endy = row-d-1;
   rect *cuda_spt;
   cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
   cudaMemcpy(cuda_spt, &spt, sizeof(spt), cudaMemcpyHostToDevice);
   Real *sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  createMask(sptimg, cuda_spt, 0);
+  createMaskBar(sptimg, cuda_spt, 0);
   memMngr.returnCache(cuda_spt);
   applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
   plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
@@ -368,9 +361,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         resize_cuda_image(row, column);
         if(rows[j] > row) crop(padded, fbi, rows[j], cols[j]);
         else pad(padded, fbi, rows[j], cols[j]);
-        if(j == 11) {
-          plt.plotComplex(fbi, MOD, 0, 1, "debug", 1);
-        }
+        //plt.plotComplex(fbi, MOD, 0, 1, ("debug"+to_string(j)).c_str(), 1, 0, 1);
       }
       if((updateX || updateAIter)) add(deltab, fbi, -spectra[j]);
       if(updateAIter) {
@@ -391,7 +382,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     }
     if(writeResidual) {
       getMod2(multiplied, deltab);
-      fresidual<<i<<" "<<findSum(multiplied)/row/column<<endl;
+      fresidual<<i<<" "<<findSum(multiplied)<<endl;
     }
     if(calcDeltab) break;
     if(useOrth&&updateA){
@@ -463,9 +454,9 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     }
   }
   if(writeResidual) {
-    plt.plotComplex(deltab, MOD, 0, 1, "residual_pulseGen", 1);
+    plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);
-    plt.plotComplex(deltab, MOD, 0, 1, "broad_recon", 1);
+    plt.plotComplex(deltab, MOD, 0, 1, "broad_recon", 0, 0, 0);
     fresidual.close();
   }
   if(updateA){

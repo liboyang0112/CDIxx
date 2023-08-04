@@ -71,6 +71,7 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   std::vector<double> ccd_lambda;
   std::vector<double> ccd_rate;
   std::ifstream file_spectrum, file_ccd_response;
+  std::ofstream file_out("spectTccd.txt");
   double threshold = 1e-3;
   file_spectrum.open(fspectrum);
   file_ccd_response.open(ccd_response);
@@ -105,7 +106,9 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
     if(lambda >= ccdmax) ccd_rate_i = ccd_rate_max;
     else if(lambda > ccd_lambda[0]) ccd_rate_i = gsl_spline_eval (spline, lambda, acc);
     spectrum_lambda[nlambda] = lambda/startLambda;
-    spectrum[nlambda] = spectrum[i]*ccd_rate_i/maxval;
+    //if(lambda >= 940) ccd_rate_i*=2;
+    //if(lambda < 800) ccd_rate_i *= 0.9;
+    spectrum[nlambda] = spectrum[i]/maxval*ccd_rate_i;
     nlambda++;
   }
   endLambda /= startLambda;
@@ -114,7 +117,9 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   for(int i = 0; i < nlambda; i++){
     outlambda[i] = spectrum_lambda[i];
     outspectrum[i] = spectrum[i];
+    file_out << spectrum_lambda[i]*startLambda<<" "<<spectrum[i]<<std::endl;
   }
+  file_out.close();
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 }
@@ -131,6 +136,7 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
   gsl_interp_accel *acc = gsl_interp_accel_alloc ();
   gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
   gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
+  if(0)
   for(int i = 0; i < nlambda; i++){
     if(lambdas[i] < ccd_lambda[0]){
       printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);

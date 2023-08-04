@@ -6,7 +6,7 @@
 #include <string>
 #define videoWriters(x) ((VideoWriter*)videoWriterVec[x])
 using namespace cv;
-int cuPlotter::initVideo(const char* filename){
+int cuPlotter::initVideo(const char* filename, const char* codec, int fps){
   int handle = nvid;
   if(handle == 100){
     for(int i = 0; i < 100; i++){
@@ -21,8 +21,18 @@ int cuPlotter::initVideo(const char* filename){
     exit(0);
   }
   videoWriterVec[handle] = ccmemMngr.borrowCache(sizeof(VideoWriter));
-  new(videoWriters(handle))VideoWriter(filename, VideoWriter::fourcc('M', 'P', '4', '3'), 24, Size(rows,cols), true);
-  printf("create movie %s\n", filename);
+  if(!codec) {
+    printf("Specify a codec for you video\n");
+    new(videoWriters(handle))VideoWriter(filename, -1, fps, Size(rows,cols), true);
+    exit(0);
+  }
+  //new(videoWriters(handle))VideoWriter(filename, cv::CAP_GSTREAMER, VideoWriter::fourcc(codec[0],codec[1],codec[2],codec[3]), fps, Size(rows,cols), true);
+  new(videoWriters(handle))VideoWriter(filename, cv::CAP_FFMPEG, VideoWriter::fourcc(codec[0],codec[1],codec[2],codec[3]), fps, Size(rows,cols), true);
+  if(!videoWriters(handle)->isOpened()){
+    printf("Video open failed\n");
+    exit(0);
+  }
+  printf("create movie %s with %s\n", filename, videoWriters(handle)->getBackendName().c_str());
   toVideo = handle;
   return handle;
 }
@@ -44,13 +54,13 @@ void cuPlotter::init(int rows_, int cols_){
   cv_data = tmp->data;
   freeCuda();
 }
-void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
   cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
-  plot(label, islog);
+  plot(label, isColor);
 }
 void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
   cuPlotter::processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
-  plot(label, islog || isColor);
+  plot(label, isColor);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
   if(!cv_complex_cache){
@@ -99,7 +109,12 @@ void cuPlotter::plot(const char* label, bool iscolor){
 	  convertScaleAbs(*tmp, dst8);
 	  applyColorMap(dst8, dst8, COLORMAP_TURBO);
     if(toVideo>=0) {
-      ((VideoWriter*)videoWriters(toVideo))->write(dst8);
+      putText(dst8, label, Point(0,10),FONT_HERSHEY_SIMPLEX,0.4,Scalar(255, 0, 0),1);
+      *videoWriters(toVideo)<<dst8;
+      if(showVid == toVideo){
+        imshow("frame",dst8);
+        if (waitKey(1) >= 0) exit(0);
+      }
       return;
     }
     else imwrite(fname,dst8);

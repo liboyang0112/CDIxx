@@ -18,3 +18,4 @@ using Real=float;
 using fftw_format=std::complex<Real>;
 const int rcolor = pow(2,Bits);
 #endif
+#define sq(x) ((x)*(x))

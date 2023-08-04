@@ -147,7 +147,7 @@ class C_circle{
     int y0;
     Real r;
     __device__ __host__ bool isInside(int x, int y){
-      Real dr = sqrt(pow(x-x0,2)+pow(y-y0,2));
+      Real dr = hypot(Real(x-x0),Real(y-y0));
       if(dr < r) return true;
       return false;
     }
@@ -161,5 +161,15 @@ cuFuncTemplate(createMask,(Real* data, T* spt, bool isFrequency=0),(data,spt,isF
     else y+=cuda_column/2;
   }
   data[index]=spt->isInside(x,y);
+})
+cuFuncTemplate(createMaskBar,(Real* data, T* spt, bool isFrequency=0),(data,spt,isFrequency),{
+  cudaIdx()
+  if(isFrequency){
+    if(x>=cuda_row/2) x-=cuda_row/2;
+    else x+=cuda_row/2;
+    if(y>=cuda_column/2) y-=cuda_column/2;
+    else y+=cuda_column/2;
+  }
+  data[index]=!spt->isInside(x,y);
 })
 #endif

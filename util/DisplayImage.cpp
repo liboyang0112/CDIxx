@@ -1,16 +1,16 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
+#include "format.h"
 using namespace cv;
 using namespace std;
 //using pixeltype=uint16_t;
 //auto format_cv = CV_16UC(1);
-using pixeltype=double;
 auto format_cv = CV_64FC(1);
 //using pixeltype=char;
 //auto format_cv = CV_8UC(1);
 double gaussian(double x, double y, double sigma){
-    double r2 = pow(x,2) + pow(y,2);
-    return exp(-r2/pow(sigma,2));
+    double r2 = sq(x) + sq(y);
+    return exp(-r2/sq(sigma));
 }
 int main(int argc, char** argv )
 {

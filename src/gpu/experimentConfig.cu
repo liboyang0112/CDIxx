@@ -4,28 +4,28 @@
 // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
 cuFunc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(amp,r_d_lambda,d_r_lambda),{
   cudaIdx()
-  Real phase = (pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2))*r_d_lambda+d_r_lambda;
+  Real phase = (sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
   complexFormat p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
 })
 
 cuFunc(multiplyPatternPhaseOblique_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
   cudaIdx()
-  Real phase = (pow((x-(cuda_row>>1)*costheta),2)+pow(y-(cuda_column>>1),2))*r_d_lambda+d_r_lambda;
+  Real phase = (sq((x-(cuda_row>>1)*costheta))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
   complexFormat p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
 })
 
 cuFunc(multiplyFresnelPhase_Device,(complexFormat* amp, Real phaseFactor),(amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
   cudaIdx()
-  Real phase = phaseFactor*(pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2));
+  Real phase = phaseFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
   complexFormat p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
 })
 
 cuFunc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor, Real costheta_r),(amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
   cudaIdx()
-  Real phase = phaseFactor*(pow((x-(cuda_row>>1))*costheta_r,2)+pow(y-(cuda_column>>1),2));
+  Real phase = phaseFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
   complexFormat p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
 })
@@ -42,7 +42,7 @@ void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
 cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{
   cudaIdx();
   complexFormat phasefactor;
-  Real phase = a*sqrt(1-(pow(x-(cuda_row>>1),2)+pow(y-(cuda_column>>1),2))*b);
+  Real phase = a*sqrt(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
   phasefactor.x = cos(phase);
   phasefactor.y = sin(phase);
   amp[index] = cuCmulf(amp[index],phasefactor);
@@ -102,7 +102,7 @@ void experimentConfig::multiplyPatternPhase_factor(void* amp, Real factor1, Real
   }
 }
 void experimentConfig::multiplyFresnelPhase(void* amp, Real distance){
-  Real fresfactor = M_PI*lambda*distance/(pow(pixelsize*row,2));
+  Real fresfactor = M_PI*lambda*distance/(sq(pixelsize*row));
   if(costheta == 1){
     multiplyFresnelPhase_Device((complexFormat*)amp, fresfactor);
   }else{
@@ -117,8 +117,8 @@ void experimentConfig::multiplyFresnelPhase_factor(void* amp, Real factor){
   }
 }
 void experimentConfig::calculateParameters(){
-  enhancement = pow(pixelsize,2)*sqrt(row*column)/(lambda*d); // this guarentee energy conservation
-  fresnelFactor = lambda*d/pow(pixelsize,2)/row/column;
+  enhancement = sq(pixelsize)*sqrt(row*column)/(lambda*d); // this guarentee energy conservation
+  fresnelFactor = lambda*d/sq(pixelsize)/row/column;
   forwardFactor = fresnelFactor*enhancement;
   inverseFactor = 1./row/column/forwardFactor;
 }
