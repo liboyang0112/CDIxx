@@ -10,27 +10,22 @@ __global__ void calcLambdas(int rows, double* lambdas, double step_lambda, doubl
   if(tmp < 0) tmp = 0;
   lambdas[y] = tmp;
 }
-__global__ void calcGrads(int rows, double* grads, double* matrix, double* lambdas){
+__global__ void calcbs(int rows, double* bi, double* matrix, double* lambdas, double* prods){
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   if(x >= rows) return;
-  grads[x] = 0;
+  double grad = 0;
   for(int y = 0; y <= x; y++){
-    grads[x] -= matrix[x*(x+1)/2+y]*lambdas[y];
+    grad -= matrix[x*(x+1)/2+y]*lambdas[y];
   }
+  bi[x] = prods[x]-0.5*grad;
 }
-__global__ void calcbi(int rows, double* bi, double* grads, double* prods, double step_bi){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  if(x >= rows) return;
-  bi[x] -= step_bi*(2*(bi[x]-prods[x])+grads[x]);
-}
-void runIter_cu(int n, int niter, int niter1, Real step_lambda, Real step_bi, double* bi, double* prods, double* matrix){
+void runIter_cu(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix){
   int sz = n*sizeof(double);
   int szmat = n*(n+1)/2*sizeof(double);
   double *lambdas = (double*)memMngr.borrowCache(sz); // lagrangian multiplier
   double *d_bi = (double*)memMngr.borrowCache(sz);
   double *d_prods = (double*)memMngr.borrowCache(sz);
   double *d_matrix = (double*)memMngr.borrowCache(szmat);
-  double *grads = (double*)memMngr.borrowCache(sz);
   cudaMemcpy(d_bi,bi,sz,cudaMemcpyHostToDevice);
   cudaMemcpy(d_prods,prods,sz,cudaMemcpyHostToDevice);
   cudaMemcpy(d_matrix,matrix,szmat,cudaMemcpyHostToDevice);
@@ -41,14 +36,10 @@ void runIter_cu(int n, int niter, int niter1, Real step_lambda, Real step_bi, do
   nblk.x = ceil(Real(n)/nthd.x);
   for(int iter = 0; iter < niter; iter++){
     calcLambdas<<<nblk,nthd>>>(n, lambdas, step_lambda, d_matrix, d_bi, iter == niter - 1);
-    calcGrads<<<nblk,nthd>>>(n, grads, d_matrix, lambdas);
-    for(int iter1 = 0; iter1 < niter1; iter1 ++){
-      calcbi<<<nblk,nthd>>>(n, d_bi, grads, d_prods, step_bi);
-    }
+    calcbs<<<nblk,nthd>>>(n, d_bi, d_matrix, lambdas, d_prods);
   }
   cudaMemcpy(bi,d_bi,sz,cudaMemcpyDeviceToHost);
   memMngr.returnCache(lambdas);
-  memMngr.returnCache(grads);
   memMngr.returnCache(d_bi);
   memMngr.returnCache(d_prods);
   memMngr.returnCache(d_matrix);

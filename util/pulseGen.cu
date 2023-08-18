@@ -74,7 +74,7 @@ int main(int argc, char** argv){
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
-  Real startlambda = 480;
+  Real startlambda = 500;
   Real endlambda = 1000;
   int nlambda;
   if(cdi.solveSpectrum) {

@@ -252,7 +252,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       break;
     }
   }
-  int d = row/2-10;
+  int d = row/2-5;
   rect spt;
   spt.starty = spt.startx = d;
   spt.endx = spt.endy = row-d-1;
@@ -408,7 +408,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       }
     }
     if(updateX){
-      overExposureZeroGrad( deltab, (complexFormat*)d_input, noiseLevel);
+      //overExposureZeroGrad( deltab, (complexFormat*)d_input, noiseLevel);
       if(i > 20 && noiseLevel){
         getReal( (Real*)fbi,deltab);
         FISTA((Real*)fbi, (Real*)fbi, 1e-5*sqrt(noiseLevel), 20, &applyC);

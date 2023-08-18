@@ -17,7 +17,7 @@ if(max < 1.2*STATS_max_y/STATS_mean_y) max = 1.2*STATS_max_y/STATS_mean_y
 set xlabel "Wave length [nm]"
 set ylabel "Normalized Intensity"
 set yrange [0:max]
-set term pdf size 6,3
+set term pdf size 6,2
 set output "spectra.pdf"
 #set term png size 1000,500
 #set output "spectra.png"

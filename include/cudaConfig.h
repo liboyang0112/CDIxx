@@ -1,6 +1,5 @@
 #ifndef __CUDACONFIG_H__
 #define __CUDACONFIG_H__
-#include <iostream>
 #include "format.h"
 #include "cudaDefs.h"
 #include <curand_kernel.h>
