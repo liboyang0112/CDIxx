@@ -20,7 +20,8 @@
 //
 //void partialx((Real* b, Real* p)){ partialxWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.b,p, cuda_imgsz.y, b,p);}
 cuFunc(partialx, (Real* b, Real* p), (b,p),{
-  cudaIdx()
+  cuda1Idx()
+  int x = index/cuda_column;
   Real target;
   if(x == cuda_row-1) target = b[index]-b[index%cuda_column];
   else target = b[index]-b[index+cuda_column];
@@ -28,7 +29,8 @@ cuFunc(partialx, (Real* b, Real* p), (b,p),{
   p[index] = target;
 })
 cuFunc(partialy, (Real* b, Real* p), (b,p),{
-    cudaIdx()
+    cuda1Idx()
+    int y = index%cuda_column;
     Real target;
     if(y == cuda_column-1) target = b[index]-b[index-cuda_column+1];
     else target = b[index]-b[index+1];
@@ -36,7 +38,7 @@ cuFunc(partialy, (Real* b, Real* p), (b,p),{
     p[index] = target;
     })
 cuFunc(diffMax, (Real* p, Real* q), (p,q),{
-    cudaIdx()
+    cuda1Idx()
     Real mod = hypot(p[index],q[index]);
     if(mod <= 1) return;
     p[index] /= mod;
@@ -54,13 +56,11 @@ cuFunc(calcLpq, (Real* out, Real* p, Real* q), (out,p,q),{
 void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, Real*)){
   size_t sz = memMngr.getSize(b);
   Real tk = 0.5+sqrt(1.25);
-  Real* pij = (Real*)memMngr.borrowCache(sz);
-  Real* qij = (Real*)memMngr.borrowCache(sz);
+  Real* pij = (Real*)memMngr.borrowCleanCache(sz);
+  Real* qij = (Real*)memMngr.borrowCleanCache(sz);
   Real* lpq = (Real*)memMngr.borrowCache(sz);
   Real* pijprev = (Real*)memMngr.borrowCache(sz);
   Real* qijprev = (Real*)memMngr.borrowCache(sz);
-  cudaMemset(pij, 0, sz);
-  cudaMemset(qij, 0, sz);
   bool replaceout = 0;
   if(output == b) {
     replaceout = 1;

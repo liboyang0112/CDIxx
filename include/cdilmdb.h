@@ -3,8 +3,8 @@
 extern "C" {
 #endif
   int initLMDB(int* handle, const char* dbDIR);
-  int saveLMDB(int handle);
-  int setCompress(int handle);
+  void saveLMDB(int handle);
+  void setCompress(int handle);
   int fillLMDB(int handle, int *keyval, int ndata, void** data, size_t* data_size);
   void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 #ifdef __cplusplus

@@ -8,7 +8,6 @@ import os
 
 cdef extern from "cdilmdb.h":
     int initLMDB(int* handle, const char*)
-    void readLMDB(int handle, void**, size_t*, void**, size_t*, int*)
     void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 
 np.import_array()

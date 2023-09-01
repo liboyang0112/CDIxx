@@ -37,11 +37,11 @@ __device__ Real getmE(int x, int y, int z){
 }
 __global__ void updateH(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz)
 {
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int z = blockIdx.z * blockDim.z + threadIdx.z;
-  if(x >= nx || y >= ny || z >= nz) return;
-  int index = x + nx*y + nx*ny*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*ny*nz) return;
+  int x = index%nx;
+  int y = (index/nx)%ny;
+  int z = index/(nx*ny);
   Real ismid = x>=3&&x<nx-3&&y>=3&&y<ny-3&&z>=3&&z<nz-3;
   Real mH = getmH(x,y,z);
   if(z < nz-1 && x > 0 && y < ny-1){
@@ -71,11 +71,11 @@ __global__ void updateH(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* 
 }
 __global__ void updateE(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz)
 {
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int z = blockIdx.z * blockDim.z + threadIdx.z;
-  if(x >= nx || y >= ny || z >= nz) return;
-  int index = x + nx*y + nx*ny*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*ny*nz) return;
+  int x = index%nx;
+  int y = (index/nx)%ny;
+  int z = index/(nx*ny);
   Real mE = getmE(x,y,z);
   Real ismid = x>=3&&x<nx-3&&y>=3&&y<ny-3&&z>=3&&z<nz-3;
   if(z > 0 && x < nx-1 && y > 0){
@@ -104,11 +104,12 @@ __global__ void updateE(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* 
   }
 }
 __global__ void applyPMLx0_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int z = blockIdx.z * blockDim.z + threadIdx.z;
-  if(x >= n_PML || y >= ny || z >= nz) return;
-  int index = x + 1 + nx*y + nx*ny*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*ny*n_PML) return;
+  int x = index%n_PML;
+  int y = (index/nx)%ny;
+  int z = index/(nx*ny);
+  index = x + 1 + nx*y + nx*ny*z;
   Real sf = b_PML+x*k_PML;
   Ez[index] *= sf;
   Ex[index] *= sf;
@@ -118,11 +119,12 @@ __global__ void applyPMLx0_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, R
   Hz[index] *= sf;
 }
 __global__ void applyPMLx1_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int z = blockIdx.z * blockDim.z + threadIdx.z;
-  if(x >= n_PML || y >= ny || z >= nz) return;
-  int index = nx-x-2 + nx*y + nx*ny*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*ny*n_PML) return;
+  int x = index%n_PML;
+  int y = (index/nx)%ny;
+  int z = index/(nx*ny);
+  index = nx-x-2 + nx*y + nx*ny*z;
   Real sf = b_PML+x*k_PML;
   Ez[index] *= sf;
   Ex[index] *= sf;
@@ -132,10 +134,11 @@ __global__ void applyPMLx1_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, R
   Hz[index] *= sf;
 }
 __global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
-  int y = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(y >= ny || z >= nz) return;
-  int edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= ny*nz) return;
+  int y = edgeIdx%ny;
+  int z = edgeIdx/ny;
+  edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
   Real mH = getmH(nx-1,y,z);
   Real mE = getmE(nx-1,y,z);
   Real rat = sqrt(mH/mE);
@@ -151,10 +154,11 @@ __global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   Ey[edgeIdx] = 0;
 }
 __global__ void applyPMLx0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HyBdx0, Real* HzBdx0, int nx, int ny, int nz){
-  int y = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(y >= ny || z >= nz) return;
-  int edgeIdx = z*nx*ny + y*nx;  //large stride, unavoidable
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= ny*nz) return;
+  int y = edgeIdx%ny;
+  int z = edgeIdx/ny;
+  edgeIdx = z*nx*ny + y*nx;  //large stride, unavoidable
   Real a = Hz[edgeIdx];
   Real mH = getmH(0,y,z);
   Real mE = getmE(0,y,z);
@@ -170,14 +174,15 @@ __global__ void applyPMLx0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   Hx[edgeIdx+1] = 0;
 }
 __global__ void applyPMLy1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdy1, Real* EzBdy1, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || z >= nz) return;
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= nx*nz) return;
+  int x = edgeIdx%nx;
+  int z = edgeIdx/nx;
   Real mH = getmH(x,ny-1,z);
   Real mE = getmE(x,ny-1,z);
   Real rat = sqrt(mH/mE);
   Real dt = 0.5/(mE*rat)-0.5;
-  int edgeIdx = nx*ny*z + nx*(ny-1)+ x;
+  edgeIdx = nx*ny*z + nx*(ny-1)+ x;
   Real a = Ez[edgeIdx];
   Hx[edgeIdx-nx] -= rat*(dt*EzBdy1[x+nx*z] + (1-dt)*a);
   EzBdy1[x+nx*z] = a;
@@ -200,10 +205,11 @@ __global__ void applyPMLy1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   }
 }
 __global__ void applyPMLy0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdy0, Real* HzBdy0, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || z >= nz) return;
-  int edgeIdx = nx*ny*z + x;
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= nx*nz) return;
+  int x = edgeIdx%nx;
+  int z = edgeIdx/nx;
+  edgeIdx = nx*ny*z + x;
   Real mH = getmH(x,0,z);
   Real mE = getmE(x,0,z);
   Real rat = sqrt(mE/mH);
@@ -230,11 +236,12 @@ __global__ void applyPMLy0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   }
 }
 __global__ void applyPMLz1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdz1, Real* EyBdz1, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || y >= ny) return;
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= nx*ny) return;
+  int x = edgeIdx%ny;
+  int y = edgeIdx/ny;
   int step = nx*ny;
-  int edgeIdx = (nz-1)*step + nx*y + x;
+  edgeIdx = (nz-1)*step + nx*y + x;
   Real mH = getmH(x,y,nz-1);
   Real mE = getmE(x,y,nz-1);
   Real rat = sqrt(mH/mE);
@@ -262,11 +269,12 @@ __global__ void applyPMLz1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   }
 }
 __global__ void applyPMLz0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdz0, Real* HyBdz0, int nx, int ny, int nz){
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || y >= ny) return;
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= nx*ny) return;
+  int x = edgeIdx%ny;
+  int y = edgeIdx/ny;
   int step = nx*ny;
-  int edgeIdx = nx*y + x;
+  edgeIdx = nx*y + x;
   Real mH = getmH(x,y,0);
   Real mE = getmE(x,y,0);
   Real rat = sqrt(mE/mH);
@@ -377,6 +385,16 @@ cuFunc(getXZSlice,(Real* slice, Real* data, int nx, int ny, int nz, int iy), (sl
   int index = x + nx*z;
   slice[index] = data[x+nx*iy+nx*ny*z];
 })
+cuFunc(getYZSlice,(Real* slice, Real* data, Real* data2, Real* data3, int nx, int ny, int nz, int ix), (slice, data, data2, data3, nx, ny, nz, ix), {
+  int y = blockIdx.x * blockDim.x + threadIdx.x;
+  int z = blockIdx.y * blockDim.y + threadIdx.y;
+  if(y >= ny || z >= nz) return;
+  int index = y + ny*z;
+  int idx = ix+nx*y+nx*ny*z;
+  //slice[index] = sq(data[idx])+sq(data2[idx])+sq(data3[idx]);
+  slice[index] = data2[idx];
+  //slice[index] = data2[idx]*data2[idx];
+})
 int main(){
   int nsteps = 1000;
   const int nx = 200;
@@ -387,27 +405,15 @@ int main(){
   dim3 nblkx_d;
   //---------inner dimensions--------
   nthd.x = 256;
-  nthd.y = 1;
-  nthd.z = 1;
-  nblk.x = (nx-1)/nthd.x+1;
-  nblk.y = (ny-1)/nthd.y+1;
-  nblk.z = (nz-1)/nthd.z+1;
+  nblk.x = (nx*ny*nz-1)/nthd.x+1;
   //-----boundary dimensions---------
   nthd2d.x = 256;
-  nthd2d.y = 1;
-  nblkx.x = (ny-1)/nthd2d.x+1;
-  nblkx.y = (nz-1)/nthd2d.y+1;
-  nblky.x = (nx-1)/nthd2d.x+1;
-  nblky.y = (nz-1)/nthd2d.y+1;
-  nblkz.x = (nx-1)/nthd2d.x+1;
-  nblkz.y = (ny-1)/nthd2d.y+1;
+  nblkx.x = (ny*nz-1)/nthd2d.x+1;
+  nblky.x = (nx*nz-1)/nthd2d.x+1;
+  nblkz.x = (nx*ny-1)/nthd2d.x+1;
   //---------PML dimensions----------
-  nthdx_d.x = 16;
-  nthdx_d.y = 16;
-  nthdx_d.z = (n_PML-1)/nthdx_d.x+1;
-  nblkx_d.x = 1;
-  nblkx_d.y = nblk.y;
-  nblkx_d.z = nblk.z;
+  nthdx_d.x = 256;
+  nblkx_d.x = (n_PML*nx*ny-1)/nthdx_d.x+1;
 
   size_t nnode = nx*ny*nz;
   size_t memsz = nnode*sizeof(Real);
@@ -447,15 +453,18 @@ int main(){
   plt.init(nx,ny);
   init_cuda_image();
   
-  int ezvid = plt.initVideo("Ez.mp4","avc1", 60);
-  int hxvid = plt.initVideo("Hx.mp4","avc1", 60);
-  int hyvid = plt.initVideo("Hy.mp4","avc1", 60);
+  int ezvid = plt.initVideo("Ez.mp4","avc1", 24);
+  int hxvid = plt.initVideo("Hx.mp4","avc1", 24);
+  int hyvid = plt.initVideo("Hy.mp4","avc1", 24);
   plt.showVid = -1;//ezvid;
   
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
     //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30))); 
-    if(i < 280) applySource<<<1,1>>>(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/14*i)+sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2))); 
+    if(i < 280) {
+      applySource<<<1,1>>>(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2))); 
+      applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2))); 
+    }//get circular polarized source!
     //applySourceV<<<nblkx,nthd2d>>>(Ez, nx, ny, nz, 100, 5*sin(M_PI/30*i));
 
     applyPMLx1<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, EyBdx1, EzBdx1, nx, ny, nz);
@@ -481,7 +490,7 @@ int main(){
     updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //------------UPDATE E-----------
     
     if(saveField) {
-      getXYSlice(slice, Ez , nx, ny, 100);
+      getYZSlice(slice, Ex, Ey, Ez , nx, ny, nz, 150);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);
       plt.toVideo = ezvid;
       plt.plotFloat(slice, REAL, 0, 1, ("Ez, t="+to_string(i)).c_str(),0,0,1);

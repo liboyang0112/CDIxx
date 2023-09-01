@@ -53,7 +53,7 @@ int main(int argc, char** argv )
       if(r<spotr) rowo[y] = 0;
       //if(r<60) rowo[y] *= 0.4;
 #endif
-      if(x <= 7 || y <= 7) rowo[y] = 255;
+      if(x <= 7 || y <= 7) rowo[y] = -1;
       else rowo[y] = 0;
       if(y > 7 && (y%30 < 7)) rowo[y] = 0; 
     }

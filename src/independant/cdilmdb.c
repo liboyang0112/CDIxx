@@ -24,7 +24,7 @@ struct lmdbds{
   char compress;
 };
 struct lmdbds* dsList[100];
-int setCompress(int handle){
+void setCompress(int handle){
   struct lmdbds* ds = dsList[handle];
   ds->compress = 1;
 }
@@ -105,7 +105,7 @@ int fillLMDB(int handle, int *keyval, int ndata, void** data, size_t* data_size)
   else return fillLMDBCoded(handle, keyval, ds->data_cache, totalSize);
 }
 
-int saveLMDB(int handle){
+void saveLMDB(int handle){
   struct lmdbds* ds = dsList[handle];
   E(mdb_txn_commit(ds->txn));
   mdb_dbi_close(ds->env, ds->dbi);

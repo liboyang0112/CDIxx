@@ -8,9 +8,9 @@
 #define complexFormat cufftComplex
 
 #if Bits==12
-using pixeltype=uint16_t;
+using pixeltype=unsigned short;
 #elif Bits==16
-using pixeltype=uint16_t;
+using pixeltype=unsigned short;
 #else
 using pixeltype=uchar;
 #endif

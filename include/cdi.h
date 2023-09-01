@@ -8,6 +8,7 @@ class CDI : public experimentConfig{
     complexFormat* patternWave = 0;
     complexFormat* autoCorrelation = 0;
     Real* support = 0;
+    Real residual = 0;
     rect *cuda_spt;
     void *mnist_dat = 0;
     std::string save_suffix = "";

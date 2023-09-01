@@ -34,6 +34,7 @@ void getImag(Real* mod, complexFormat* amp);
 void assignReal(Real* mod, complexFormat* amp);
 void assignImag(Real* mod, complexFormat* amp);
 void getMod2(Real* mod, complexFormat* amp);
+void getMod2(Real* mod2, Real* mod);
 void applyPoissonNoise(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
 void applyPoissonNoise_WO(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
 void ccdRecord(uint16_t* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
@@ -63,10 +64,11 @@ void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 cuFuncTemplate(cudaConvertFO, (T* data, T* out = 0),(data,out==0?data:out),{
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= (cuda_row>>1) || y >= cuda_column) return;
-  int index = x*cuda_column + y;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= (cuda_row*cuda_column)/2) return;
+  int x = index%(cuda_row>>1);
+  int y = index/(cuda_row>>1);
+  index = x*cuda_column+y;
   int indexp = (x+(cuda_row>>1))*cuda_column + (y >= (cuda_column>>1)? y-(cuda_column>>1): (y+(cuda_column>>1)));
   T tmp = data[index];
   out[index]=data[indexp];
@@ -74,11 +76,11 @@ cuFuncTemplate(cudaConvertFO, (T* data, T* out = 0),(data,out==0?data:out),{
 })
 
 cuFuncTemplate(applyMask, (T* data, Real* mask, Real threshold = 0.5),(data,mask,threshold),{
-  cudaIdx();
+  cuda1Idx();
   if(mask[index]<=threshold) data[index] = T();
 })
 cuFuncTemplate(applyMaskBar, (T* data, complexFormat* mask, Real threshold = 0.5),(data,mask,threshold),{
-  cudaIdx();
+  cuda1Idx();
   if(mask[index].x>threshold) data[index] = T();
 })
 
@@ -91,7 +93,7 @@ cuFuncTemplate(zeroEdge, (T* a, int n), (a,n),{
 
 template <typename T1, typename T2>
 __global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
-  cudaIdx()
+  cuda1Idx()
 	out[index] = input[index];
 }
 template <typename T1, typename T2>

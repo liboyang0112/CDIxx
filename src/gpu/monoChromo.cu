@@ -11,7 +11,7 @@
 
 
 cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force, mom , dx),{
-  cudaIdx()
+  cuda1Idx()
   Real m = mom[index].x;
   Real f = force[index].x;
   // interpolate with walls
@@ -24,7 +24,7 @@ cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force
 })
 
 cuFunc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b, int noiseLevel),(deltab, b, noiseLevel),{
-  cudaIdx();
+  cuda1Idx();
   if(b[index].x >= vars->scale*0.99 && deltab[index].x < 0) deltab[index].x = 0;
   //if(fabs(deltab[index].x)*vars->rcolor < sqrtf(noiseLevel)) deltab[index].x = 0;
   deltab[index].y = 0;
@@ -42,8 +42,7 @@ int nearestEven(Real x){
 
 void monoChromo::calcPixelWeights(){
   int sz = row/2*sizeof(Real);
-  Real* loc_pixel_weight = (Real*) ccmemMngr.borrowCache(sz);
-  memset(loc_pixel_weight, 0, sz);
+  Real* loc_pixel_weight = (Real*) ccmemMngr.borrowCleanCache(sz);
   for(int lmd = 0; lmd < nlambda; lmd++){
     Real maxshift =  Real(row*row)/(2*(row+2*lmd*jump));
     Real spectWeight = spectra[lmd];
@@ -94,8 +93,7 @@ void monoChromo::init(int nrow, int ncol, double minlambda, double maxlambda){
   nlambda = (maxlambda-minlambda)/stepsize+1;
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  spectra = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
-  memset(spectra, 0, nlambda*sizeof(double));
+  spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
   locplan = ccmemMngr.borrowCache(sizeof(cufftHandle)*nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+(i+(minlambda-1)/stepsize)*2*jump;
@@ -178,8 +176,7 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
   complexFormat *d_intensity = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
   complexFormat* d_patternAmp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
-  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCache(int(row/oversampling)*int(column/oversampling)*sizeof(complexFormat));
-  cudaMemset(d_inputWave, 0, int(row/oversampling)*int(column/oversampling)* sizeof(complexFormat));
+  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCleanCache(int(row/oversampling)*int(column/oversampling)*sizeof(complexFormat));
   resize_cuda_image(int(row/oversampling), int(column/oversampling));
   assignReal( (Real*)d_input, d_inputWave);
   if(devstates) applyRandomPhase(d_inputWave,0,(curandStateMRG32k3a *)devstates);
@@ -252,7 +249,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       break;
     }
   }
-  int d = row/2-5;
+  int d = row/2-20;
   rect spt;
   spt.starty = spt.startx = d;
   spt.endx = spt.endy = row-d-1;
@@ -282,12 +279,10 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   complexFormat *momentum = 0;
   Real *adamv = 0;
   if(beta1) {
-    momentum = (complexFormat*)memMngr.borrowCache(sz);
-    cudaMemset(momentum, 0, sz);
+    momentum = (complexFormat*)memMngr.borrowCleanCache(sz);
   }
   if(beta2) {
-    adamv = (Real*)memMngr.borrowCache(sz/2);
-    cudaMemset(adamv, 0, sz/2);
+    adamv = (Real*)memMngr.borrowCleanCache(sz/2);
   }
   complexFormat *padded = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
   complexFormat *deltabprev = (complexFormat*)memMngr.borrowCache(sz);
@@ -302,8 +297,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     printf("normalization: %f\n",mod2ref);
     step_a = 1./(mod2ref*nlambda);
     if(step_a<=0 || step_a!=step_a) abort();
-    momentum_a = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
-    memset(momentum_a,0,nlambda*sizeof(Real));
+    momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
   }
   complexFormat *fbi;
   if(!updateX) {
@@ -386,7 +380,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     }
     if(calcDeltab) break;
     if(useOrth&&updateA){
-      Fit(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1, sptimg);
+      Fit_fast(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1, sptimg);
       //spectra[nlambda-2] = spectra[nlambda-1] = 0;
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;

@@ -3,7 +3,8 @@ function autocomplete(inp, dictName) {
   the text field element and an array of possible autocompleted values:*/
   var currentFocus;
   /*execute a function when someone writes in the text field:*/
-  inp.addEventListener("input", function(e) {
+  inp.addEventListener("input", openMenu);
+  function openMenu(){
       arr = autoFillDictionary[dictName];
       var a, b, i, val = this.value;
       /*close any already open lists of autocompleted values*/
@@ -38,7 +39,7 @@ function autocomplete(inp, dictName) {
           a.appendChild(b);
         }
       }
-  });
+  };
   /*execute a function presses a key on the keyboard:*/
   inp.addEventListener("keydown", function(e) {
       var x = document.getElementById(this.id + "autocomplete-list");

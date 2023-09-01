@@ -2,7 +2,7 @@
 cudaVars* cudaVar = 0;
 cudaVars* cudaVarLocal = 0;
 dim3 numBlocks;
-const dim3 threadsPerBlock(16,16);
+const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
 cufftHandle *plan, *planR2C;
 int2 cuda_imgsz = {0,0};
@@ -11,9 +11,9 @@ void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0
 cuMemManager memMngr;
 void resize_cuda_image(int rows, int cols){
   cuda_imgsz.x = rows;
-  numBlocks.x=(rows-1)/threadsPerBlock.x+1;
   cuda_imgsz.y = cols;
-  numBlocks.y=(cols-1)/threadsPerBlock.y+1;
+  numBlocks.x=(rows*cols-1)/threadsPerBlock.x+1;
+  //numBlocks.y=(cols-1)/threadsPerBlock.x+1;
 }
 void init_cuda_image(int rcolor, Real scale){
   const int sz = sizeof(cudaVars);

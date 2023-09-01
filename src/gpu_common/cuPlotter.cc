@@ -43,9 +43,18 @@ void cuPlotter::saveVideo(int handle){
 }
 void cuPlotter::init(int rows_, int cols_){
   if(rows==rows_ && cols==cols_) return;
-  if(cv_cache) delete (Mat*)cv_cache;
-  if(cv_float_cache) delete (Mat*)cv_float_cache;
-  if(cv_complex_cache) delete (Mat*)cv_complex_cache;
+  if(cv_cache) {
+    delete (Mat*)cv_cache;
+    cv_cache = 0;
+  }
+  if(cv_float_cache) {
+    delete (Mat*)cv_float_cache;
+    cv_float_cache = 0;
+  }
+  if(cv_complex_cache){
+    delete (Mat*)cv_complex_cache;
+    cv_complex_cache = 0;
+  }
   printf("init plot %d, %d\n",rows_,cols_);
   rows=rows_;
   cols=cols_;

@@ -25,20 +25,24 @@ int main(int argc, char** argv )
   cudaMemcpy(d_sig, sig, sz, cudaMemcpyHostToDevice);
   ccmemMngr.returnCache(sig);
   init_cuda_image(rcolor, 1);
-  if(row > row1){
-    Real* tmp = (Real*)memMngr.borrowCache(row1*col1*sizeof(Real));
-    resize_cuda_image(row1, col1);
-    crop(d_bkg, tmp, row, col);
-    memMngr.returnCache(d_bkg);
-    d_bkg = tmp;
-    row = row1;
-    col = col1;
+  if(row!=row1){
+    if(row > row1){
+      Real* tmp = (Real*)memMngr.borrowCache(row1*col1*sizeof(Real));
+      resize_cuda_image(row1, col1);
+      crop(d_bkg, tmp, row, col);
+      memMngr.returnCache(d_bkg);
+      d_bkg = tmp;
+      row = row1;
+      col = col1;
+    }else{
+      Real* tmp = (Real*)memMngr.borrowCache(row*col*sizeof(Real));
+      resize_cuda_image(row, col);
+      crop(d_sig, tmp, row1, col1);
+      memMngr.returnCache(d_sig);
+      d_sig = tmp;
+    }
   }else{
-    Real* tmp = (Real*)memMngr.borrowCache(row*col*sizeof(Real));
-    resize_cuda_image(row, col);
-    crop(d_sig, tmp, row1, col1);
-    memMngr.returnCache(d_sig);
-    d_sig = tmp;
+      resize_cuda_image(row, col);
   }
 
   add(d_sig, d_bkg, -1);

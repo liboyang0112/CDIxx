@@ -94,7 +94,7 @@ __global__ void calcBracketLambda(cudaVars* vars,int cuda_row, int cuda_column, 
 template <typename T>
 __global__ void tvFilter(int cuda_row, int cuda_column, T *srcImage, T *bracket, T* u0, T* slambda)
 {
-  cudaIdx()
+  cuda1Idx()
   srcImage[index]+=bracket[index]-(*slambda)*(srcImage[index]-u0[index]);
 }
 

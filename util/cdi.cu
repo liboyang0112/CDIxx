@@ -17,7 +17,7 @@
 #include "cdi.h"
 
 cuFunc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(ESW,ISW,ESWP,length),{
-  cudaIdx()
+  cuda1Idx()
     auto tmp = ISW[index];
   auto tmp2 = ESWP[index];
   auto sum = cuCaddf(tmp,ESWP[index]);
@@ -45,7 +45,7 @@ cuFunc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* E
    */
 })
 cuFunc(initESW,(complexFormat* ESW, Real* mod, complexFormat* amp),(ESW,mod,amp),{
-  cudaIdx()
+  cuda1Idx()
     auto tmp = amp[index];
   if(cuCabsf(tmp)<=1e-10) {
     ESW[index] = tmp;
@@ -61,7 +61,7 @@ cuFunc(initESW,(complexFormat* ESW, Real* mod, complexFormat* amp),(ESW,mod,amp)
   ESW[index].y = factor*tmp.y;
 })
 cuFunc(applyESWMod,(complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel),(ESW,mod,amp,noiseLevel),{
-  cudaIdx()
+  cuda1Idx()
     Real tolerance = 0;//1./vars->rcolor*vars->scale+1.5*sqrtf(noiseLevel)/vars->rcolor; // fluctuation caused by bit depth and noise
   auto tmp = amp[index];
   auto sum = cuCaddf(ESW[index],tmp);
@@ -86,7 +86,7 @@ cuFunc(applyESWMod,(complexFormat* ESW, Real* mod, complexFormat* amp, int noise
 })
 
 cuFunc(calcESW,(complexFormat* sample, complexFormat* ISW),(sample,ISW),{
-  cudaIdx()
+  cuda1Idx()
     complexFormat tmp = sample[index];
   tmp.x = -tmp.x;  // Here we reverse the image, use tmp.x = tmp.x - 1 otherwise;
                    //Real ttmp = tmp.y;
@@ -96,7 +96,7 @@ cuFunc(calcESW,(complexFormat* sample, complexFormat* ISW),(sample,ISW),{
 })
 
 cuFunc(calcO,(complexFormat* ESW, complexFormat* ISW),(ESW,ISW),{
-  cudaIdx()
+  cuda1Idx()
     if(cuCabsf(ISW[index])<1e-4) {
       ESW[index].x = 0;
       ESW[index].y = 0;
@@ -113,7 +113,7 @@ cuFunc(calcO,(complexFormat* ESW, complexFormat* ISW),(ESW,ISW),{
 })
 
 cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Real *bs = 0),(source,target,bs),{
-  cudaIdx()
+  cuda1Idx()
   Real targetdata = target[index].x;
   Real retval = targetdata;
   source[index].y = 0;
@@ -179,9 +179,18 @@ int main(int argc, char** argv )
       }
     }else{
       setups.prepareIter();
-      setups.phaseRetrieve(); 
+      setups.phaseRetrieve();
+      setups.saveState();
+      double smallresidual = setups.residual;
+      for(int i = 0; i < setups.nIter; i++){
+        setups.prepareIter();
+        setups.phaseRetrieve();
+        if(smallresidual > setups.residual){
+          smallresidual = setups.residual;
+          setups.saveState();
+        }
+      }
     }
-    setups.saveState();
   }
   setups.checkAutoCorrelation();
 

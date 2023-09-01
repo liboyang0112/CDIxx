@@ -22,14 +22,26 @@
 #define cuFuncShared(name,args,param,content...)\
   __global__ void name##Wrap(addVarArg args) content \
   void name( addSize args){\
-    name##Wrap<<<numBlocks, threadsPerBlock, size>>>(addVar param);\
+    dim3 nthd = {16,16};\
+    dim3 nblk = {\
+      (cuda_imgsz.x-1)/nthd.x+1,\
+      (cuda_imgsz.y-1)/nthd.y+1\
+    };\
+    name##Wrap<<<nblk, nthd, size>>>(addVar param);\
   }
-#define cudaIdx() \
+#define cudaoIdx() \
   int x = blockIdx.x * blockDim.x + threadIdx.x;\
   int y = blockIdx.y * blockDim.y + threadIdx.y;\
   if(x >= cuda_row || y >= cuda_column) return;\
   int index = x*cuda_column + y;
-#define cudaArgs cudaVars* vars, int cuda_row, int cuda_column
+#define cuda1Idx() \
+  int index = blockIdx.x * blockDim.x + threadIdx.x;\
+  if(index >= cuda_row*cuda_column) return;
+#define cudaIdx() \
+  int index = blockIdx.x * blockDim.x + threadIdx.x;\
+  if(index >= cuda_row*cuda_column) return;\
+  int x = index/cuda_column;\
+  int y = index%cuda_column;
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
 struct cudaVars{

@@ -47,29 +47,35 @@ struct CustomSumReal
 };
 CustomSumReal sumreal_op;
 
-struct CustomMax
-{
-  __device__ __forceinline__
-    Real operator()(const Real &a, const Real &b) const {
-      return (b > a) ? b : a;
-    }
-};
-CustomMax max_op;
+#define operatorStruct(name, type, expression...)\
+struct Struct##name\
+{\
+  __device__ __forceinline__\
+    Real operator()(const type &a, const type &b) const {\
+      expression\
+    }\
+};\
+Struct##name name;
+operatorStruct(max_op, Real, return (b > a) ? b : a;);
 
-static void   *store_findMax = NULL;
-static size_t store_findMax_n = 0;
-static void   *store_findSum = NULL;
-static size_t store_findSum_n = 0;
-static void   *store_findMod2Max = NULL;
-static size_t store_findMod2Max_n = 0;
-static void   *store_findSumReal = NULL;
-static size_t store_findSumReal_n = 0;
+#define store(name) \
+static void   *store_##name = NULL;\
+static size_t store_##name##_n = 0;
+store(findMax);
+store(findSum);
+store(findMod2Max);
+store(findSumReal);
 
-void initCub(){
-  if(store_findMax_n) {
-    store_findMax_n = 0;
-    memMngr.returnCache(store_findMax);
+#define initStore(name)\
+  if(store_##name##_n) {\
+    store_##name##_n = 0;\
+    memMngr.returnCache(store_##name);\
   }
+void initCub(){
+  initStore(findMax);
+  initStore(findSum);
+  initStore(findMod2Max);
+  initStore(findSumReal);
 }
 Real findMax(Real* d_in, int num)
 {
@@ -100,21 +106,25 @@ Real findSum(Real* d_in, int num, bool debug=false)
 }
 
 cuFunc(multiplyx,(complexFormat* object, Real* out),(object,out),{
-  cudaIdx();
+  cuda1Idx();
+  int x = index/cuda_column;
   out[index] = cuCabsf(object[index]) * (Real(x)/cuda_row-0.5);
 })
 
 cuFunc(multiplyy,(complexFormat* object, Real* out),(object,out),{
-  cudaIdx();
+  cuda1Idx();
+  int y = index%cuda_column;
   out[index] = cuCabsf(object[index]) * (Real(y)/cuda_column-0.5);
 })
 cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
-  cudaIdx();
+  cuda1Idx();
+  int x = index/cuda_column;
   out[index] = object[index] * (Real(x)/cuda_row-0.5);
 })
 
 cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
-  cudaIdx();
+  cuda1Idx();
+  int y = index%cuda_column;
   out[index] = object[index] * (Real(y)/cuda_column-0.5);
 })
 complexFormat findMiddle(complexFormat* d_in, int num){

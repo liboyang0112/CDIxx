@@ -122,6 +122,8 @@ AlgoParser::AlgoParser(const char* f){
     else if(str=="ER") algoList.push_back(ER);
     else if(str=="POSER") algoList.push_back(POSER);
     else if(str=="POSHIO") algoList.push_back(POSHIO);
+    else if(str=="FHIO") algoList.push_back(FHIO);
+    else if(str=="KKT") algoList.push_back(KKT);
     else if(str=="shrinkWrap") algoList.push_back(shrinkWrap);
     else if(str=="XCORRELATION") algoList.push_back(XCORRELATION);
     else if(str=="subParser") algoList.push_back(nAlgo+iParser++);
@@ -129,7 +131,7 @@ AlgoParser::AlgoParser(const char* f){
       printf("Algorithm %s not found\n", str.c_str());
       exit(0);
     }
-  }while( ptr = strtok_r(NULL,"*",&ptrstore));
+  }while( (ptr = strtok_r(NULL,"*",&ptrstore)));
   restart();
 }
 void AlgoParser::restart(){
@@ -149,7 +151,7 @@ int AlgoParser::next(){
     if(retVal==-1) { 
       currentCount--;
       subParsers[algoList[currentAlgo]-nAlgo]->restart();
-      return subParsers[algoList[currentAlgo]-nAlgo]->next();
+      return next();
     }
     return retVal;
   } else {

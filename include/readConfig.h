@@ -12,7 +12,7 @@
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
-enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, shrinkWrap, XCORRELATION, cnt};
+enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, cnt};
 
 struct CDIfiles{
   const char* Pattern;

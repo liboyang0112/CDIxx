@@ -33,7 +33,7 @@ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
 
 Real gaussian_norm(Real x, Real y, Real sigma);
 cuFunc(applySupport,(Real* image, Real* support),(image,support),{
-  cudaIdx();
+  cuda1Idx();
   if(support[index] > vars->threshold) image[index] = 0;
 })
 
@@ -79,12 +79,12 @@ __device__ void rPIE(complexFormat &target, complexFormat source, complexFormat 
 }
 
 cuFunc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(object,probe,U,mod2maxProbe),{
-  cudaIdx()
+  cuda1Idx()
   rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
 cuFunc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(object,probe,U,mod2maxProbe,mod2maxObj),{
-  cudaIdx()
+  cuda1Idx()
   complexFormat objectdat= object[index];
   complexFormat diff= U[index];
   rPIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
@@ -92,7 +92,7 @@ cuFunc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, comple
 })
 
 cuFunc(random,(complexFormat* object, curandStateMRG32k3a *state),(object,state),{
-  cudaIdx()
+  cuda1Idx()
   curand_init(1,index,0,&state[index]);
   object[index].x = curand_uniform(&state[index]);
   object[index].y = curand_uniform(&state[index]);
@@ -107,19 +107,21 @@ cuFunc(pupilFunc,(complexFormat* object),(object),{
 })
 
 cuFunc(multiplyx,(complexFormat* object),(object),{
-  cudaIdx();
+  cuda1Idx();
+  int x = index/cuda_column;
   object[index].x *= Real(x)/cuda_row-0.5;
   object[index].y *= Real(x)/cuda_row-0.5;
 })
 
 cuFunc(multiplyy,(complexFormat* object),(object),{
-  cudaIdx();
+  cuda1Idx();
+  int y = index%cuda_column;
   object[index].x *= Real(y)/cuda_row-0.5;
   object[index].y *= Real(y)/cuda_row-0.5;
 })
 
 cuFunc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(object,Fn,pattern,beamstop),{
-  cudaIdx();
+  cuda1Idx();
   if(beamstop[index] > 0.5){
     object[index].x = 0;
     return;
@@ -167,17 +169,14 @@ class ptycho : public experimentConfig{
       objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
       esw = (complexFormat*) memMngr.borrowCache(sz*2);
-      patterns = (Real**) malloc(scanx*scany*sizeof(Real*));
-      memset(patterns, 0, scanx*scany*sizeof(Real*)/sizeof(char));
+      patterns = (Real**)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real*));
       printf("initializing cuda image\n");
       resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       initRand(devstates,seed);
-      shiftx = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
-      shifty = (Real*)ccmemMngr.borrowCache(scanx*scany*sizeof(Real));
-      memset(shiftx, 0, scanx*scany*sizeof(Real)/sizeof(char));
-      memset(shifty, 0, scanx*scany*sizeof(Real)/sizeof(char));
+      shiftx = (Real*)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real));
+      shifty = (Real*)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real));
       if(positionUncertainty > 1e-4){
         initPosition();
       }

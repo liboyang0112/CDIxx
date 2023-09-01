@@ -173,7 +173,8 @@ int main(int argc, char** argv){
         getRealSpectrum(cdi.ccd_response, mwl.nlambda, lambdas, spectra);
         ofstream fout("spectrum_solved.txt", ios::out);
         for(int i = 0; i < mwl.nlambda ; i++) {
-          fout << lambdas[i] << " " << (spectra[i]>0?spectra[i]:0) << endl;
+          //fout << lambdas[i] << " " << (spectra[i]>0?spectra[i]:0) << endl;
+          fout << lambdas[i] << " " << spectra[i] << endl;
         }
         break;
       }
