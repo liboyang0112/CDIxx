@@ -4,9 +4,6 @@
 #include <random>
 using namespace cv;
 using namespace std;
-//auto format_cv = CV_16UC(1);
-auto format_cv = CV_64FC(1);
-//auto format_cv = CV_8UC(1);
 Real gaussian(Real x, Real y, Real sigma){
   Real r2 = pow(x,2) + pow(y,2);
   return exp(-r2/pow(sigma,2));
@@ -53,12 +50,12 @@ int main(int argc, char** argv )
       if(r<spotr) rowo[y] = 0;
       //if(r<60) rowo[y] *= 0.4;
 #endif
-      if(x <= 7 || y <= 7) rowo[y] = -1;
+      if(x <= 4 || y <= 4) rowo[y] = -1;
       else rowo[y] = 0;
-      if(y > 7 && (y%30 < 7)) rowo[y] = 0; 
+      if(y > 2 && (y%30 < 15)) rowo[y] = 0; 
     }
   }
 
-  imwrite("image.tiff", image);
+  imwrite("image.png", image);
   return 0;
 }

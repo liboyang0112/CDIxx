@@ -4,9 +4,6 @@
 #include <random>
 using namespace cv;
 using namespace std;
-//auto format_cv = CV_16UC(1);
-auto format_cv = CV_64FC(1);
-//auto format_cv = CV_8UC(1);
 Real gaussian(Real x, Real y, Real sigma){
   Real r2 = pow(x,2) + pow(y,2);
   return exp(-r2/pow(sigma,2));

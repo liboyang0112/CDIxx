@@ -29,11 +29,6 @@
     };\
     name##Wrap<<<nblk, nthd, size>>>(addVar param);\
   }
-#define cudaoIdx() \
-  int x = blockIdx.x * blockDim.x + threadIdx.x;\
-  int y = blockIdx.y * blockDim.y + threadIdx.y;\
-  if(x >= cuda_row || y >= cuda_column) return;\
-  int index = x*cuda_column + y;
 #define cuda1Idx() \
   int index = blockIdx.x * blockDim.x + threadIdx.x;\
   if(index >= cuda_row*cuda_column) return;
@@ -62,9 +57,7 @@ class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);
   void c_memset(void*& ptr, size_t sz);
   public:
-  cuMemManager():memManager(){
-    //cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
-  };
+  cuMemManager():memManager(){};
 };
 extern cuMemManager memMngr;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }

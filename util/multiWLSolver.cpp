@@ -1,5 +1,4 @@
 #include <iostream>
-#include "imageReader.h"
 #include <vector>
 #include "common.h"
 #include "fftw.h"

@@ -44,6 +44,17 @@ cuFunc(takeMod2Sum,(complexFormat* a, Real* b),(a,b),{
   b[index] = tmp;
 })
 
+cuFunc(multiplySqy,(Real* object, Real* out),(object,out),{
+  cuda1Idx();
+  int y = index%cuda_column;
+  out[index] = object[index] * sq(Real(y)/cuda_column-0.5);
+})
+
+cuFunc(multiplySqx,(Real* object, Real* out),(object,out),{
+  cuda1Idx();
+  int x = index/cuda_column;
+  out[index] = object[index] * sq(Real(x)/cuda_row-0.5);
+})
 
 __device__ void ApplyHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
   if(insideS){
@@ -57,13 +68,13 @@ __device__ void ApplyHIOSupport(bool insideS, complexFormat &rhonp1, complexForm
 
 __device__ void ApplyFHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
   if(insideS){
-    rhonp1.x += 2*(rhoprime.x-rhonp1.x);
-    rhonp1.y += 2*(rhoprime.y-rhonp1.y);
+    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
+    rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
   }else{
     //rhonp1.x += -0.9*rhoprime.x;
     //rhonp1.y += -0.9*rhoprime.y;
-    rhonp1.x -= 0.5*rhoprime.x;
-    rhonp1.y -= 0.5*rhoprime.y;
+    rhonp1.x -= 0.9*rhoprime.x;
+    rhonp1.y -= 0.9*rhoprime.y;
   }
 }
 
@@ -89,16 +100,25 @@ __device__ void ApplyPOSERSupport(bool insideS, complexFormat &rhonp1, complexFo
 }
 __device__ void ApplyERSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
   if(insideS){
-    rhonp1.x = rhoprime.x;
-    rhonp1.y = rhoprime.y;
+    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
+    rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
   }else{
     rhonp1.x = 0;
     rhonp1.y = 0;
   }
 }
 
-
 __device__ void ApplyPOSHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
+  if(rhoprime.x > 0 && insideS){
+    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
+    //rhonp1.y = rhoprime.y;
+  }else{
+    rhonp1.x -= beta*rhoprime.x;
+  }
+  rhonp1.y -= beta*rhoprime.y;
+}
+
+__device__ void ApplyPOS0HIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
   if(rhoprime.x > 0 && insideS){
     rhonp1.x = rhoprime.x;
     //rhonp1.y = rhoprime.y;
@@ -175,6 +195,7 @@ void CDI::readPattern(){
     cudaMemcpy(patternData, pattern, row*column*sizeof(Real), cudaMemcpyHostToDevice);
   }
   ccmemMngr.returnCache(pattern);
+  //multiplySqy(patternData,patternData);
   cudaConvertFO(patternData);
   applyNorm(patternData, 1./exposure);
   printf("Created pattern data\n");
@@ -260,6 +281,7 @@ void CDI::prepareIter(){
       cudaConvertFO(patternData);
     }
     cudaConvertFO(patternData);
+    //multiplySqy(patternData,patternData);
     applyNorm(patternData, exposure);
     plt.saveFloat(patternData, "sim_pattern");
     applyNorm(patternData, 1./exposure);
@@ -267,9 +289,12 @@ void CDI::prepareIter(){
   }
   if(restart){
     complexFormat *wf = (complexFormat*) readComplexImage(common.restart);
-    cudaMemcpy(patternWave, wf, row*column*sizeof(complexFormat), cudaMemcpyHostToDevice);
-    verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
+    size_t sz = row*column*sizeof(complexFormat);
+    if(ccmemMngr.getSize(wf) == sz){
+      cudaMemcpy(patternWave, wf, sz, cudaMemcpyHostToDevice);
+    }
     ccmemMngr.returnCache(wf);
+    verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
   }else {
     createWaveFront(patternData, 0, patternWave, 1);
     applyRandomPhase(patternWave, useBS?beamstop:0, devstates);
@@ -319,10 +344,13 @@ void CDI::saveState(){
   auto mid = findMiddle(support, row*column);
   resize_cuda_image(row/oversampling_spt,column/oversampling_spt);
   complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat*)*(row/oversampling_spt)*(column/oversampling_spt));
+  Real* tmp1 = (Real*)memMngr.borrowCache(sizeof(Real*)*(row/oversampling_spt)*(column/oversampling_spt));
   printf("mid= %f,%f\n",mid.x,mid.y);
   crop(cuda_gkp1, tmp, row, column,mid.x,mid.y);
+  getMod2(tmp1, tmp);
+  Real max = min(1.,findMax(tmp1,row/oversampling_spt*(column/oversampling_spt)));
   plt.init(row/oversampling_spt,column/oversampling_spt);
-  plt.plotComplex(tmp, MOD2, 0, 1, ("recon_intensity_cropped"+save_suffix).c_str(), 0, isFlip);
+  plt.plotFloat(tmp1, MOD, 0, 1./max, ("recon_intensity_cropped"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(tmp, PHASE, 0, 1, ("recon_phase_cropped"+save_suffix).c_str(), 0, isFlip);
   resize_cuda_image(row,column);
   plt.init(row,column);
@@ -400,11 +428,11 @@ complexFormat* CDI::phaseRetrieve(){
     vidhandle = plt.initVideo("recon_intensity.mp4","avc1", 24);
     plt.showVid = -1;
   }
-  Real beta = -1;
+  //Real beta = -1;
   Real beta1 = .9;
   Real beta2 = 0.6;
-  Real gammas = -1./beta;
-  Real gammam = 1./beta;
+  //Real gammas = -1./beta;
+  //Real gammam = 1./beta;
   Real gaussianSigma = 2.5;
 
   size_t sz = row*column*sizeof(complexFormat);

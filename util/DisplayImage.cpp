@@ -5,7 +5,7 @@ using namespace cv;
 using namespace std;
 //using pixeltype=uint16_t;
 //auto format_cv = CV_16UC(1);
-auto format_cv = CV_64FC(1);
+//auto format_cv = CV_64FC(1);
 //using pixeltype=char;
 //auto format_cv = CV_8UC(1);
 double gaussian(double x, double y, double sigma){

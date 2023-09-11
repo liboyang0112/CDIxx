@@ -14,8 +14,16 @@ using pixeltype=unsigned short;
 #else
 using pixeltype=uchar;
 #endif
+
+#if Bits==12 || Bits==16
+#define format_cv CV_16UC1
+#else
+#define format_cv CV_8UC1
+#endif
+
 using Real=float;
 using fftw_format=std::complex<Real>;
 const int rcolor = pow(2,Bits);
 #endif
 #define sq(x) ((x)*(x))
+#define sqSum(x,y) ((x)*(x)+(y)*(y))

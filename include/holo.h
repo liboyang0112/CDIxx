@@ -13,7 +13,9 @@ class holo : public CDI{
     int objrow, objcol;
     void initXCorrelation();
     void calcXCorrelation(bool doplot);
+    void calcXCorrelationHalf(bool doplot);
     void simulate();
     void allocateMem_holo();
     void iterate();
+    void noniterative();
 };

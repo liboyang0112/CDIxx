@@ -13,10 +13,10 @@ int main(int argc, char* argv[]){
   complexFormat** objectWaves = (complexFormat**)ccmemMngr.borrowCache(nlambda*sizeof(complexFormat*));
   Real* refIntensity = (Real*)ccmemMngr.borrowCache(nlambda*sizeof(Real));
   Real* refImg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  objectWaves[0] = (complexFormat*)cdi.objectWave;
+  refIntensity[0] = 1;
   for(int i = 1; i < nlambda ; i++){
     objectWaves[i] = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
     refIntensity[i] = 1;
   }
-  objectWaves[0] = (complexFormat*)cdi.objectWave;
-  refIntensity[0] = 1;
 }

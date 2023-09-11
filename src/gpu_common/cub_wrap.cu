@@ -101,7 +101,7 @@ Real findSumReal(complexFormat* d_in, int num)
 
 Real findSum(Real* d_in, int num, bool debug=false)
 {
-  FUNC(Real, sum_op, 0, store_findSum);
+  FUNC(Real, sum_op, Real(0), store_findSum);
   return output;
 }
 

@@ -140,7 +140,6 @@ cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Rea
 
 int main(int argc, char** argv )
 {
-  cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   CDI setups(argv[1]);
   if(argc < 2){
     printf("please feed the object intensity and phase image\n");

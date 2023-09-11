@@ -204,7 +204,7 @@ cuFunc(add,(Real* store, Real* a, Real* b, Real c),(store, a,b,c),{
   store[index] = a[index]+b[index]*c;
 })
 
-cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty),(d_intensity,d_phase,objectWave,row,col,shiftx,shifty),{
+cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty, Real phaseFactor),(d_intensity,d_phase,objectWave,row,col,shiftx,shifty,phaseFactor),{
   cudaIdx()
   int marginx = (cuda_row-row)/2+shiftx;
   int marginy = (cuda_column-col)/2+shifty;
@@ -213,11 +213,12 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
     return;
   }
   int targetindex = (x-marginx)*col + y-marginy;
-  Real mod = 1;
-  if(d_intensity) mod = sqrtf(max(0.,d_intensity[targetindex]));
-  //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
+  Real phase = phaseFactor*sqSum(x-marginx-(row>>1),y-marginy-(col>>1));
+  Real mod = d_intensity?sqrtf(max(0.,d_intensity[targetindex])):1;
   if(d_phase){
-    Real phase = (d_phase[targetindex]-0.5)*2*M_PI;
+    phase += (d_phase[targetindex]-0.5)*2*M_PI;
+  }
+  if(phase){
     objectWave[index].x = mod*cos(phase);
     objectWave[index].y = mod*sin(phase);
   }else{
@@ -226,7 +227,7 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
   }
 })
 
-cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx, Real shifty),(d_intensity,d_phase,objectWave,oversampling,shiftx,shifty),{
+cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx, Real shifty, Real phaseFactor),(d_intensity,d_phase,objectWave,oversampling,shiftx,shifty,phaseFactor),{
   cudaIdx()
   Real marginratio = (1-1./oversampling)/2;
   int marginx = (marginratio+shiftx)*cuda_row;
@@ -235,13 +236,20 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
     objectWave[index].x = objectWave[index].y = 0;
     return;
   }
-  int targetindex = (x-marginx)*ceil(cuda_column/oversampling) + y-marginy;
-  Real mod = 1;
-  if(d_intensity) mod = sqrtf(max(0.,d_intensity[targetindex]));
-  Real phase = d_phase? (d_phase[targetindex]-0.5)*2*M_PI : 0;
+  int row = ceil(cuda_row/oversampling);
+  int col = ceil(cuda_column/oversampling);
+  int targetindex = (x-marginx)*col + y-marginy;
+  Real phase = phaseFactor*sqSum(x-marginx-(row>>1),y-marginy-(col>>1));
+  Real mod = d_intensity?sqrtf(max(0.,d_intensity[targetindex])):1;
+  if(d_phase) phase += (d_phase[targetindex]-0.5)*2*M_PI;
   //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
-  objectWave[index].x = mod*cos(phase);
-  objectWave[index].y = mod*sin(phase);
+  if(phase){
+    objectWave[index].x = mod*cos(phase);
+    objectWave[index].y = mod*sin(phase);
+  }else{
+    objectWave[index].x = mod;
+    objectWave[index].y = 0;
+  }
 })
 
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol){

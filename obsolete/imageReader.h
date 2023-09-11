@@ -9,14 +9,6 @@ static bool opencv_reverted = 0;
 Real getVal(mode m, fftw_format &data);
 Real getVal(mode m, Real &data);
 
-#if Bits==12
-static const auto format_cv = CV_16UC1;
-#elif Bits==16
-static const auto format_cv = CV_16UC1;
-#else
-static const auto format_cv = CV_8UC1;
-#endif
-
 Mat* convertFromRealToInteger(Mat *fftwImage, Mat* opencvImage = 0, mode m = MOD, bool isFrequency = 0, Real decay = 1, const char* label= "default",bool islog = 0);
 
 Mat* convertFromComplexToInteger(Mat *fftwImage, Mat* opencvImage = 0, mode m = MOD, bool isFrequency = 0, Real decay = 1, const char* label= "default",bool islog = 0);

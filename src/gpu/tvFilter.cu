@@ -107,14 +107,14 @@ void inittvFilter(int row, int col){
   d_bracket = (Real*)memMngr.borrowCache(sz);
   d_lambdacore = (Real*)memMngr.borrowCache(sz);
   lambda = (Real*)memMngr.borrowCache(sizeof(Real));
-  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_lambdacore, lambda, rows*cols, sum_op, 0));
+  gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, temp_storage_bytes, d_lambdacore, lambda, rows*cols, sum_op, Real(0)));
   d_temp_storage = memMngr.borrowCache(temp_storage_bytes);
 }
 Real* tvFilterWrap(Real* d_input, Real noiseLevel, int nIters){
   gpuErrchk(cudaMemcpy(d_output,d_input,sz,cudaMemcpyDeviceToDevice));
 	for(int i = 0; i<nIters; i++){
     calcBracketLambda<<<numBlocks,threadsPerBlock,sizeof(float)*(tilewidth)*(tilewidth)>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, d_output, d_bracket, d_input, d_lambdacore, noiseLevel);
-    gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, sz, d_lambdacore, lambda, rows*cols, sum_op, 0));
+    gpuErrchk(cub::DeviceReduce::Reduce(d_temp_storage, sz, d_lambdacore, lambda, rows*cols, sum_op, Real(0)));
     tvFilter<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, d_output, d_bracket, d_input, lambda);
 	}
   cudaMemcpy(d_input,d_output,sz,cudaMemcpyDeviceToDevice);

@@ -4,7 +4,6 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include "format.h"
-#include "imageReader.h"
 using namespace cv;
 using namespace std;
 

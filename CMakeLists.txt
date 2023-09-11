@@ -3,35 +3,22 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_C_COMPILER "clang")
 set(TORCH_DIR "/home/boyang/.local/python_venv/lib/python3.11/site-packages/torch")
-#set(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations")
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE)
 find_package( OpenCV REQUIRED )
 find_package( GSL REQUIRED )
-find_package(VTK COMPONENTS 
-  jsoncpp
-  CommonColor
-  CommonCore
-  CommonDataModel
-  FiltersGeometry
-  IOXML
-  InteractionStyle
-  RenderingContextOpenGL2
-  RenderingCore
-  RenderingFreeType
-  RenderingGL2PSOpenGL2
-  RenderingOpenGL2
-  RenderingVolumeOpenGL2
-  )
-find_package(CUDA)
+set(CMAKE_CUDA_HOST_COMPILER clang++)
+set(CMAKE_CUDA_COMPILER nvcc)
+enable_language(CUDA)
+set(NVHPC_CUDA_VERSION 12.2)
+find_package(NVHPC REQUIRED COMPONENTS CUDA MATH)
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
 find_package(PythonLibs REQUIRED)
-set(Alllibs lapacke fftw3 config m z ${OpenCV_LIBS} ${HDF5_LIBRARIES} ${GSL_LIBRARIES})
+set(Alllibs)
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
-set(ENABLE_CUDA 1)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories ("${MPI_CXX_INCLUDE_DIRS}")
 include_directories ("${HDF5_INCLUDE_DIRS}")
@@ -39,7 +26,6 @@ include_directories ("${PROJECT_SOURCE_DIR}/include")
 include_directories (${TORCH_DIR}/include)
 include_directories (${TORCH_DIR}/include/torch/csrc/api/include)
 include_directories (${PYTHON_INCLUDE_DIRS})
-cuda_include_directories ("${PROJECT_SOURCE_DIR}/include")
 link_directories(${TORCH_DIR}/lib)
 link_directories(${PROJECT_SOURCE_DIR}/lib)
 set(TORCH_LIBS c10_cuda torch_cpu torch_cuda torch c10)
@@ -75,19 +61,6 @@ foreach( sourcefile ${APP_SOURCES} )
   target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
 endforeach( sourcefile ${APP_SOURCES} )
 
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/vtk/*.cc )
-foreach( sourcefile ${APP_SOURCES} )
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".cc" "_cc" libname ${libname} )
-  add_library( ${libname} SHARED ${sourcefile})
-  target_link_libraries(${libname} PUBLIC ${VTK_LIBRARIES})
-  vtk_module_autoinit(
-    TARGETS ${libname}
-    MODULES ${VTK_LIBRARIES}
-    )
-  list(PREPEND Alllibs ${libname}) 
-endforeach( sourcefile ${APP_SOURCES} )
-
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/common/*c )
 file( GLOB APP_SOURCES1 RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu_common/*.cc )
 foreach( sourcefile ${APP_SOURCES} ${APP_SOURCES1})
@@ -97,19 +70,21 @@ foreach( sourcefile ${APP_SOURCES} ${APP_SOURCES1})
   add_library( ${libname} SHARED ${sourcefile})
   list(PREPEND Alllibs ${libname}) 
 endforeach( sourcefile ${APP_SOURCES} )
+target_link_libraries(common_cc readCXI_cc)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas=-O3")
-message(${CUDA_INCLUDE_DIRS})
-enable_language(CUDA)
+#message(${NVHPC_CUDA_INCLUDE_DIRS})
 message(${Alllibs})
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu_common/*.cu )
 file( GLOB APP_SOURCES2 RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu_ext/*.cu )
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES} ${APP_SOURCES2})
-cuda_add_cufft_to_target(${libname})
+target_link_libraries(${libname} NVHPC::CUFFT)
 set_target_properties( ${libname}
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 list(PREPEND Alllibs ${libname}) 
+target_link_libraries(cudaLibcommon_cu cuPlotter_cc)
+target_link_libraries(cudaLibcommon_cu common_cc)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c )
 foreach( sourcefile ${APP_SOURCES} )
@@ -119,6 +94,7 @@ foreach( sourcefile ${APP_SOURCES} )
   add_library( ${libname} SHARED ${sourcefile})
   list(PREPEND Alllibs ${libname}) 
 endforeach( sourcefile ${APP_SOURCES} )
+target_link_libraries(orthFitter_cc cudaLibcommon_cu matrixInverse_cc)
 
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
@@ -127,11 +103,18 @@ foreach( sourcefile ${APP_SOURCES} )
   string( REPLACE ".cu" "_cu_lib" libname ${libname} )
   message(${libname})
   add_library(${libname} SHARED ${sourcefile})
-  cuda_add_cufft_to_target(${libname})
+  target_link_libraries(${libname} NVHPC::CUFFT)
   set_target_properties( ${libname}
     PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   target_link_libraries(${libname} ${Alllibs})
 endforeach( sourcefile ${APP_SOURCES} )
+
+target_link_libraries(cuPlotter_cc ${OpenCV_LIBS})
+target_link_libraries(common_cc ${OpenCV_LIBS})
+target_link_libraries(common_cc ${GSL_LIBRARIES})
+target_link_libraries(readCXI_cc ${HDF5_LIBRARIES})
+target_link_libraries(torchConfig_cc config)
+
 
 target_link_libraries(cdi_cu_lib experimentConfig_cu_lib)
 target_link_libraries(cdi_cu_lib mnistData_cu_lib)
@@ -148,9 +131,11 @@ foreach( sourcefile ${APP_SOURCES} )
   add_executable( ${exename} ${sourcefile})
   set_property(TARGET ${exename}
     PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-  target_link_libraries(${exename} ${Alllibs})
 endforeach( sourcefile ${APP_SOURCES} )
 
+target_link_libraries(fdtd3d_cu ${Alllibs})
+target_link_libraries(fdtd2d_cu ${Alllibs})
+target_link_libraries(processimg_cu ${Alllibs})
 target_link_libraries(cdi_cu cdi_cu_lib)
 target_link_libraries(ptycho_cu experimentConfig_cu_lib)
 target_link_libraries(pulseGen_cu cdilmdb_c)
@@ -170,8 +155,40 @@ foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
   string( REPLACE ".cpp" "_run" exename ${libname} )
   add_executable( ${exename} ${sourcefile})
-  target_link_libraries(${exename} ${Alllibs} ${CUDA_LIBS})
+  target_link_libraries(${exename} ${OpenCV_LIBS})
 endforeach( sourcefile ${APP_SOURCES} )
 target_compile_definitions(unet_run PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
 target_compile_definitions(train_cc PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
 target_link_libraries(unet_run train_cc)
+target_link_libraries(unet_run torchConfig_cc)
+target_link_libraries(testLMDB_run cdilmdb_c)
+target_link_libraries(testfitter_run memManager_cc orthFitter_cc)
+target_link_libraries(gaussionFFT_run fftw3)
+
+find_package(VTK COMPONENTS 
+  jsoncpp
+  CommonColor
+  CommonCore
+  CommonDataModel
+  FiltersGeometry
+  IOXML
+  InteractionStyle
+  RenderingContextOpenGL2
+  RenderingCore
+  RenderingFreeType
+  RenderingGL2PSOpenGL2
+  RenderingOpenGL2
+  RenderingVolumeOpenGL2
+  )
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/vtk/*.cc )
+foreach( sourcefile ${APP_SOURCES} )
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".cc" "_cc" libname ${libname} )
+  add_library( ${libname} SHARED ${sourcefile})
+  target_link_libraries(${libname} PUBLIC ${VTK_LIBRARIES})
+  vtk_module_autoinit(
+    TARGETS ${libname}
+    MODULES ${VTK_LIBRARIES}
+    )
+endforeach( sourcefile ${APP_SOURCES} )
+target_link_libraries(testVtk_run WriteVTI_cc)

@@ -2,6 +2,7 @@
 #define __CUDACONFIG_H__
 #include "format.h"
 #include "cudaDefs.h"
+#include<stdint.h>
 #include <curand_kernel.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
@@ -23,8 +24,8 @@ void interpolate(complexFormat* out, complexFormat* data0, complexFormat* data1,
 void adamUpdateV(Real* v, Real* grad, Real beta2);
 void adamUpdateV(Real* v, complexFormat* grad, Real beta2);
 void adamUpdate(complexFormat* x, complexFormat* m, Real* v, Real lr, Real eps);
-void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0);
-void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0);
+void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0, Real phaseFactor = 0);
+void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0, Real phaseFactor = 0);
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void shiftWave(complexFormat* wave, Real shiftx, Real shifty);
 void shiftMiddle(complexFormat* wave);

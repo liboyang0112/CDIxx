@@ -15,11 +15,8 @@ using namespace std;
 
 const Real b_PML = 1-k_PML*n_PML;
 
-__device__ Real sqSum(Real a, Real b, Real c){
+__device__ Real sqSum3(Real a, Real b, Real c){
   return a*a+b*b+c*c;
-}
-__device__ Real sqSum(Real a, Real b){
-  return a*a+b*b;
 }
 __device__ Real getmH(int x, int y, int z){
   Real ret = 0.4;
@@ -372,24 +369,22 @@ __global__ void applySourceV(Real* Ez, int nx, int ny, int nz, int pos, Real val
   Ez[idx] += val;
 }
 cuFunc(getXYSlice,(Real* slice, Real* data, int nx, int ny, int iz), (slice, data, nx, ny, iz), {
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || y >= ny) return;
-  int index = x + nx*y;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*ny) return;
   slice[index] = data[index+iz*nx*ny];
 })
 cuFunc(getXZSlice,(Real* slice, Real* data, int nx, int ny, int nz, int iy), (slice, data, nx, ny, nz, iy), {
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(x >= nx || z >= nz) return;
-  int index = x + nx*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= nx*nz) return;
+  int x = index%nx;
+  int z = index/nx;
   slice[index] = data[x+nx*iy+nx*ny*z];
 })
 cuFunc(getYZSlice,(Real* slice, Real* data, Real* data2, Real* data3, int nx, int ny, int nz, int ix), (slice, data, data2, data3, nx, ny, nz, ix), {
-  int y = blockIdx.x * blockDim.x + threadIdx.x;
-  int z = blockIdx.y * blockDim.y + threadIdx.y;
-  if(y >= ny || z >= nz) return;
-  int index = y + ny*z;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= ny*nz) return;
+  int y = index%ny;
+  int z = index/ny;
   int idx = ix+nx*y+nx*ny*z;
   //slice[index] = sq(data[idx])+sq(data2[idx])+sq(data3[idx]);
   slice[index] = data2[idx];

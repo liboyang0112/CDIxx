@@ -407,21 +407,21 @@ button[disabled] {
   document.getElementById("rotate_btn").addEventListener('click',async ()=>{
     degree += 90;
     if(degree == 360) degree = 0;
-    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("rotate180_btn").addEventListener('click',async ()=>{
     degree += 180;
     if(degree == 360) degree = 0;
-    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("flip_btn").addEventListener('click',async ()=>{
     flip *=-1;
-    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("reset_btn").addEventListener('click',async ()=>{
     flip=1;
     degree=0;
-    document.getElementById(operateImage).style.transform = "rotate(-" + degree.toString() + "deg) scaleX(" + flip + ")";
+    document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
   });
   document.getElementById("cdi_btn").addEventListener('click',async ()=>{
     button = document.getElementById("cdi_btn");
