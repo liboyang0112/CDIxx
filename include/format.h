@@ -22,6 +22,8 @@ using pixeltype=uchar;
 #endif
 
 using Real=float;
+#define REALIDX FLOAT;
+#define COMPLEXIDX FLOAT2;
 using fftw_format=std::complex<Real>;
 const int rcolor = pow(2,Bits);
 #endif

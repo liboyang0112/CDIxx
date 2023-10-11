@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "imageFile.h"
 #include <ctime>
 #include "cudaConfig.h"
 #include "experimentConfig.h"
@@ -288,18 +289,21 @@ void CDI::prepareIter(){
     cudaConvertFO(patternData);
   }
   if(restart){
-    complexFormat *wf = (complexFormat*) readComplexImage(common.restart);
-    size_t sz = row*column*sizeof(complexFormat);
-    if(ccmemMngr.getSize(wf) == sz){
+    FILE* frestart = fopen(common.restart, "r");
+    imageFile fdata;
+    fread(&fdata, sizeof(fdata), 1, frestart);
+    if(fdata.rows == row && fdata.cols == column){
+      size_t sz = row*column*sizeof(complexFormat);
+      complexFormat *wf = (complexFormat*) ccmemMngr.borrowCache(sz);
       cudaMemcpy(patternWave, wf, sz, cudaMemcpyHostToDevice);
+      ccmemMngr.returnCache(wf);
+      verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
     }
-    ccmemMngr.returnCache(wf);
-    verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
   }else {
     createWaveFront(patternData, 0, patternWave, 1);
     applyRandomPhase(patternWave, useBS?beamstop:0, devstates);
-    propagate(patternWave, objectWave, 0);
   }
+  propagate(patternWave, objectWave, 0);
   initSupport();
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1, 0, 1));
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0));

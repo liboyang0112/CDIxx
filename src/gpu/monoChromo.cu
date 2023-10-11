@@ -451,6 +451,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);
     plt.plotComplex(deltab, MOD, 0, 1, "broad_recon", 0, 0, 0);
+    plt.plotComplex(deltab, MOD, 0, 1, "broad_recon_log", 1, 0, 1);
     fresidual.close();
   }
   if(updateA){

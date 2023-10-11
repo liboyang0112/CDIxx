@@ -13,8 +13,6 @@ int main(int argc, char** argv )
             unsigned char &b = input[img.step * j + i ] ;
             unsigned char &g = input[img.step * j + i + 1];
             unsigned char &r = input[img.step * j + i + 2];
-            //printf("%d,%d,%d\n",r,g,b);
-            //exit(0);
             if(abs(b-251)<45 && abs(r-2)<45 && abs(g-88)<45){
                 r = g = b = 255;
             }

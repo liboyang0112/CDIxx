@@ -13,11 +13,9 @@ class cuPlotter
   void *cv_data = 0; //cv_data = cv_cache->data
   pixeltype *cuCache_data = 0; //cv format
                                //
-  void *cv_float_cache = 0;
   void *cv_float_data = 0; //cv_data = cv_cache->data
   Real *cuCache_float_data = 0; //cv format
 
-  void *cv_complex_cache = 0;
   void *cv_complex_data = 0; //cv_data = cv_cache->data
   
   void *videoWriterVec[100];
@@ -25,7 +23,7 @@ class cuPlotter
   public:
   int toVideo = -1;
   int showVid = 0;
-  cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_cache(0),cv_complex_data(0){};
+  cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_data(0){};
   void init(int rows_, int cols_);
   int initVideo(const char* filename, const char* decoder = "MJPG", int fps = 24);
   void saveVideo(int handle = 0);
@@ -36,7 +34,6 @@ class cuPlotter
   void saveComplexData(void* cudaData);
   void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);  //call processData
   void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);
-  void plotPhase(void* cudaData, const mode m=PHASERAD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0); //phase unwrapping
   void processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void processPhaseData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool isFlip = 0);

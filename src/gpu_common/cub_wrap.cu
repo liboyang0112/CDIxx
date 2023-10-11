@@ -51,17 +51,21 @@ CustomSumReal sumreal_op;
 struct Struct##name\
 {\
   __device__ __forceinline__\
-    Real operator()(const type &a, const type &b) const {\
+    type operator()(const type &a, const type &b) const {\
       expression\
     }\
 };\
 Struct##name name;
 operatorStruct(max_op, Real, return (b > a) ? b : a;);
+operatorStruct(max_op_int, int, return (b > a) ? b : a;);
+operatorStruct(min_op_int, int, return (b < a) ? b : a;);
 
 #define store(name) \
 static void   *store_##name = NULL;\
 static size_t store_##name##_n = 0;
 store(findMax);
+store(findMax_int);
+store(findMin_int);
 store(findSum);
 store(findMod2Max);
 store(findSumReal);
@@ -73,6 +77,8 @@ store(findSumReal);
   }
 void initCub(){
   initStore(findMax);
+  initStore(findMax_int);
+  initStore(findMin_int);
   initStore(findSum);
   initStore(findMod2Max);
   initStore(findSumReal);
@@ -82,6 +88,18 @@ Real findMax(Real* d_in, int num)
   FUNC(Real, max_op, 0, store_findMax);
   return output;
 }
+
+int findMax(int* d_in, int num)
+{
+  FUNC(int, max_op_int, 0, store_findMax_int);
+  return output;
+}
+int findMin(int* d_in, int num)
+{
+  FUNC(int, min_op_int, 0, store_findMin_int);
+  return output;
+}
+
 
 Real findMod2Max(complexFormat* d_in, int num)
 {
