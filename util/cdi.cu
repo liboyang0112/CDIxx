@@ -3,14 +3,14 @@
 #include <stdio.h>
 #include <time.h>
 #include <random>
+#include <unistd.h>
 
 #include <stdio.h>
-#include <libconfig.h++>
-#include "cufft.h"
+//#include "cufft.h"
 #include "common.h"
 #include <ctime>
 #include "cudaConfig.h"
-#include "experimentConfig.h"
+//#include "experimentConfig.h"
 #include "cuPlotter.h"
 #include "mnistData.h"
 

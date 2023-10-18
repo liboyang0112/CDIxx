@@ -295,11 +295,16 @@ void CDI::prepareIter(){
     if(fdata.rows == row && fdata.cols == column){
       size_t sz = row*column*sizeof(complexFormat);
       complexFormat *wf = (complexFormat*) ccmemMngr.borrowCache(sz);
+      fread(wf, sz, 1, frestart);
       cudaMemcpy(patternWave, wf, sz, cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(wf);
       verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
+    }else{
+      printf("Restart file size mismatch: %d!=%d || %d!=%d\n", fdata.rows, row, fdata.cols, column);
+      restart = 0;
     }
-  }else {
+  }
+  if(!restart){
     createWaveFront(patternData, 0, patternWave, 1);
     applyRandomPhase(patternWave, useBS?beamstop:0, devstates);
   }

@@ -2,6 +2,7 @@
 #include "material.h"
 #include "cub_wrap.h"
 #include "cdi.h"
+#include "common.h"
 
 cuFunc(assignX, (Real* img, int* intimg),(img, intimg),{
   cuda1Idx();
@@ -34,7 +35,13 @@ int main(int argc, char* argv[]){
   //split reference and object support into two images.
   int nlambda = 100;
   Real* refSpectrum = (Real*)ccmemMngr.borrowCache(nlambda*sizeof(Real));
-  Real* refImg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  int mrow, mcol;
+  Real* refMask = readImage(cdi.pupil.Intensity, mrow, mcol);
+  int pixCount = 0;
+  for(int idx = 0; idx < mrow*mcol ; idx++){
+    if(refMask[idx] > 0.5) pixCount++;
+  }
+  int2* maskMap = (int2*)memMngr.borrowCache(pixCount*sizeof(int2));
   Real* objSupport = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
   //since the support region is much smaller than the full image. we save the exit wave in smaller caches.
   int border = 5;

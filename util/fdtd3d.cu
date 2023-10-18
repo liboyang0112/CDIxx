@@ -391,7 +391,7 @@ cuFunc(getYZSlice,(Real* slice, Real* data, Real* data2, Real* data3, int nx, in
   //slice[index] = data2[idx]*data2[idx];
 })
 int main(){
-  int nsteps = 1000;
+  int nsteps = 100;
   const int nx = 200;
   const int ny = 200;
   const int nz = 200;
@@ -488,13 +488,13 @@ int main(){
       getYZSlice(slice, Ex, Ey, Ez , nx, ny, nz, 150);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);
       plt.toVideo = ezvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("Ez, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, ("E_z, t="+to_string(i)).c_str(),0,0,1);
       getXYSlice(slice, Hx , nx, ny, 100);
       plt.toVideo = hxvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("Hx, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, ("H_x, t="+to_string(i)).c_str(),0,0,1);
       getXYSlice(slice, Hy , nx, ny, 100);
       plt.toVideo = hyvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("Hy, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, ("H_y, t="+to_string(i)).c_str(),0,0,1);
     }
   }
   plt.saveVideo(ezvid);

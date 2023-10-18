@@ -7,7 +7,7 @@ if [ -z ${CDI_DIR+x} ] ; then
 	  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 	done
 	export CDI_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-	export PATH+=:$CDI_DIR/bin:$CDI_DIR/script:$CDI_DIR/tensorflow:$CDI_DIR/python
+	export PATH+=:$CDI_DIR/bin:$CDI_DIR/script:$CDI_DIR/python
   export PYTHONPATH=$PYTHONPATH:$CDI_DIR/lib:$CDI_DIR/python
 	if [ $(uname) = "Darwin" ]; then
 		export DYLD_LIBRARY_PATH+=:$CDI_DIR/lib

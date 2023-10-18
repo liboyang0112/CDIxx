@@ -2,10 +2,10 @@
 #include "memManager.h"
 #include "videoWriter.h"
 #include "imageFile.h"
+#include "writePng.h"
 #include <map>
 #include <string>
 #include <png.h>
-#include <setjmp.h>
 #include <stdio.h>
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {
@@ -37,64 +37,6 @@ const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*
      {625.18, -5.14916, 0.0106199}
   }
 };
-int writePng(const char* png_file_name, void* pix , int width, int height, int bit_depth, int colored)
-{
-  unsigned char* pixels = (unsigned char*) pix;
-	png_structp png_ptr;  
-	png_infop info_ptr;  
-	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);  
-	if(png_ptr == NULL)  
-	{  
-		printf("ERROR:png_create_write_struct/n"); 
-		return 0;  
-	}  
-	info_ptr = png_create_info_struct(png_ptr);  
-	if(info_ptr == NULL)  
-	{  
-		printf("ERROR:png_create_info_struct/n");  
-		png_destroy_write_struct(&png_ptr, NULL);  
-		return 0;  
-	}  
-	FILE *png_file = fopen(png_file_name, "wb");  
-	if (!png_file)
-	{
-		return -1;
-	}
-	png_init_io(png_ptr, png_file);  
-	png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, colored?PNG_COLOR_TYPE_RGB:PNG_COLOR_TYPE_GRAY,  
-		PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE); 
-	png_colorp palette;
-  if(colored){
-    palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH * sizeof(png_color));
-	  if (!palette) {
-	  	fclose(png_file);
-	  	png_destroy_write_struct(&png_ptr, &info_ptr);
-	  	return 0;
-	  }
-	  png_set_PLTE(png_ptr, info_ptr, palette, PNG_MAX_PALETTE_LENGTH);  
-  }
-	png_write_info(png_ptr, info_ptr);  
-  if (bit_depth == 16)
-    png_set_swap(png_ptr);
-	png_set_packing(png_ptr);
-	//这里就是图像数据了  
-	png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height*sizeof(png_bytep));
-	for (int i = 0; i < height; ++i)
-	{
-		rows[i] = (png_bytep)(pixels + i * png_get_rowbytes(png_ptr, info_ptr));
-	}
- 
-	png_write_image(png_ptr, rows);  
-	png_free(png_ptr,rows);
-	png_write_end(png_ptr, info_ptr);  
-  if(colored){
-	  png_free(png_ptr, palette);  
-	  palette=NULL;  
-  }
-	png_destroy_write_struct(&png_ptr, &info_ptr);  
-	fclose(png_file);  
-	return 0;  
-}
 
 void getTurboColor(Real x, int bit_depth, char* store){
   //convert to 8 bit;
@@ -149,7 +91,7 @@ void cuPlotter::init(int rows_, int cols_){
   printf("init plot %d, %d\n",rows_,cols_);
   rows=rows_;
   cols=cols_;
-  cv_cache = ccmemMngr.borrowCache(rows*cols*sizeof(char)*3);
+  cv_cache = ccmemMngr.borrowCache(rows*cols*3);
   cv_data = ccmemMngr.borrowCache(rows*cols*2);
   freeCuda();
 }
@@ -217,6 +159,8 @@ void cuPlotter::plot(const char* label, bool iscolor){
       getTurboColor(((pixeltype*)cv_data)[i], Bits, (char*)cv_cache+i*3);
     }
     if(toVideo>=0) {
+      //char color[3] = {0,0,-1};
+      //put_formula(label, 0,0,cols, cv_cache, 1, color);
       flushVideo(videoWriterVec[toVideo], cv_cache);
       return;
     }

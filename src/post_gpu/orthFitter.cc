@@ -155,7 +155,6 @@ void runIter_fast(int n, int niter, double step_lambda, double* bi, double* out,
 
 void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm, void* param){
   double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // ATb
-  double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // norms
   double *matrix = (double*)ccmemMngr.borrowCleanCache(
 #ifdef useLapack
       n*(n+1)/2
@@ -163,12 +162,6 @@ void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)
       n*n
 #endif
       *sizeof(double));  // ATA
-  if(renorm) {
-    for(int i = 0; i < n; i++){
-      ni[i] = sqrt(innerProd(vectors[i],vectors[i],param));
-      mult(vectors[i], 1./ni[i]);
-    }
-  }
   for(int i = 0; i < n; i++){
     for(int j = 0; j <= i; j++){
 #ifdef useLapack
@@ -219,12 +212,24 @@ void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)
   int niter = 60000;
   //runIter_fast(n, niter, step_lambda, bi, out, matrix);
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
-  if(renorm) {
-    for(int i = 0; i < n; i++){
-      mult(vectors[i], ni[i]);
-      out[i] /= ni[i];
+  ccmemMngr.returnCache(matrix);
+  ccmemMngr.returnCache(bi);
+}
+void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
+  inverseMatrixEigen(matrix, n);
+  double maxval = 0;
+  for(int i = 0; i < n; i++){
+    double val = 0;
+    for(int j = 0; j < n; j++){
+      double &val1 = matrix[i+j*n];
+      out[i] += val1*bi[j];
+      val+=fabs(val1);
     }
+    if(maxval < val) maxval = val;
   }
+  double step_lambda = 1./maxval;
+  int niter = 60000;
+  runIter_fast_cu(n, niter, step_lambda, out, matrix);
   ccmemMngr.returnCache(matrix);
   ccmemMngr.returnCache(bi);
 }

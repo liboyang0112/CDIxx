@@ -5,7 +5,6 @@
 #include <gsl/gsl_spline.h>
 #include <tiffio.h>
 #include <png.h>
-#include <setjmp.h>
 #include <vector>
 /*
 #include "opencv2/opencv.hpp"
@@ -68,29 +67,28 @@ Real* readImage(const char* name, int &row, int &col){
       abort();
     }
     fclose(fin);
-  }else if(fext == "tiff"){
+  }else if(fext == "tiff" || fext == "tif"){
     TIFF* tif = TIFFOpen(name, "r");
     if(!tif) {
       fprintf(stderr, "ERROR: %s not fould!\n", name);
       abort();
     }
     uint16_t nchann, typesize;
-    if(TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &nchann)) {
-      fprintf(stderr, "ERROR: get type failed with tiff file %s!\n", name);
-      abort();
+    if(!TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &nchann)) {
+      nchann = 0;
     }
-    if(nchann != 0){  //uint
+    if(nchann > 1){  //uint
       printf("File format: %d\n", nchann);
       fprintf(stderr, "ERROR: Please use .bin file to save float or complex image\n");
       abort();
     }
-    if(TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &typesize)) {
-      //fprintf(stderr, "ERROR: get typesize failed with tiff file %s!\n", name);
-      //abort();
+    if(!TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &typesize)) {
+      fprintf(stderr, "ERROR: get typesize failed with tiff file %s!\n", name);
+      abort();
     }
-    if(TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &nchann)) {
-      //fprintf(stderr, "ERROR: get nchann failed with tiff file %s!\n", name);
-      //abort();
+    if(!TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &nchann)) {
+      fprintf(stderr, "ERROR: get nchann failed with tiff file %s!\n", name);
+      abort();
     }
     TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &row);
     TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &col);
@@ -135,11 +133,6 @@ Real* readImage(const char* name, int &row, int &col){
   
     if (info_ptr == NULL){
       fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
-      abort();
-    }
-    if (setjmp(png_jmpbuf(png_ptr)) != 0)
-    {
-      printf("setjmp error!\n");
       abort();
     }
     int bit_depth, color_type, interlace_method,
