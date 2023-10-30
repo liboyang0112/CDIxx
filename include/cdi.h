@@ -1,5 +1,6 @@
 #include "cudaConfig.h"
 #include "experimentConfig.h"
+#include <string>
 
 class CDI : public experimentConfig{
   public:

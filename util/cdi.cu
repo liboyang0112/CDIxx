@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 //#include "cufft.h"
-#include "common.h"
+#include "imgio.h"
 #include <ctime>
 #include "cudaConfig.h"
 //#include "experimentConfig.h"
@@ -15,6 +15,7 @@
 #include "mnistData.h"
 
 #include "cdi.h"
+using namespace std;
 
 cuFunc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(ESW,ISW,ESWP,length),{
   cuda1Idx()
@@ -117,7 +118,7 @@ cuFunc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Rea
   Real targetdata = target[index].x;
   Real retval = targetdata;
   source[index].y = 0;
-  Real maximum = sq(mergeDepth)*vars->scale*0.99;
+  Real maximum = vars->scale*0.99;
   Real sourcedata = source[index].x;
   Real tolerance = 0.5/vars->rcolor*vars->scale;
   Real diff = sourcedata-targetdata;

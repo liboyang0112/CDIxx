@@ -1,5 +1,5 @@
 #include "holo.h"
-#include "common.h"
+#include "imgio.h"
 #include "cuPlotter.h"
 #include "cub_wrap.h"
 

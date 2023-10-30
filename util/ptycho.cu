@@ -10,7 +10,7 @@
 #include <fstream>
 #include <libconfig.h++>
 #include "cufft.h"
-#include "common.h"
+#include "imgio.h"
 #include <ctime>
 #include "cudaConfig.h"
 #include "experimentConfig.h"
@@ -23,6 +23,7 @@
 #define GAMMA 0.5
 
 
+using namespace std;
 
 //#define Bits 16
 

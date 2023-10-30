@@ -1,7 +1,7 @@
 #include "monoChromo.h"
 #include "orthFitter.h"
 #include "cudaConfig.h"
-#include "common.h"
+#include "imgio.h"
 #include "cub_wrap.h"
 #include "cuPlotter.h"
 #include "tvFilter.h"
@@ -9,6 +9,7 @@
 #include <iostream>
 #include <gsl/gsl_spline.h>
 
+using namespace std;
 
 cuFunc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(force, mom , dx),{
   cuda1Idx()
@@ -172,19 +173,239 @@ void monoChromo::writeSpectra(const char* filename){
   }
   spectrafile.close();
 }
-void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Real oversampling){
+void monoChromo::initRefs(const char* maskFile){  //mask file, full image size, 
+  //==create reference mask and it's map: d_maskMap, allocate refs==
+  int mrow, mcol;
+  Real* refMask = readImage(maskFile, mrow, mcol);
+  pixCount = 0;
+  for(int idx = 0; idx < mrow*mcol ; idx++){
+    if(refMask[idx] > 0.5) pixCount++;
+  }
+  uint32_t* maskMap = (uint32_t*)ccmemMngr.borrowCache(pixCount*sizeof(uint32_t));
+  int idx = 0, ic = 0;
+  for(int x = 0; x < mrow ; x++){
+  for(int y = 0; y < mcol ; y++){
+    if(refMask[idx] > 0.5) {
+      maskMap[ic] = (x+(row-mrow)/2)*row + y+(column-mcol)/2;
+      ic++;
+    }
+    idx++;
+  }
+  }
+  d_maskMap = (uint32_t*)memMngr.borrowCache(pixCount*sizeof(uint32_t));
+  cudaMemcpy(d_maskMap, maskMap, pixCount*sizeof(uint32_t), cudaMemcpyHostToDevice);
+  ccmemMngr.returnCache(maskMap);
+  ccmemMngr.returnCache(refMask);
+  refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
+  for(int i = 0; i < nlambda; i++){
+    refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
+  }
+  printf("mask has %d pixels\n", pixCount);
+}
+cuFunc(assignRef_d, (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n), (wavefront, mmap, rf, n), {
+  cuda1Idx()
+  if(index >= n) return;
+  rf[index] = wavefront[mmap[index]];
+})
+void monoChromo::assignRef(void* wavefront, int i){
+  assignRef_d((complexFormat*)wavefront, (uint32_t*)d_maskMap, (complexFormat*)(refs[i]), pixCount);
+}
+void monoChromo::assignRef(void* wavefront){
+  assignRef(wavefront, 0);
+  for(int i = 1; i < nlambda; i++) 
+    cudaMemcpy(refs[i], refs[0], pixCount*sizeof(complexFormat), cudaMemcpyDeviceToDevice);
+}
+cuFunc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n),(rf, amp, mmap, row, col, n),{
+  cuda1Idx()
+  if(index >= n) return;
+  int idx = mmap[index];
+  int x = idx/cuda_column + (row-cuda_row)/2;
+  int y = idx%cuda_column + (col-cuda_column)/2;
+  amp[x*col+y] = rf[index];
+})
+cuFunc(saveRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm),(rf, amp, mmap, row, col, n, norm),{
+  cuda1Idx()
+  if(index >= n) return;
+  int idx = mmap[index];
+  int x = idx/cuda_column + (row-cuda_row)/2;
+  int y = idx%cuda_column + (col-cuda_column)/2;
+  rf[index].x = amp[x*col+y].x*norm;
+  rf[index].y = amp[x*col+y].y*norm;
+})
+cuFunc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm),(rf, amp, mmap, row, col, n, norm),{
+  cuda1Idx()
+  if(index >= n) return;
+  int idx = mmap[index];
+  int x = idx/cuda_column + (row-cuda_row)/2;
+  int y = idx%cuda_column + (col-cuda_column)/2;
+  rf[index].x = amp[x*col+y].x*norm;
+  rf[index].y = 0;
+})
+void monoChromo::generateMWLRefPattern(void* d_patternSum, bool debug){
+  complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
+  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+  Real *d_pattern= (Real*)memMngr.borrowCleanCache(row*column*sizeof(Real));
+  resize_cuda_image(row, column);
+  for(int i = 0; i < nlambda; i++){
+    int thisrow = rows[i];
+    int thiscol = cols[i];
+    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount);
+    myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_FORWARD);
+    if(debug && i == 1){
+      resize_cuda_image(thisrow, thiscol);
+      plt.init(thisrow, thiscol);
+      plt.plotComplex(amp, MOD2, 1, spectra[i]/(thiscol*thisrow), "debug", 1, 0, 1);
+      exit(0);
+    }
+    cropinner(amp,camp,thisrow,thiscol, sqrt(spectra[i]/(thiscol*thisrow)));
+    cudaConvertFO(camp);
+    if(i==0) {
+      getMod2((Real*)d_patternSum, camp);
+    }else{
+      getMod2(d_pattern, camp);
+      add((Real*)d_patternSum, (Real*)d_pattern, 1);
+    }
+    cudaMemset(amp, 0, thisrow*thiscol*sizeof(complexFormat));
+  }
+  memMngr.returnCache(amp);
+  memMngr.returnCache(camp);
+  memMngr.returnCache(d_pattern);
+}
+void monoChromo::clearRefs(){
+  for(int i = 0; i < nlambda; i++) cudaMemset(refs[i], 0, pixCount*sizeof(complexFormat));
+  //for(int i = 0; i < 1; i++) cudaMemset(refs[i], 0, pixCount*sizeof(complexFormat));
+}
+void monoChromo::reconRefs(void* d_patternSum){
+  auto devstates = (curandStateMRG32k3a *)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(curandStateMRG32k3a));
+  resize_cuda_image(rows[nlambda-1],cols[nlambda-1]);
+  initRand(devstates, time(NULL));
+  resize_cuda_image(row, column);
+  clearRefs();
+  uint32_t sz = memMngr.getSize(d_patternSum);
+  Real* patternRecon = (Real*)memMngr.borrowCache(sz);
+  Real* residual = (Real*)memMngr.borrowCache(sz);
+  complexFormat *amp = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
+  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+  Real *campm = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  Real *deltao = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  Real *deltao2 = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  complexFormat* reftmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat)*pixCount);
+  Real kfactor = 0;
+  Real stepsize = 1;
+  plt.plotFloat(d_patternSum, MOD, 0, 1, "target_pattern", 1, 0, 1);
+  for(int niter = 0; niter < 2200; niter++){
+    generateMWLRefPattern(patternRecon);
+    cudaMemcpy(residual, d_patternSum, sz, cudaMemcpyDeviceToDevice);
+    addRemoveOE(residual, (Real*)patternRecon, -1);
+    cudaConvertFO(residual);
+    if(niter%200 == 0){
+      getMod2(deltao2, residual);
+      printf("residuale=%f\n", findSum(deltao2));
+    }
+
+    for(int i = 0; i < nlambda; i++){
+      int thisrow = rows[i];
+      int thiscol = cols[i];
+      Real normi = 1./(thiscol*thisrow);
+      for(int it = 0; it < 5; it++){
+        cudaMemset(amp, 0, thisrow*thiscol*sizeof(complexFormat));
+        expandRef(it == 0? (complexFormat*)(refs[i]) : reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount);
+        myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_FORWARD);
+        if(it == 0) {
+          cropinner(amp,camp,thisrow,thiscol,sqrt(normi));
+          getMod2(campm, camp);
+          //add(campm, residual, stepsize*spectra[i]);
+          //add(campm, residual, stepsize);
+          add(campm, residual, stepsize/spectra[i]);
+        }
+        applyModAbsinner(amp,campm, thisrow,thiscol, 1./normi, devstates);
+        //if(i == 1){
+        //  plt.init(thisrow, thiscol);
+        //  plt.plotComplex(amp, MOD2, 1, 1./normi, "debug", 1, 0, 1);
+        //  exit(0);
+        //}
+        myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_INVERSE);
+        saveRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount, normi);
+      }
+      gpuErrchk(cudaGetLastError());
+      //add(campm, residual, -stepsize*spectra[i]);  //previous intensity
+      //add(campm, residual, -stepsize);  //previous intensity
+      add(campm, residual, -stepsize/spectra[i]);  //previous intensity
+      cudaMemset(amp, 0, thisrow*thiscol*sizeof(complexFormat));
+      expandRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount);
+      myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_FORWARD);
+      cropinner(amp,camp,thisrow,thiscol,sqrt(normi));
+      getMod2(deltao, camp);  //delta intensity
+      add(deltao, campm, -1);
+      multiply(deltao2, residual, deltao);
+      kfactor = -findSum(deltao2);
+      getMod2(deltao2, deltao);
+      kfactor /= findSum(deltao2);
+      //if(kfactor > 0) continue;
+      if(fabs(kfactor) > 1) kfactor *= 1./fabs(kfactor);
+      add(campm, deltao, -kfactor);
+      //add(residual, deltao, kfactor*spectra[i]);
+      applyModAbsinner(amp,campm, thisrow,thiscol, 1./normi, devstates);
+      myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_INVERSE);
+      saveRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount, normi);
+      getMod2((Real*)camp, residual);
+      //printf("residual=%f\n", findSum((Real*)camp));
+      gpuErrchk(cudaGetLastError());
+      for(int it = 0; it < 5; it++){
+        cudaMemset(amp, 0, thisrow*thiscol*sizeof(complexFormat));
+        expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount);
+        myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_FORWARD);
+        Real normi = 1./(thiscol*thisrow);
+        applyModAbsinner(amp,campm, thisrow,thiscol, 1./normi, devstates);
+        myCufftExec( ((cufftHandle*)locplan)[i], amp, amp, CUFFT_INVERSE);
+        saveRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, pixCount, normi);
+      }
+      gpuErrchk(cudaGetLastError());
+    }
+    /*
+    resize_cuda_image(pixCount, 1);
+    for(int i = 1; i < nlambda; i++) {
+      add((complexFormat*)(refs[0]), (complexFormat*)(refs[i]));
+    }
+    applyNorm((complexFormat*)(refs[0]),1./nlambda);
+    for(int i = 1; i < nlambda; i++) {
+      cudaMemcpy((complexFormat*)(refs[i]),(complexFormat*)(refs[0]),pixCount*sizeof(complexFormat),cudaMemcpyDeviceToDevice);
+    }
+    resize_cuda_image(row, column);
+    */
+  }
+  resize_cuda_image(row, column);
+  for(int i = 0; i < nlambda; i++) {
+    cudaMemset(amp, 0, rows[i]*cols[i]*sizeof(complexFormat));
+    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, rows[i], cols[i], pixCount);
+    crop(amp,camp,rows[i],cols[i]);
+    plt.plotComplex(camp, MOD2, 0, 1, (string("recon")+char(i+'0')).c_str(), 0, 0, 0);
+    plt.plotComplex(camp, PHASE, 0, 1, (string("reconphase")+char(i+'0')).c_str(), 0, 0, 0);
+  }
+
+  generateMWLRefPattern(patternRecon);
+  plt.plotFloat(patternRecon, MOD, 0, 1, "recon_pattern", 1, 0, 1);
+  cudaMemcpy(residual, d_patternSum, sz, cudaMemcpyDeviceToDevice);
+  addRemoveOE(residual, (Real*)patternRecon, -1);
+  plt.plotFloat(residual, MOD, 0, 1, "residual", 1, 0, 1);
+
+  memMngr.returnCache(patternRecon);
+  memMngr.returnCache(residual);
+  memMngr.returnCache(amp);
+  memMngr.returnCache(camp);
+}
+void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
   Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
   complexFormat *d_intensity = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
   complexFormat* d_patternAmp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
-  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCleanCache(int(row/oversampling)*int(column/oversampling)*sizeof(complexFormat));
-  resize_cuda_image(int(row/oversampling), int(column/oversampling));
+  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCleanCache(row*column*sizeof(complexFormat));
+  resize_cuda_image(row, column);
   assignReal( (Real*)d_input, d_inputWave);
-  if(devstates) applyRandomPhase(d_inputWave,0,(curandStateMRG32k3a *)devstates);
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
     int thiscol = cols[i];
     resize_cuda_image(thisrow, thiscol);
-    pad( d_inputWave, d_intensity, int(row/oversampling), int(column/oversampling));
+    pad( d_inputWave, d_intensity, row, column);
     myCufftExec( ((cufftHandle*)locplan)[i], d_intensity,d_intensity, CUFFT_FORWARD);
     cudaConvertFO(d_intensity);
     resize_cuda_image(row, column);
@@ -208,21 +429,6 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single, Re
   memMngr.returnCache(d_pattern);
   memMngr.returnCache(d_intensity);
   memMngr.returnCache(d_patternAmp);
-}
-void* createCache(void* b){
-  size_t sz = memMngr.getSize(b);
-  void* a = memMngr.borrowCache(sz);
-  cudaMemcpy(a, b, sz, cudaMemcpyDeviceToDevice);
-  return a;
-}
-void deleteCache(void* b){
-  memMngr.returnCache(b);
-}
-void add(void* a, void* b, Real c){
-  add((complexFormat*)a, (complexFormat*)b, c);
-}
-void mult(void* a, Real b){
-  applyNorm((complexFormat*)a, b);
 }
 Real innerProd(void* a, void* b, void* param){
   Real* tmp = (Real*)memMngr.borrowCache(memMngr.getSize(a)/2);
@@ -256,11 +462,14 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   rect *cuda_spt;
   cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
   cudaMemcpy(cuda_spt, &spt, sizeof(spt), cudaMemcpyHostToDevice);
-  Real *sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  createMaskBar(sptimg, cuda_spt, 0);
-  memMngr.returnCache(cuda_spt);
-  applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
-  plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
+  Real *sptimg = 0;
+  if(updateA){
+    sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+    createMaskBar(sptimg, cuda_spt, 0);
+    memMngr.returnCache(cuda_spt);
+    applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
+    plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
+  }
   if(nlambda<0) printf("nlambda not initialized: %d\n",nlambda);
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
@@ -304,74 +513,79 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
     cudaConvertFO(fftb);
   }
+  int nmem = nlambda/8;
   if(updateA) {
-    gs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
-    for(int j = 0; j < nlambda; j++){
+    gs = (void**)ccmemMngr.borrowCache((nmem+1)*sizeof(void*));
+    for(int j = 0; j < nmem+1; j++){
       gs[j] = memMngr.borrowCache(sz);
     }
-  }
-  if(!gs) fbi = (complexFormat*)memMngr.borrowCache(sz);
+  }else fbi = (complexFormat*)memMngr.borrowCache(sz);
  // Real tk = 1;
   bool calcDeltab = 0;
+  double* matrix = (double*) ccmemMngr.borrowCache(nlambda*nlambda*sizeof(double));
+  double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
   for(int i = 0; i < nIter; i++){
-    bool updateAIter = !useOrth && (updateA&&(i%5==0) || updateX==0) && (i > 0);
-    if(updateAIter){
-      auto tmp_swap = deltabprev;
-      deltabprev = deltab;
-      deltab = tmp_swap;
-    }
-    Real sumspect = 0;
     if(updateX||i==0||!gs) {
       myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
     }
-    if(gs) 
+    if(gs && monoidx < nmem) 
       cudaMemcpy(gs[monoidx], d_output, sz, cudaMemcpyDeviceToDevice);
-    if(updateX || updateAIter) cudaMemcpy(deltab, d_input, sz, cudaMemcpyDeviceToDevice);
-    if(updateX || updateAIter) add(deltab, (complexFormat*)d_output, -spectra[monoidx]);
-    if(updateAIter) {
-      multiplyReal(multiplied, deltabprev, (complexFormat*)d_output);
-      Real sum =findSum(multiplied, false);
-      if(fabs(sum) > 1e3) {
-        sum =findSum(multiplied, false);
-        printf("WARING recalculated sum %f\n", sum);
-        exit(0);
-      }
-      momentum_a[monoidx] = momentum_a[monoidx]*beta1 + (1-beta1)*sum*step_a;
-      spectra[monoidx]+=momentum_a[monoidx]*lr;
-      if(spectra[monoidx]<=0) spectra[monoidx] = 1e-6;
-      if(spectra[monoidx]>0.03) spectra[monoidx] = 0.03;
-      sumspect+=spectra[monoidx];
+    if(updateX){
+      cudaMemcpy(deltab, d_input, sz, cudaMemcpyDeviceToDevice);
+      add(deltab, (complexFormat*)d_output, -spectra[monoidx]);
     }
     for(int j = 0; j < nlambda; j++){
-      if(j == monoidx) continue;
-      if(!updateA && spectra[j]<=0) continue;
-      size_t N = rows[j]*cols[j];
-      if(gs) fbi = (complexFormat*)gs[j];
-      if(!gs || updateX || i==0){
-        resize_cuda_image(rows[j], cols[j]);
-        if(rows[j] > row) padinner(fftb, padded, row, column, 1./N);
-        else cropinner(fftb, padded, row, column, 1./N);
-        myCufftExec( ((cufftHandle*)locplan)[j], padded, padded, CUFFT_FORWARD);
-        resize_cuda_image(row, column);
-        if(rows[j] > row) crop(padded, fbi, rows[j], cols[j]);
-        else pad(padded, fbi, rows[j], cols[j]);
-        //plt.plotComplex(fbi, MOD, 0, 1, ("debug"+to_string(j)).c_str(), 1, 0, 1);
-      }
-      if((updateX || updateAIter)) add(deltab, fbi, -spectra[j]);
-      if(updateAIter) {
-        multiplyReal(multiplied, deltabprev, fbi);
-        Real sum = findSum(multiplied);
-        if(fabs(sum) > 1e3) {
-          sum = findSum(multiplied);
-          printf("WARING recalculated sum %f\n", sum);
-          exit(0);
+      if(j != monoidx){
+        if(!updateA && spectra[j]<=0) continue;
+        size_t N = rows[j]*cols[j];
+        if(gs){
+          if(j <= nmem) fbi = (complexFormat*)gs[j];
         }
-        Real step = step_a*Real(rows[j])/row*sum;
-        momentum_a[j] = momentum_a[j]*beta1 + (1-beta1)*step;
-        spectra[j]+=momentum_a[j]*lr;
-        if(spectra[j]<=0) spectra[j] = 1e-6;
-        if(spectra[j]>0.3) spectra[j] = 0.3;
-        sumspect+=spectra[j];
+        if(!gs || updateX || i==0){
+          resize_cuda_image(rows[j], cols[j]);
+          if(rows[j] > row) padinner(fftb, padded, row, column, 1./N);
+          else cropinner(fftb, padded, row, column, 1./N);
+          myCufftExec( ((cufftHandle*)locplan)[j], padded, padded, CUFFT_FORWARD);
+          resize_cuda_image(row, column);
+          if(rows[j] > row) crop(padded, fbi, rows[j], cols[j]);
+          else pad(padded, fbi, rows[j], cols[j]);
+        }
+      }
+      if(gs){
+        for(int i = 0; i < min(j+1,nmem); i++){
+          matrix[i+j*nlambda] = innerProd(j==monoidx?d_output:fbi, gs[i], sptimg);
+        }
+        right[j] = innerProd(fbi, d_input, sptimg);
+      }
+      if(updateX) add(deltab, fbi, -spectra[j]);
+    }
+    if(gs){
+      int nblk = (nlambda-1)/nmem+1;
+      for(int iblk = 1; iblk < nblk; iblk++){
+        if(monoidx >= iblk*nmem && monoidx < iblk*nmem+nmem)
+          cudaMemcpy(gs[monoidx-iblk*nmem], d_output, sz, cudaMemcpyDeviceToDevice);
+        for(int j = iblk*nmem; j < nlambda; j++){
+          if(j <= iblk*nmem+nmem) fbi = (complexFormat*)gs[j-iblk*nmem];
+          if(j != monoidx){
+            size_t N = rows[j]*cols[j];
+            resize_cuda_image(rows[j], cols[j]);
+            if(rows[j] > row) padinner(fftb, padded, row, column, 1./N);
+            else cropinner(fftb, padded, row, column, 1./N);
+            myCufftExec( ((cufftHandle*)locplan)[j], padded, padded, CUFFT_FORWARD);
+            resize_cuda_image(row, column);
+            if(rows[j] > row) crop(padded, fbi, rows[j], cols[j]);
+            else pad(padded, fbi, rows[j], cols[j]);
+          }
+          int nprod = iblk == nblk-1? j-iblk*nmem:nmem-1;
+          for(int i = 0; i <= nprod; i++){
+            matrix[i+iblk*nmem+j*nlambda] = innerProd(j == monoidx? d_output:fbi, gs[i],sptimg);
+          }
+        }
+      }
+      for(int i = 0; i < nlambda; i++){
+        for(int j = i+1; j < nlambda; j++){
+          matrix[j+i*nlambda] = matrix[i+j*nlambda];
+        }
       }
     }
     if(writeResidual) {
@@ -380,7 +594,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     }
     if(calcDeltab) break;
     if(useOrth&&updateA){
-      Fit_fast(spectra, nlambda, (void**)gs, d_input, innerProd, mult, add, createCache, deleteCache, 1, sptimg);
+      Fit_fast_matrix(spectra, nlambda, matrix, right);
       //spectra[nlambda-2] = spectra[nlambda-1] = 0;
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;
@@ -392,13 +606,6 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         updateX = 1;
         calcDeltab = 1;
         continue;
-      }
-    }
-    if(updateAIter){
-      for(int j = 0; j < nlambda; j++){
-        spectra[j]-=(sumspect-1)/nlambda;
-        if(spectra[j]<=0) spectra[j] = 1e-6;
-        if(spectra[j]>0.3) spectra[j] = 0.3;
       }
     }
     if(updateX){
@@ -457,6 +664,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   if(updateA){
     ccmemMngr.returnCache(momentum_a);
   }
+  ccmemMngr.returnCache(matrix);
+  ccmemMngr.returnCache(right);
   memMngr.returnCache(deltabprev);
   memMngr.returnCache(multiplied);
   if(momentum) memMngr.returnCache(momentum);

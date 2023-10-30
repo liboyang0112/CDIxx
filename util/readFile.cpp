@@ -1,5 +1,6 @@
-#include "common.h"
+#include "imgio.h"
 #include "imageFile.h"
+#include <stdio.h>
 
 
 int main(int argc, char* argv[]){

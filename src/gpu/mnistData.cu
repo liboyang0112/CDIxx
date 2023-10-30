@@ -1,6 +1,6 @@
 #include "mnistData.h"
 #include "cudaConfig.h"
-#include "common.h"
+#include "imgio.h"
 #include "cuPlotter.h"
 
 cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir), refinement(re), row(r), col(c), nmerge(nm){

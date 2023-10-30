@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdio.h>
-#include "common.h"
+#include "imgio.h"
 #include "cudaConfig.h"
 #include "experimentConfig.h"
 #include "cuPlotter.h"

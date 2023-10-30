@@ -6,6 +6,8 @@
 #else
 #include "matrixInverse.h"
 #endif
+#include <math.h>
+#include <stdio.h>
 
 void runIter(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix){
   double *lambdas = (double*)ccmemMngr.borrowCleanCache(n*sizeof(double)); // lagrangian multiplier
@@ -230,6 +232,4 @@ void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
   double step_lambda = 1./maxval;
   int niter = 60000;
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
-  ccmemMngr.returnCache(matrix);
-  ccmemMngr.returnCache(bi);
 }

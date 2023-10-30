@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from libunetDataLoader_cython import unetDataLoader as ul
+from unetDataLoader import unetDataLoader as ul
 from torch import utils, device, tensor
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt

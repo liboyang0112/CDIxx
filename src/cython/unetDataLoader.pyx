@@ -1,9 +1,4 @@
 cimport numpy as np
-from torch import utils, tensor
-#import torch.utils.data as data
-#from torchvision.transforms import transforms
-#from torchvision.datasets import ImageFolder
-#from torchvision import transforms, datasets
 import os
 
 cdef extern from "cdilmdb.h":
@@ -11,25 +6,22 @@ cdef extern from "cdilmdb.h":
     void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 
 np.import_array()
-class unetDataLoader(utils.data.Dataset):
-    def __init__(self, db_path, chan, row, col, chanl, rowl, coll, device, transform=None, target_transform=None):
+class cythonLoader:
+    def __init__(self, db_path, chan, row, col, chanl, rowl ,coll):
         self.row = row;
         self.col = col;
         self.rowl = rowl;
         self.coll = coll;
         self.chan = chan;
         self.chanl = chanl;
-        self.len = row*col*chan
-        self.lenl = rowl*coll*chanl
+        self.len = self.row*self.col*self.chan
+        self.lenl = self.rowl*self.coll*self.chanl
         self.pystr = db_path.encode("utf8")
         cdef char* path = self.pystr
         cdef int handle;
         self.length = initLMDB(&handle, path)
         self.handle = handle;
         print("Imported dataset:", db_path, ", containing ", self.length, " samples")
-        self.device = device
-        self.transform = transform
-        self.target_transform = target_transform
     def __getitem__(self, index):
         cdef np.npy_intp len = self.len
         cdef np.npy_intp lenl = self.lenl
@@ -44,13 +36,7 @@ class unetDataLoader(utils.data.Dataset):
         readLMDB(handle, &ndata, &data, &data_size, &key);
         imgnp = np.PyArray_SimpleNewFromData(1, &len, np.NPY_FLOAT, data[0]);
         labnp = np.PyArray_SimpleNewFromData(1, &lenl, np.NPY_FLOAT, data[1]);
-        img = tensor(imgnp).reshape([self.chan, self.row, self.col]).to(self.device);
-        lab = tensor(labnp).reshape([self.chanl, self.rowl, self.coll]).to(self.device);
-        if self.transform is not None:
-            img = self.transform(img)
-        if self.target_transform is not None:
-            lab = self.target_transform(lab)
-        return img, lab
+        return imgnp, labnp
     def __len__(self):
         return self.length
     def __repr__(self):

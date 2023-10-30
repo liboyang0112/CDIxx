@@ -2,7 +2,7 @@
 #include"cudaConfig.h"
 #include"format.h"
 #include"cuPlotter.h"
-#include"common.h"
+#include"imgio.h"
 #include<complex>
 #include<cstdlib>
 #include<iostream>

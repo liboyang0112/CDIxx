@@ -1,6 +1,7 @@
 #include "orthFitter.h"
 #include <string.h>
 #include "memManager.h"
+#include <stdio.h>
 const int N = 2;
 
 Real innerProd(void* a, void* b, void* c){

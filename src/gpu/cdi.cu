@@ -6,7 +6,7 @@
 #include <chrono>
 
 #include <stdio.h>
-#include "common.h"
+#include "imgio.h"
 #include "imageFile.h"
 #include <ctime>
 #include "cudaConfig.h"
@@ -17,6 +17,7 @@
 #include "cub_wrap.h"
 #include "cdi.h"
 
+using namespace std;
 
 //#define Bits 16
 
@@ -423,14 +424,6 @@ cuFunc(addPsbar,(complexFormat* lambda, complexFormat* cuda_gkp1, Real beta1, Re
     lambda[index].y += beta1*cuda_gkp1[index].y;
   }
 });
-cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
-  cuda1Idx();
-  if(sub[index] < 0.99){
-    src[index]+=sub[index]*mult;
-  }else{
-    src[index] = 0;
-  }
-});
 complexFormat* CDI::phaseRetrieve(){
   int vidhandle = 0;
   if(saveVideoEveryIter){
@@ -532,7 +525,7 @@ complexFormat* CDI::phaseRetrieve(){
     plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
   }
   getMod2(cuda_objMod, patternWave);
-  addRemoveOE( cuda_objMod, patternData, -1);
+  addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
   getMod2(cuda_objMod, cuda_objMod);
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
   residual = findSum(cuda_objMod);

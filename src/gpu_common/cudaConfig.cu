@@ -1,5 +1,5 @@
 #include "cudaConfig.h"
-#include "common.h"
+#include "imgio.h"
 #include <iostream>
 using namespace std;
 static int rows_fft, cols_fft;
@@ -188,6 +188,11 @@ cuFunc(multiply,(complexFormat* store, complexFormat* src, complexFormat* target
   store[index] = cuCmulf(src[index], target[index]);
 })
 
+cuFunc(multiply,(Real* store, Real* src, Real* target),(store,src,target),{
+  cuda1Idx()
+  store[index] = src[index]* target[index];
+})
+
 cuFunc(extendToComplex,(Real* a, complexFormat* b),(a,b),{
   cuda1Idx()
   b[index].x = a[index];
@@ -374,6 +379,11 @@ cuFunc(getMod2,(Real* mod2, complexFormat* amp),(mod2,amp),{
   complexFormat tmp = amp[index];
   mod2[index] = tmp.x*tmp.x + tmp.y*tmp.y;
 })
+cuFunc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(mod2,amp,norm),{
+  cuda1Idx()
+  complexFormat tmp = amp[index];
+  mod2[index] += tmp.x*tmp.x*norm + tmp.y*tmp.y*norm;
+})
 cuFunc(getMod2,(Real* mod2, Real* mod),(mod2,mod),{
   cuda1Idx()
   mod2[index] = sq(mod[index]);
@@ -400,18 +410,42 @@ cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data
   store[index] = fact*data[index]+shift;
 })
 
-cuFunc(applyModAbs,(complexFormat* source, Real* target),(source, target),{
+cuFunc(applyModAbs,(complexFormat* source, Real* target, curandStateMRG32k3a *state),(source, target, state),{
   cuda1Idx();
   Real mod = hypot(source[index].x, source[index].y);
-  Real rat = sqrt(target[index]);
+  Real rat = target[index];
+  if(rat > 0) rat = sqrt(rat);
+  else rat = 0;
   if(mod==0) {
-    source[index].x = rat;
+    Real randphase = state?curand_uniform(&state[index])*2*M_PI:0;
+    source[index].x = rat*cos(randphase);
+    source[index].x = rat*sin(randphase);
     return;
   }
   rat /= mod;
   source[index].x *= rat;
   source[index].y *= rat;
 })
+cuFunc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col, Real norm, curandStateMRG32k3a *state),(source,target,row,col,norm, state),{
+  cudaIdx()
+	int targetx = x >= cuda_row/2 ? x - (cuda_row - row) : x;
+	int targety = y >= cuda_column/2 ? y - (cuda_column - col) : y;
+  Real rat = target[index]*norm;
+  index = targetx*col+targety;
+  Real mod = hypot(source[index].x, source[index].y);
+  if(rat > 0) rat = sqrt(rat);
+  else rat = 0;
+  if(mod==0) {
+    Real randphase = state?curand_uniform(&state[index])*2*M_PI:0;
+    source[index].x = rat*cos(randphase);
+    source[index].x = rat*sin(randphase);
+    return;
+  }
+  rat /= mod;
+  source[index].x *= rat;
+  source[index].y *= rat;
+})
+
 cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),
   (source, target, bs, loose, iter, noiseLevel),{
   cuda1Idx()
@@ -463,6 +497,14 @@ cuFunc(add,(complexFormat* store, complexFormat* a, complexFormat* b, Real c ),(
   store[index].x=a[index].x + b[index].x*c;
   store[index].y=a[index].y + b[index].y*c;
 })
+cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
+  cuda1Idx();
+  if(sub[index] < 0.99){
+    src[index]+=sub[index]*mult;
+  }else{
+    src[index] = 0;
+  }
+});
 cuFunc(applyRandomPhase,(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state),
  (wave, beamstop, state),{
   cuda1Idx()

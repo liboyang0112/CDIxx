@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <cuda.h>
 #include "cudaConfig.h"
-#include "common.h"
+#include "imgio.h"
 
 #define BLOCK_SIZE      16
 #define FILTER_WIDTH    1      //total width=2n+1 

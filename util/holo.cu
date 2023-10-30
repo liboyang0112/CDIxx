@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <libconfig.h++>
 #include "cufft.h"
-#include "common.h"
+#include "imgio.h"
 #include <ctime>
 #include "cudaConfig.h"
 #include "cuPlotter.h"

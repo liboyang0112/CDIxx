@@ -5,42 +5,133 @@
 #include "cudaConfig.h"
 #include "cuPlotter.h"
 #include "mnistData.h"
-#include "common.h"
+#include "imgio.h"
 #include "monoChromo.h"
 #include "cdi.h"
 #include "cdilmdb.h"
 #include "cub_wrap.h"
+#include <gsl/gsl_spline.h>
 using namespace std;
+
+void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum){
+  std::vector<double> spectrum_lambda;
+  std::vector<double> spectrum;
+  std::vector<double> ccd_lambda;
+  std::vector<double> ccd_rate;
+  std::ifstream file_spectrum, file_ccd_response;
+  std::ofstream file_out("spectTccd.txt");
+  double threshold = 1e-3;
+  file_spectrum.open(fspectrum);
+  file_ccd_response.open(ccd_response);
+  double lambda, val, maxval;
+  maxval = 0;
+  while(file_spectrum){
+    file_spectrum >> lambda >> val;
+    spectrum_lambda.push_back(lambda);
+    spectrum.push_back(val);
+    if(val > maxval) maxval = val;
+  }
+  while(file_ccd_response>>lambda>>val){
+    ccd_lambda.push_back(lambda);
+    ccd_rate.push_back(val);
+  }
+  endLambda = std::min(Real(spectrum_lambda.back()),endLambda);
+  bool isShortest = 1;
+  nlambda = 0;
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
+  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
+  double ccdmax = ccd_lambda.back();
+  double ccd_rate_max = ccd_rate.back();
+  for(int i = 0; i < spectrum.size(); i++){
+    lambda = spectrum_lambda[i];
+    if(lambda<startLambda) continue;
+    if(lambda>=endLambda) break;
+    if(isShortest && spectrum[i] < threshold*maxval) continue;
+    if(isShortest) startLambda = lambda;
+    isShortest = 0;
+    double ccd_rate_i = ccd_rate[0];
+    if(lambda >= ccdmax) ccd_rate_i = ccd_rate_max;
+    else if(lambda > ccd_lambda[0]) ccd_rate_i = gsl_spline_eval (spline, lambda, acc);
+    spectrum_lambda[nlambda] = lambda/startLambda;
+    //if(lambda >= 940) ccd_rate_i*=2;
+    //if(lambda < 800) ccd_rate_i *= 0.9;
+    spectrum[nlambda] = spectrum[i]/maxval*ccd_rate_i;
+    nlambda++;
+  }
+  endLambda /= startLambda;
+  outlambda = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  outspectrum = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  for(int i = 0; i < nlambda; i++){
+    outlambda[i] = spectrum_lambda[i];
+    outspectrum[i] = spectrum[i];
+    file_out << spectrum_lambda[i]*startLambda<<" "<<spectrum[i]<<std::endl;
+  }
+  file_out.close();
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
+}
+void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, double* spectrum){
+  std::vector<double> ccd_lambda;
+  std::vector<double> ccd_rate;
+  std::ifstream file_ccd_response;
+  file_ccd_response.open(ccd_response);
+  double lambda, val;
+  while(file_ccd_response>>lambda>>val){
+    ccd_lambda.push_back(lambda);
+    ccd_rate.push_back(val);
+  }
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
+  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
+  if(0)
+  for(int i = 0; i < nlambda; i++){
+    if(lambdas[i] < ccd_lambda[0]){
+      printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
+      spectrum[i] /= ccd_rate[0];
+    }else if(lambdas[i] > ccd_lambda.back()){
+      printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
+      spectrum[i] /= ccd_rate.back();
+    }else
+    spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
+  }
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
+}
 
 int main(int argc, char** argv){
   cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
-  bool training = 1;
+  bool training = 0;
   int ntraining = 1000;
   int testingstart = ntraining;
   monoChromo mwl;
   CDI cdi(argv[1]);
-  int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
-  int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
-  const int nconfig = 11;
-  int ntesting = nconfig;
+  //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
+  //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
+  int datamerge[] = {1};
+  int datarefine[] ={4};
+  const int nconfig = 1;
+  int ntesting = 100;
   cuMnist *mnist_dat[nconfig];
   int objrow;
   int objcol;
-  Real* d_input;
+  Real* d_obj, *d_input;
   Real* intensity;
+  init_cuda_image(65535,1);
   if(cdi.runSim){
     if(cdi.domnist) {
       initLMDB(&handle, training?"traindb":"testdb");
       //setCompress(&handle);
-      objrow = 256;
-      objcol = 256;
+      objrow = 128;
+      objcol = 128;
       for(int iconfig  = 0; iconfig < nconfig; iconfig++)
         mnist_dat[iconfig] = new cuMnist(cdi.mnistData, datamerge[iconfig], datarefine[iconfig], objrow, objcol);
       d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
+      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
     }
     else {
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
@@ -49,11 +140,14 @@ int main(int argc, char** argv){
       ccmemMngr.returnCache(intensity);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
+      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      pad(d_obj, d_input, objrow/cdi.oversampling, objcol/cdi.oversampling);
+      memMngr.returnCache(d_input);
     }
   }else{
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
-    ccmemMngr.returnCache(intensity);
   }
+  resize_cuda_image(objrow, objcol);
   double* lambdas, *spectra;
   mwl.jump = cdi.spectrumSamplingStep;
   mwl.skip = mwl.jump/2;
@@ -96,7 +190,6 @@ int main(int argc, char** argv){
   Real *merged = (Real*)ccmemMngr.borrowCache(sz);
   complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
   complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
-  init_cuda_image(65536,1);
   resize_cuda_image(mwl.row, mwl.column);
   plt.init(mwl.row, mwl.column);
   curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
@@ -106,36 +199,37 @@ int main(int argc, char** argv){
   Real maxmerged = 0;
   //mwl.writeSpectra("spectra.txt");
   for(int j = 0; j < (cdi.domnist? (training? ntraining:ntesting):1); j++){
-    if(cdi.runSim && cdi.domnist) {
-      mnist_dat[j%nconfig]->setIndex((training?0:testingstart)+j);
-      mnist_dat[j%nconfig]->cuRead(d_input);
-      init_cuda_image(objrow/cdi.oversampling, objcol/cdi.oversampling);
-      plt.init(objrow/cdi.oversampling, objcol/cdi.oversampling);
-      //plt.plotFloat(d_input, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
-      init_cuda_image(objrow, objcol);
-      plt.init(objrow, objcol);
-    }
     if(cdi.runSim){
-      mwl.generateMWL(d_input, d_patternSum, d_solved, cdi.oversampling);
+      if(cdi.domnist) {
+        mnist_dat[j%nconfig]->setIndex((training?0:testingstart)+j);
+        mnist_dat[j%nconfig]->cuRead(d_input);
+        resize_cuda_image(mwl.row, mwl.column);
+        plt.init(mwl.row, mwl.column);
+        pad(d_input, d_obj, objrow/cdi.oversampling, objcol/cdi.oversampling);
+        //plt.plotFloat(d_obj, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
+        //exit(0);
+      }
+      mwl.generateMWL(d_obj, d_patternSum, d_solved);
       if(maxmerged==0) maxmerged = findMax(d_patternSum);
       if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "floatimage");
-      //plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
-      //plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1);
-      plt.plotComplex(d_solved, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
       cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
       getMod( realcache, d_solved);
       applyNorm( realcache, 1./findMax(realcache));
       cudaMemcpy(single, realcache, sz, cudaMemcpyDeviceToHost);
       if(cdi.domnist) {
-        int key = j+1000;
+        int key = j;
         void* ptrs[] = {merged, single};
         size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
         fillLMDB(handle, &key, 2, ptrs, sizes);
       }
+      if(j==0){
+        plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
+        plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
+        plt.plotComplex(d_solved, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
+      }
     }else{
-      intensity = readImage(cdi.common.Pattern, objrow, objcol);
       cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
       ccmemMngr.returnCache(intensity);
       if(cdi.solveSpectrum){

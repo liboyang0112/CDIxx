@@ -2,11 +2,11 @@
 #include "memManager.h"
 #include "videoWriter.h"
 #include "imageFile.h"
-#include "writePng.h"
 #include <map>
 #include <string>
 #include <png.h>
 #include <stdio.h>
+#include "imgio.h"
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {
     {48.628736, 1.26493952, 0.0179480064},
@@ -104,32 +104,18 @@ void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, 
   plot(label, isColor);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
-  FILE* fout = fopen((std::string(label)+".bin").c_str(),"w");
   if(!cv_complex_data){
     cv_complex_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real)*2);
   }
-  imageFile ff;
-  ff.type = COMPLEXIDX;
-  ff.rows = rows;
-  ff.cols = cols;
   saveComplexData(cudaData);
-  fwrite(&ff, sizeof(ff), 1, fout);
-  fwrite(cv_float_data, rows*cols*sizeof(Real)*2, 1, fout);
-  fclose(fout);
+  writeComplexImage((std::string(label)+".bin").c_str(), cv_complex_data, rows, cols);
 }
 void cuPlotter::saveFloat(void* cudaData, const char* label){
-  FILE* fout = fopen((std::string(label)+".bin").c_str(),"w");
   if(!cv_float_data){
     cv_float_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real));
   }
-  imageFile ff;
-  ff.type = REALIDX;
-  ff.rows = rows;
-  ff.cols = cols;
   saveFloatData(cudaData);
-  fwrite(&ff, sizeof(ff), 1, fout);
-  fwrite(cv_float_data, rows*cols*sizeof(Real), 1, fout);
-  fclose(fout);
+  writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
 /*
 #include "opencv2/phase_unwrapping/histogramphaseunwrapping.hpp"

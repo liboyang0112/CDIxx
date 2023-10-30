@@ -1,8 +1,10 @@
 #include "cudaConfig.h"
 #include "material.h"
 #include "cub_wrap.h"
-#include "cdi.h"
-#include "common.h"
+#include "readConfig.h"
+#include "imgio.h"
+#include "monoChromo.h"
+#include "cuPlotter.h"
 
 cuFunc(assignX, (Real* img, int* intimg),(img, intimg),{
   cuda1Idx();
@@ -22,38 +24,36 @@ cuFunc(assignY, (Real* img, int* intimg),(img, intimg),{
 
 int main(int argc, char* argv[]){
   ToyMaterial mat;
-  CDI cdi(argv[1]);
-  cdi.readFiles();
-  cdi.init();
-  cdi.prepareIter();
-  if(cdi.doIteration){
-    cdi.phaseRetrieve();
-    cdi.saveState();
-  } // Inside CDI class is the object support and reference image, which was measured without sample.
-  int row = cdi.row;
-  int column = cdi.column;
+  readConfig cfg(argv[1]);
   //split reference and object support into two images.
-  int nlambda = 100;
-  Real* refSpectrum = (Real*)ccmemMngr.borrowCache(nlambda*sizeof(Real));
-  int mrow, mcol;
-  Real* refMask = readImage(cdi.pupil.Intensity, mrow, mcol);
-  int pixCount = 0;
-  for(int idx = 0; idx < mrow*mcol ; idx++){
-    if(refMask[idx] > 0.5) pixCount++;
-  }
-  int2* maskMap = (int2*)memMngr.borrowCache(pixCount*sizeof(int2));
-  Real* objSupport = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  //since the support region is much smaller than the full image. we save the exit wave in smaller caches.
-  int border = 5;
-  int* tmp = (int*)memMngr.borrowCache(row*column*sizeof(int));
-  assignX(objSupport, tmp);
-  int2 supportxrange = {findMin(tmp)-border, findMax(tmp)+border};
-  assignY(objSupport, tmp);
-  int2 supportyrange = {findMin(tmp)-border, findMax(tmp)+border};
-  int2 supportdim = {supportxrange.y-supportxrange.x, supportyrange.y-supportyrange.x};
-  complexFormat** objectWaves = (complexFormat**)ccmemMngr.borrowCache(nlambda*sizeof(complexFormat*));
-  for(int i = 0; i < nlambda ; i++){
-    refSpectrum[i] = 1;
-    objectWaves[i] = (complexFormat*)memMngr.borrowCache(supportdim.x*supportdim.y*sizeof(complexFormat));
+  const int nlambda = 5;
+  double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
+  double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
+  monoChromo mwl;
+  int objrow = 256, objcol=256;
+  int row = 512, col = 512;
+  Real* d_intensity = 0, *d_phase = 0;
+  readComplexWaveFront(cfg.pupil.Intensity, cfg.phaseModulation? cfg.pupil.Phase:0, d_intensity, d_phase, objrow, objcol);
+  complexFormat* objectWave = (complexFormat*)memMngr.borrowCache(row*col*sizeof(complexFormat));
+  Real* pattern = (Real*)memMngr.borrowCache(row*col*sizeof(Real));
+  complexFormat* cpattern = (complexFormat*)memMngr.borrowCache(row*col*sizeof(complexFormat));
+  init_cuda_image();
+  resize_cuda_image(row, col);
+  createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave, objrow, objcol);
+  mwl.init(row, col, nlambda, lambdas, spectra);
+  mwl.initRefs("mask.png");
+  plt.plotComplex(objectWave, PHASE, 0, 1, "objp", 0, 0, 0);
+  plt.plotComplex(objectWave, MOD2, 0, 1, "obj", 0, 0, 0);
+  init_fft(row, col);
+  if(cfg.runSim) {
+    mwl.assignRef(objectWave);
+    mwl.generateMWLRefPattern(pattern);
+    extendToComplex(pattern,cpattern);
+    cudaConvertFO(cpattern);
+    myCufftExec( *plan, cpattern, cpattern, CUFFT_FORWARD);
+    plt.plotComplex(cpattern, PHASE, 1, 1, "mergedac", 0, 0, 0);
+    applyNorm(pattern, cfg.exposure);
+    mwl.reconRefs(pattern);
+    plt.plotFloat(pattern, MOD, 0, 1, "pattern", 1, 0, 1);
   }
 }

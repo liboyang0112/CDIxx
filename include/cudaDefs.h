@@ -3,6 +3,7 @@
 #include <cufft.h>
 #include "format.h"
 #include "memManager.h"
+#include <stdio.h>
 #define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
 #define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, x
 #define cuFunc(name,args,param,content...)\

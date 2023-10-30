@@ -4,8 +4,8 @@ from os.path import exists
 from os import mkdir
 #from mUNet import mUNet
 from UNet import UNet
-from libunetDataLoader_cython import unetDataLoader as ul
 from torch import utils, device, tensor, nn
+from unetDataLoader import unetDataLoader as ul
 from torch.utils.data import DataLoader
 import torchvision.transforms as T
 #from torch.utils.tensorboard import SummaryWriter
@@ -23,8 +23,9 @@ optimizer = torch.optim.Adam(net.parameters(),lr=0.0001,betas=(0.9, 0.999))
 loss_func = nn.BCELoss()
 #loss_func = nn.L1Loss()
 #loss_func = nn.MSELoss()
-data = ul("./traindb", 1, 512,512, 1, 512,512,device('cuda:0'))
-datatest = ul("./testdb", 1, 512,512, 1, 512,512,device('cuda:0'))
+trainsz = 256
+data = ul("./traindb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
+datatest = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
 dataloader = DataLoader(data, batch_size=4, shuffle=True,num_workers=0,drop_last=True)
 testloader = DataLoader(datatest, batch_size=4, shuffle=True,num_workers=0,drop_last=True)
 EPOCH=1000
@@ -50,21 +51,21 @@ train_losses = []
 test_losses = []
 
 image = Image.open('floatimage.tiff')
-x0 = (512-image.width)>>1
-y0 = (512-image.height)>>1
+x0 = (trainsz-image.width)>>1
+y0 = (trainsz-image.height)>>1
 #image = image.crop((x0,y0,x1,y1))
 
-transform = T.Resize(512)
+transform = T.Resize(trainsz)
 image = tensor(np.asarray(transform(image)))
-image = image.view(1,1,512,512).to(device('cuda:0'))
+image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
 
 imagesim = Image.open('simfloat.tiff')
-x0 = (512-imagesim.width)>>1
-y0 = (512-imagesim.height)>>1
+x0 = (trainsz-imagesim.width)>>1
+y0 = (trainsz-imagesim.height)>>1
 
 imagesim = tensor(np.asarray(imagesim))
 imagesim = torch.nn.functional.pad(imagesim,(x0,x0,y0,y0),"constant",0)
-imagesim = imagesim.view(1,1,512,512).to(device('cuda:0'))
+imagesim = imagesim.view(1,1,trainsz,trainsz).to(device('cuda:0'))
 for epoch in range(EPOCH):
     print('开始第{}轮'.format(epoch))
     net.train()

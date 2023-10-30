@@ -8,7 +8,7 @@ class cuPlotter
 {
   int rows;
   int cols;
-  Real phaseMax = 2*M_PI;
+  Real phaseMax = 2*3.141592657;
   void *cv_cache = 0;
   void *cv_data = 0; //cv_data = cv_cache->data
   pixeltype *cuCache_data = 0; //cv format
