@@ -1,9 +1,10 @@
 #ifndef __FORMAT_H__
 #define __FORMAT_H__
 #define Bits 16
+#include <complex.h>
 
-#define float_cv_format CV_32FC
 #define VTK_TYPE VTK_FLOAT
+//#define complexFormat float _Complex
 #define complexFormat cufftComplex
 
 #if Bits==12 || Bits==16

@@ -9,10 +9,7 @@ from unetDataLoader import unetDataLoader as ul
 from torch.utils.data import DataLoader
 import torchvision.transforms as T
 #from torch.utils.tensorboard import SummaryWriter
-from matplotlib import colors
-import matplotlib.pyplot as plt
-from PIL import Image
-from PIL.Image import fromarray
+from libimageIO_cython import writeFloat,readImage,writePng
 import numpy as np
 
 #writer = SummaryWriter()
@@ -40,32 +37,32 @@ if exists(ModelSave+'/Unet.pt'):
     net.load_state_dict(torch.load(ModelSave+'/Unet.pt'))
 print('load success')
 imgval,label=datatest[testIdx]
-mp = 'turbo'
-fig = plt.figure('label', figsize=[3,3])
-subfig = fig.add_subplot(1,1,1)
-subfig.imshow(label.cpu()[0].numpy(), norm=colors.LogNorm(), cmap=mp);
-fig.savefig("Log_imgs/seglab.png")
+cache = np.zeros((label.shape))
+writePng("Log_imgs/seglab.png", label.cpu()[0].numpy(), cache, 1, 1);
 imgtest=torch.unsqueeze(imgval,dim=0)
 testimg, testlabel = next(iter(testloader))
 train_losses = []
 test_losses = []
 
-image = Image.open('floatimage.tiff')
-x0 = (trainsz-image.width)>>1
-y0 = (trainsz-image.height)>>1
+image = readImage('floatimage.bin')
+x0 = (trainsz-image.shape[0])>>1
+y0 = (trainsz-image.shape[1])>>1
 #image = image.crop((x0,y0,x1,y1))
 
-transform = T.Resize(trainsz)
-image = tensor(np.asarray(transform(image)))
+#transform = T.Resize(trainsz)
+#image = tensor(image)
+#image = transform(image)
+#image = np.asarray(image)
+image = tensor(image)
 image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
 
-imagesim = Image.open('simfloat.tiff')
-x0 = (trainsz-imagesim.width)>>1
-y0 = (trainsz-imagesim.height)>>1
-
-imagesim = tensor(np.asarray(imagesim))
-imagesim = torch.nn.functional.pad(imagesim,(x0,x0,y0,y0),"constant",0)
-imagesim = imagesim.view(1,1,trainsz,trainsz).to(device('cuda:0'))
+#imagesim = readImage('simfloat.bin')
+#x0 = (trainsz-imagesim.shape[0])>>1
+#y0 = (trainsz-imagesim.shape[1])>>1
+#
+#imagesim = tensor(np.asarray(imagesim))
+#imagesim = torch.nn.functional.pad(imagesim,(x0,x0,y0,y0),"constant",0)
+#imagesim = imagesim.view(1,1,trainsz,trainsz).to(device('cuda:0'))
 for epoch in range(EPOCH):
     print('开始第{}轮'.format(epoch))
     net.train()
@@ -87,15 +84,13 @@ for epoch in range(EPOCH):
     torch.save(net.state_dict(),ModelSave+'/Unet.pt')
     net.eval()
     out=net(imgtest)
-    subfig.clear()
-    subfig.imshow(out.cpu()[0][0].detach().numpy(), norm=colors.LogNorm(), cmap=mp);
-    fig.savefig('Log_imgs/segimg_ep{}.jpg'.format(epoch))
+    writePng('Log_imgs/segimg_ep{}.jpg'.format(epoch),out.cpu()[0][0].detach().numpy(),cache, 1);
     out=net(image)
     imgnp=out.cpu()[0][0].detach().numpy()
-    fromarray(imgnp).save("pattern.tiff")
-    out=net(imagesim)
-    imgnp=out.cpu()[0][0].detach().numpy()
-    fromarray(imgnp).save("patternsim.tiff")
+    writeFloat("pattern.bin",imgnp)
+    #out=net(imagesim)
+    #imgnp=out.cpu()[0][0].detach().numpy()
+    #writeFloat("patternsim.bin",fromarray(imgnp))
     print('第{}轮结束'.format(epoch))
 #plt.title("Training and Validation Loss")
 #plt.plot(test_losses,label="val")

@@ -4,11 +4,19 @@
 #include "format.h"
 #include "memManager.h"
 #include <stdio.h>
+#define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
+#define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
+#define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
 #define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
 #define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, x
 #define cuFunc(name,args,param,content...)\
   __global__ void name##Wrap(addVarArg args) content \
   void name args{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+  }
+#define cuFuncc(name,argsf,argsw,param,content...)\
+  __global__ void name##Wrap(addVarArg argsw) content \
+  void name argsf{\
     name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
   }
 #define cuFuncTemplate(name,args,param,content...)\

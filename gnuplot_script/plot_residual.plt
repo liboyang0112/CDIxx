@@ -4,6 +4,6 @@ set xlabel "Iteration"
 set ylabel "Residual"
 set logscale y
 #set yrange [1e-5:]
-set term png size 500,500
-set output "residual_iter_pulseGen.png"
+set term pdf size 6,4
+set output "residual_iter_pulseGen.pdf"
 plot "residual.txt" title "Residual" with lines lt 1 lw 3 lc rgb "blue"

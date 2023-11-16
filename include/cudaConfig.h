@@ -2,12 +2,15 @@
 #define __CUDACONFIG_H__
 #include "format.h"
 #include "cudaDefs.h"
-#include<stdint.h>
 #include <curand_kernel.h>
+#include<stdint.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
+#define myFFT(args...) myCufftExec(*plan, args, CUFFT_FORWARD)
+#define myIFFT(args...) myCufftExec(*plan, args, CUFFT_INVERSE)
 #define myCufftExecR2C cufftExecR2C
+#define myFFTR2C(args...) myCufftExecR2C(*planR2C, args)
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
@@ -27,6 +30,7 @@ void adamUpdateV(Real* v, complexFormat* grad, Real beta2);
 void adamUpdate(complexFormat* x, complexFormat* m, Real* v, Real lr, Real eps);
 void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx = 0, Real shifty = 0, Real phaseFactor = 0);
 void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0, Real phaseFactor = 0);
+void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void shiftWave(complexFormat* wave, Real shiftx, Real shifty);
 void shiftMiddle(complexFormat* wave);
@@ -58,6 +62,7 @@ void multiply(complexFormat* source, complexFormat* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
 void multiply(Real* store, Real* source, Real* target);
+void stretch(Real* src, Real* dest, Real rat, int prec);
 void convertFOPhase(complexFormat* data);
 void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
 void cropinner(Real* src, Real* dest, int row, int col, Real norm);
@@ -66,7 +71,7 @@ void padinner(Real* src, Real* dest, int row, int col, Real norm);
 void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm);
 void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
-void init_fft(int rows, int cols);
+void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 cuFuncTemplate(cudaConvertFO, (T* data, T* out = 0),(data,out==0?data:out),{
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -105,11 +110,8 @@ template <typename T1, typename T2>
 void assignVal(T1* out, T2* input){
   assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,out,input);
 }
-cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0),(src,dest,row,col,midx,midy),{
-  cudaIdx()
-	int targetindex = (x+(row-cuda_row)/2+int(row*midx))*col + y+(col-cuda_column)/2+int(col*midy);
-	dest[index] = src[targetindex];
-})
+template<typename T>
+void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
 cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0),(src, dest, row, col, shiftx, shifty),{
   cudaIdx()
 	int marginx = (cuda_row-row)/2+shiftx;

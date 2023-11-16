@@ -13,7 +13,6 @@ class experimentConfig : public readConfig{
     Real enhancement = 0;
     Real forwardFactor = 0;
     Real fresnelFactor = 0;
-    Real inverseFactor = 0;
     Real resolution = 0;
     int row = 0;
     int column = 0;
@@ -23,13 +22,9 @@ class experimentConfig : public readConfig{
     Real* beamstop = 0;
     Real* pupilpatternData = 0;
     Real enhancementpupil = 0;
-    Real forwardFactorpupil = 0;
     Real fresnelFactorpupil = 0;
-    Real inverseFactorpupil = 0;
     Real enhancementMid = 0;
-    Real forwardFactorMid = 0;
     Real fresnelFactorMid = 0;
-    Real inverseFactorMid = 0;
     void createBeamStop();
     void propagate(void* datain, void* dataout, bool isforward);
     void angularPropagate(void* datain, void* dataout, bool isforward);

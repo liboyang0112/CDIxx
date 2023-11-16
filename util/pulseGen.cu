@@ -284,7 +284,7 @@ int main(int argc, char** argv){
        */
 
       for(int i = 0; i < 0; i++){
-        getMod2(cdi.patternData, cdi.patternWave);
+        getMod2(cdi.patternData, (complexFormat*)cdi.patternWave);
         applyNorm(cdi.patternData, cdi.exposure);
         extendToComplex(cdi.patternData, d_solved);
         cudaConvertFO(d_solved);
@@ -304,7 +304,7 @@ int main(int argc, char** argv){
       //  mwl.writeSpectra("spectra_new.txt");
       //}
 
-      myCufftExec(*plan, d_solved, d_CpatternSum, CUFFT_FORWARD);
+      myFFT(d_solved, d_CpatternSum);
       plt.plotComplex(d_CpatternSum, MOD, 1, 2./mwl.row, ("autocsolved"+to_string(j)).c_str(), 1);
     }
 

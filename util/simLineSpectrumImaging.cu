@@ -34,9 +34,9 @@ int main(int argc, char* argv[]){
   int row = 512, col = 512;
   Real* d_intensity = 0, *d_phase = 0;
   readComplexWaveFront(cfg.pupil.Intensity, cfg.phaseModulation? cfg.pupil.Phase:0, d_intensity, d_phase, objrow, objcol);
-  complexFormat* objectWave = (complexFormat*)memMngr.borrowCache(row*col*sizeof(complexFormat));
-  Real* pattern = (Real*)memMngr.borrowCache(row*col*sizeof(Real));
-  complexFormat* cpattern = (complexFormat*)memMngr.borrowCache(row*col*sizeof(complexFormat));
+  myCuDMalloc(complexFormat, objectWave, row*col);
+  myCuDMalloc(Real, pattern, row*col);
+  myCuDMalloc(complexFormat, cpattern, row*col);
   init_cuda_image();
   resize_cuda_image(row, col);
   createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave, objrow, objcol);
@@ -50,7 +50,7 @@ int main(int argc, char* argv[]){
     mwl.generateMWLRefPattern(pattern);
     extendToComplex(pattern,cpattern);
     cudaConvertFO(cpattern);
-    myCufftExec( *plan, cpattern, cpattern, CUFFT_FORWARD);
+    myFFT(cpattern, cpattern);
     plt.plotComplex(cpattern, PHASE, 1, 1, "mergedac", 0, 0, 0);
     applyNorm(pattern, cfg.exposure);
     mwl.reconRefs(pattern);

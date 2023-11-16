@@ -51,7 +51,7 @@ void getTurboColor(Real x, int bit_depth, char* store){
   }
 }
 
-int cuPlotter::initVideo(const char* filename, const char* codec, int fps){
+int cuPlotter::initVideo(const char* filename, int fps){
   int handle = nvid;
   if(handle == 100){
     for(int i = 0; i < 100; i++){
@@ -100,7 +100,7 @@ void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay
   plot(label, isColor);
 }
 void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
-  cuPlotter::processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
+  processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, isColor);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
@@ -117,33 +117,17 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
   saveFloatData(cudaData);
   writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
-/*
-#include "opencv2/phase_unwrapping/histogramphaseunwrapping.hpp"
-using namespace cv;
-void cuPlotter::plotPhase(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
-  if(!cv_float_cache){
-    Mat *tmpfloat = new Mat(rows, cols, CV_32FC1, Scalar(0));
-    cv_float_cache = tmpfloat;
-    cv_float_data = tmpfloat->data;
+void* cuPlotter::cvtTurbo(){
+  for(int i = 0 ; i < rows*cols; i++){
+    getTurboColor(((pixeltype*)cv_data)[i], Bits, (char*)cv_cache+i*3);
   }
-  cuPlotter::processPhaseData(cudaData,m,isFrequency,decay, isFlip);
-  cv::phase_unwrapping::HistogramPhaseUnwrapping::Params pars;
-  pars.height = cols;
-  pars.width = rows;
-  auto uwrap = phase_unwrapping::HistogramPhaseUnwrapping::create(pars);
-  uwrap->unwrapPhaseMap(*(Mat*)cv_float_cache, *(Mat*)cv_float_cache);
-  for(int i = 0; i < rows*cols; i++)
-    ((pixeltype*)cv_data)[i] = std::min(int((((Real*)cv_float_data)[i]+Real(M_PI))*rcolor/phaseMax),rcolor-1);
-  plot(label, islog);
+  return cv_cache;
 }
-*/
 void cuPlotter::plot(const char* label, bool iscolor){
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
   if(iscolor){
-    for(int i = 0 ; i < rows*cols; i++){
-      getTurboColor(((pixeltype*)cv_data)[i], Bits, (char*)cv_cache+i*3);
-    }
+    cvtTurbo();
     if(toVideo>=0) {
       //char color[3] = {0,0,-1};
       //put_formula(label, 0,0,cols, cv_cache, 1, color);

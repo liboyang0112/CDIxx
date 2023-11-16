@@ -54,10 +54,10 @@ int main(int argc, const char* argv[])
     plt.plotComplex(solved,REAL,0,1,"monopattern",0);
     getMod(realb, solved);
     plt.saveFloat(realb, "pattern");
-    myCufftExec( *plan, complexpattern, complexpattern, CUFFT_INVERSE);
+    myIFFT(complexpattern, complexpattern);
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocbroad", 1);
-    myCufftExec( *plan, solved, complexpattern, CUFFT_INVERSE);
+    myIFFT(solved, complexpattern);
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
     mwl.writeSpectra("spectra_new.txt");

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 png_colorp palette = 0;
 const Real rgb2gray[3] = {0.299,0.587,0.114};
 Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
@@ -22,13 +23,13 @@ Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
     size_t datasz = *row*(*col)*typeSizes[fdata.type];
     ret = (Real*) cmalloc(datasz);
     fread(ret, datasz, 1, fin);
-    int ttype = REALIDX;
-    if(fdata.type != ttype){  //only save floats with bin;
+    if(fdata.type != REALIDX && fdata.type != COMPLEXIDX){  //only save floats with bin;
       fprintf(stderr, "ERROR: FILETYPE unrecognized: %d\n", fdata.type);
       abort();
     }
     fclose(fin);
-  }else if(!strcmp(fext,".tiff") || !strcmp(fext,"tif")){
+  }else if(!strcmp(fext,".tiff") || !strcmp(fext,".tif")){
+    TIFFSetWarningHandler(NULL);
     TIFF* tif = TIFFOpen(name, "r");
     if(!tif) {
       fprintf(stderr, "ERROR: %s not fould!\n", name);
@@ -143,7 +144,7 @@ Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
     png_destroy_info_struct(png_ptr, &info_ptr);
     png_destroy_read_struct(&png_ptr, NULL, NULL);
   }else{
-    fprintf(stderr, "ERROR: file extension .%s not know\n", fext);
+    fprintf(stderr, "ERROR: file extension %s not known\n", fext);
     abort();
   }
   return ret;
@@ -170,10 +171,11 @@ void writeFloatImage(const char* name, void* data, int row, int column){
   fwrite(data, row*column*sizeof(Real), 1, fout);
   fclose(fout);
 }
-int writePng(const char* png_file_name, void* data , int width, int height, int bit_depth, char colored)
+int writePng(const char* png_file_name, void* data , int height, int width, int bit_depth, char colored)
 {
   unsigned char* pixels = (unsigned char*) data;
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  png_set_compression_level(png_ptr,1);
 	if(png_ptr == NULL)
 	{
 		printf("ERROR:png_create_write_struct/n");
@@ -263,3 +265,80 @@ int put_formula(const char* formula, int x, int y, int width, void* data, char i
   system("rm out_tmp.pdf");
   return 0;
 }
+const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
+  {
+    {48.628736, 1.26493952, 0.0179480064},
+    {12.9012, 3.17599, -0.0432176},
+    {550.736, -13.3905, 0.0850816},
+    {-377.035, 4.95565, -0.00546875},
+    {-461.663, 6.91765, -0.0158418},
+    {-904.194, 12.7805, -0.0352175},
+    {-397.815, 7.43316, -0.0210902},
+    {-513.745, 8.50106, -0.0235486}
+  },{
+     {18.3699, 2.98435, -0.00590619},
+     {25.5339, 2.60115, -0.000838337},
+     {-65.9885, 5.48243, -0.023616},
+     {-90.9164, 5.82642, -0.024485},
+     {-47.1592, 5.39126, -0.0237502},
+     {-65.915, 5.26759, -0.0222375},
+     {1648.81, -12.6094, 0.0243797},
+     {1160.21, -8.10854, 0.014018}
+  },{
+     {59.4351, 7.57781, -0.0720408},
+     {29.4288, 9.18296, -0.0932682},
+     {391.685, -2.3166, -0.0016649},
+     {770.071, -8.98098, 0.0266769},
+     {606.475, -7.75046, 0.0270971},
+     {-638.138, 8.68843, -0.0270811},
+     {1017.44, -8.76258, 0.0189386},
+     {625.18, -5.14916, 0.0106199}
+  }
+};
+
+void getTurboColor(Real x, int bit_depth, char* store){
+  //convert to 8 bit;
+  x = x / (1<<(bit_depth-8));
+  if(x > 255) x = 255;
+  int sec = x/32; // deside sector;
+  for(int i = 0 ; i < 3; i++){
+    int val = TurboData[i][sec][0] + TurboData[i][sec][1]*x + TurboData[i][sec][2]*x*x;
+    if(val < 0) val = 0;
+    if(val > 255) val = 255;
+    store[i] = val;
+  }
+}
+void cvtLog(Real* data, int nele){
+  for(int i = 0; i < nele; i++){
+    if(data[i]>1) data[i] = 1;
+    if(data[i]<2e-16) data[i] = 2e-16;
+    data[i] = log2(data[i])/16+1;
+  }
+}
+void plotPng(const char* label, Real* data, char* cache, int rows, int cols, char iscolor){
+  char *fname;
+  if(!strrchr(label,'.')) {
+    fname = (char*) malloc(strlen(label) + 4);
+    memset(fname, 0, strlen(label) + 4);
+    memcpy(fname, label, strlen(label));
+    strcat(fname,".png");
+  }else
+    fname = (char*)label;
+  if(iscolor){
+    for(int i = 0 ; i < rows*cols; i++){
+      if(data[i] >= 1) data[i] = 1;
+      else if(data[i]<0) data[i] = 0;
+      getTurboColor(data[i]*65535, Bits, cache+i*3);
+    }
+    writePng(fname, cache, rows, cols, 8, 1);
+  }else{
+    for(int i = 0 ; i < rows*cols; i++){
+      if(data[i] >= 1) data[i] = 1;
+      else if(data[i]<0) data[i] = 0;
+      ((uint16_t*)cache)[i] = data[i] * 65535;
+    }
+    writePng(fname, cache, rows, cols, 16, 0);
+  }
+  printf("written to file %s\n", fname);
+}
+

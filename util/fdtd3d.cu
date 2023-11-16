@@ -448,9 +448,9 @@ int main(){
   plt.init(nx,ny);
   init_cuda_image();
   
-  int ezvid = plt.initVideo("Ez.mp4","avc1", 24);
-  int hxvid = plt.initVideo("Hx.mp4","avc1", 24);
-  int hyvid = plt.initVideo("Hy.mp4","avc1", 24);
+  int ezvid = plt.initVideo("Ez.mp4", 24);
+  int hxvid = plt.initVideo("Hx.mp4", 24);
+  int hyvid = plt.initVideo("Hy.mp4", 24);
   plt.showVid = -1;//ezvid;
   
   for(int i = 0; i < nsteps; i++){

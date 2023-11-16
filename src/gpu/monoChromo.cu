@@ -124,7 +124,7 @@ Real monoChromo::init(int nrow, int ncol, double* lambdasi, double* spectrumi, i
   for(int i = 0; i < narray; i++){
     spectrumfile<<lambdasi[i]*(1+skiplambda)<<" "<<spectrumraw[i]/spectrumi[narray-1]<<std::endl;
   }
-  ccmemMngr.returnCache(spectrumraw);
+  myFree(spectrumraw);
   spectrumfile.close();
   gsl_interp_accel *acc = gsl_interp_accel_alloc ();
   gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, narray);
@@ -194,8 +194,8 @@ void monoChromo::initRefs(const char* maskFile){  //mask file, full image size,
   }
   d_maskMap = (uint32_t*)memMngr.borrowCache(pixCount*sizeof(uint32_t));
   cudaMemcpy(d_maskMap, maskMap, pixCount*sizeof(uint32_t), cudaMemcpyHostToDevice);
-  ccmemMngr.returnCache(maskMap);
-  ccmemMngr.returnCache(refMask);
+  myFree(maskMap);
+  myFree(refMask);
   refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
   for(int i = 0; i < nlambda; i++){
     refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
@@ -267,9 +267,9 @@ void monoChromo::generateMWLRefPattern(void* d_patternSum, bool debug){
     }
     cudaMemset(amp, 0, thisrow*thiscol*sizeof(complexFormat));
   }
-  memMngr.returnCache(amp);
-  memMngr.returnCache(camp);
-  memMngr.returnCache(d_pattern);
+  myCuFree(amp);
+  myCuFree(camp);
+  myCuFree(d_pattern);
 }
 void monoChromo::clearRefs(){
   for(int i = 0; i < nlambda; i++) cudaMemset(refs[i], 0, pixCount*sizeof(complexFormat));
@@ -389,10 +389,10 @@ void monoChromo::reconRefs(void* d_patternSum){
   addRemoveOE(residual, (Real*)patternRecon, -1);
   plt.plotFloat(residual, MOD, 0, 1, "residual", 1, 0, 1);
 
-  memMngr.returnCache(patternRecon);
-  memMngr.returnCache(residual);
-  memMngr.returnCache(amp);
-  memMngr.returnCache(camp);
+  myCuFree(patternRecon);
+  myCuFree(residual);
+  myCuFree(amp);
+  myCuFree(camp);
 }
 void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
   Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
@@ -426,16 +426,16 @@ void monoChromo::generateMWL(void* d_input, void* d_patternSum, void* single){
       }
     }
   }
-  memMngr.returnCache(d_pattern);
-  memMngr.returnCache(d_intensity);
-  memMngr.returnCache(d_patternAmp);
+  myCuFree(d_pattern);
+  myCuFree(d_intensity);
+  myCuFree(d_patternAmp);
 }
 Real innerProd(void* a, void* b, void* param){
   Real* tmp = (Real*)memMngr.borrowCache(memMngr.getSize(a)/2);
   multiplyReal(tmp,(complexFormat*)a, (complexFormat*)b);
   applyMask(tmp, (Real*)param);
   Real sum = findSum(tmp);
-  memMngr.returnCache(tmp);
+  myCuFree(tmp);
   return sum;
 }
 
@@ -466,7 +466,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   if(updateA){
     sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
     createMaskBar(sptimg, cuda_spt, 0);
-    memMngr.returnCache(cuda_spt);
+    myCuFree(cuda_spt);
     applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
@@ -510,7 +510,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   }
   complexFormat *fbi;
   if(!updateX) {
-    myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
+    myIFFT((complexFormat*)d_output, fftb);
     cudaConvertFO(fftb);
   }
   int nmem = nlambda/8;
@@ -526,7 +526,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
   for(int i = 0; i < nIter; i++){
     if(updateX||i==0||!gs) {
-      myCufftExec( *plan, (complexFormat*)d_output, fftb, CUFFT_INVERSE);
+      myIFFT((complexFormat*)d_output, fftb);
     }
     if(gs && monoidx < nmem) 
       cudaMemcpy(gs[monoidx], d_output, sz, cudaMemcpyDeviceToDevice);
@@ -627,7 +627,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         resize_cuda_image(row, column);
         if(rows[j] > row) cropinner(padded, fbi, rows[j], cols[j], 1./(row*column));
         else padinner(padded, fbi, rows[j], cols[j], 1./(row*column));
-        myCufftExec( *plan, fbi, fbi, CUFFT_FORWARD);
+        myFFT(fbi, fbi);
         add((complexFormat*)deltabprev, fbi, spectra[j]);
       }
       //multiplyPixelWeight( deltabprev, pixel_weight);
@@ -661,18 +661,16 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     plt.plotComplex(deltab, MOD, 0, 1, "broad_recon_log", 1, 0, 1);
     fresidual.close();
   }
-  if(updateA){
-    ccmemMngr.returnCache(momentum_a);
-  }
-  ccmemMngr.returnCache(matrix);
-  ccmemMngr.returnCache(right);
-  memMngr.returnCache(deltabprev);
-  memMngr.returnCache(multiplied);
-  if(momentum) memMngr.returnCache(momentum);
-  if(adamv) memMngr.returnCache(adamv);
-  memMngr.returnCache(padded);
-  if(!gs) memMngr.returnCache(fbi);
-  memMngr.returnCache(fftb);
-  memMngr.returnCache(deltab);
+  myFree(momentum_a);
+  myFree(matrix);
+  myFree(right);
+  myCuFree(deltabprev);
+  myCuFree(multiplied);
+  myCuFree(momentum);
+  myCuFree(adamv);
+  myCuFree(padded);
+  myCuFree(fbi);
+  myCuFree(fftb);
+  myCuFree(deltab);
 
 }

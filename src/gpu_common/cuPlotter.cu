@@ -103,10 +103,11 @@ __global__ void getPhase(cudaVars* vars, int cuda_row, int cuda_column, void* cu
   cache[targetx*cuda_column+targety] =cugetVal(vars, m,((complexFormat*)cudaData)[index],decay,0);
 }
 
-void cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){
+void* cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){
   if(!cuCache_float_data) cuCache_float_data = (Real*) memMngr.borrowCache(rows*cols*sizeof(Real));
   getPhase<<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, (Real*)cuCache_float_data, m, isFrequency, decay, isFlip);
   cudaMemcpy(cv_float_data, cuCache_float_data,rows*cols*sizeof(Real), cudaMemcpyDeviceToHost); 
+  return cv_float_data;
 };
 
 void cuPlotter::saveFloatData(void* cudaData){
@@ -115,13 +116,15 @@ void cuPlotter::saveFloatData(void* cudaData){
 void cuPlotter::saveComplexData(void* cudaData){
   cudaMemcpy(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat), cudaMemcpyDeviceToHost); 
 };
-void cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
   if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
   process<Real><<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, cuCache_data, m, isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
+  return cv_data;
 };
-void cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
   if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
   process<complexFormat><<<numBlocks,threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
   cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost); 
+  return cv_data;
 };

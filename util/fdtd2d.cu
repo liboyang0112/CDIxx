@@ -163,9 +163,9 @@ int main(){
   resize_cuda_image(ny,nx);
   plt.init(ny,nx);
   init_cuda_image();
-  int ezvid = plt.initVideo("Ez.mp4","avc1",24);
-  int hxvid = plt.initVideo("Hx.mp4","avc1",24);
-  int hyvid = plt.initVideo("Hy.mp4","avc1",24);
+  int ezvid = plt.initVideo("Ez.mp4",24);
+  int hxvid = plt.initVideo("Hx.mp4",24);
+  int hyvid = plt.initVideo("Hy.mp4",24);
   Real dt1 = 0.5-0.5/sqrt(mE*mH);
   Real dt2 = 0.5-sqrt(1.25/mE*mH);
   for(int i = 0; i < nsteps; i++){

@@ -150,14 +150,10 @@ int main(int argc, char** argv )
 
   //-----------------------configure experiment setups-----------------------------
   printf("Imaging distance = %4.2fcm\n", setups.d*1e-4);
-  printf("forward norm = %f\n", setups.forwardFactor);
-  printf("backward norm = %f\n", setups.inverseFactor);
   printf("fresnel factor = %f\n", setups.fresnelFactor);
   printf("enhancement = %f\n", setups.enhancement);
 
   printf("pupil Imaging distance = %4.2fcm\n", setups.dpupil*1e-4);
-  printf("pupil forward norm = %f\n", setups.forwardFactorpupil);
-  printf("pupil backward norm = %f\n", setups.inverseFactorpupil);
   printf("pupil fresnel factor = %f\n", setups.fresnelFactorpupil);
   printf("pupil enhancement = %f\n", setups.enhancementpupil);
 
@@ -207,7 +203,7 @@ int main(int argc, char** argv )
       cudaMemcpy(cuda_pupilAmp_SIM, cuda_pupilAmp, sz, cudaMemcpyDeviceToDevice);
       setups.multiplyFresnelPhase(cuda_pupilAmp, -setups.d);
       setups.multiplyFresnelPhaseMid(cuda_pupilAmp, setups.d-setups.dpupil);
-      setups.propagateMid(cuda_pupilAmp, cuda_pupilAmp, 1);
+      setups.propagate(cuda_pupilAmp, cuda_pupilAmp, 1);
       cudaConvertFO(cuda_pupilAmp);
       setups.multiplyPatternPhaseMid(cuda_pupilAmp, setups.d-setups.dpupil);
 
@@ -222,7 +218,7 @@ int main(int argc, char** argv )
       m_verbose(setups,2,plt.plotComplex(cuda_ESW, MOD2, 0, 1, "ESW"));
 
       setups.multiplyFresnelPhase(cuda_ESW, setups.dpupil);
-      setups.propagatepupil(cuda_ESW, cuda_ESW, 1);
+      setups.propagate(cuda_ESW, cuda_ESW, 1);
       setups.multiplyPatternPhase(cuda_ESW, setups.dpupil); //the same effect as setups.multiplyPatternPhase(cuda_pupilAmp, -setups.dpupil);
       m_verbose(setups,2,plt.plotComplex(cuda_ESW, MOD2, 0, setups.exposure, "ESWPattern",1));
 
@@ -234,7 +230,7 @@ int main(int argc, char** argv )
 
       add(cuda_pupilAmp_SIM, cuda_ESW);
       getMod2(cuda_pupilmod, cuda_pupilAmp_SIM);
-      applyPoissonNoise_WO(cuda_pupilmod, setups.noiseLevel_pupil, setups.devstates, 1./setups.exposurepupil);
+      applyPoissonNoise_WO(cuda_pupilmod, setups.noiseLevel_pupil, (curandStateMRG32k3a*)setups.devstates, 1./setups.exposurepupil);
       plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, "pupil_logintensity", 1);
       plt.plotComplex(cuda_pupilAmp, PHASE, 0, 1, "pupil_phase", 0);
       plt.plotFloat(cuda_pupilmod, MOD, 0, setups.exposurepupil, setups.pupil.Pattern, 0);
@@ -276,12 +272,12 @@ int main(int argc, char** argv )
     setups.multiplyPatternPhase(cuda_pupilAmp, setups.d);
     setups.multiplyPatternPhase_reverse(cuda_pupilAmp, setups.dpupil);
     plt.plotComplex(cuda_pupilAmp, MOD2, 0, setups.exposure, "amp",0);
-    setups.propagatepupil(cuda_pupilAmp, cuda_ISW, 0);
+    setups.propagate(cuda_pupilAmp, cuda_ISW, 0);
 
     plt.plotComplex(cuda_ISW, MOD2, 0, 1, "ISW_debug",0);
 
     initESW(cuda_ESW, cuda_pupilmod, cuda_pupilAmp);
-    setups.propagatepupil(cuda_ESW, cuda_ESW, 0);
+    setups.propagate(cuda_ESW, cuda_ESW, 0);
     cudaMemcpy(cuda_ESWP, cuda_ESW, sz, cudaMemcpyDeviceToDevice);
     Real *cuda_steplength, *steplength;//, lengthsum;
     steplength = (Real*)malloc(sz/2);
@@ -295,13 +291,13 @@ int main(int argc, char** argv )
          if(iter%500==0) printf("step: %d, steplength=%f\n", iter, lengthsum);
          if(lengthsum<1e-6) break;
        */
-      setups.propagatepupil(cuda_ESW, cuda_ESWPattern, 1);
+      setups.propagate(cuda_ESW, cuda_ESWPattern, 1);
       applyESWMod(cuda_ESWPattern, cuda_pupilmod, cuda_pupilAmp, 0);//setups.noiseLevel);
-      setups.propagatepupil(cuda_ESWPattern, cuda_ESWP, 0);
+      setups.propagate(cuda_ESWPattern, cuda_ESWP, 0);
     }
 
     //convert from ESW to object
-    setups.propagatepupil(cuda_ESW, cuda_ESWPattern, 1);
+    setups.propagate(cuda_ESW, cuda_ESWPattern, 1);
     add(cuda_ESWPattern,cuda_pupilAmp);
     plt.plotComplex(cuda_ESWPattern, MOD2, 0, setups.exposurepupil, "ESW_pattern_recon", 1);
 

@@ -78,6 +78,7 @@ size_t memManager::getSize(void* mem){
 }
 
 void memManager::returnCache(void* mem){
+  if(mem == NULL) return;
   auto iter = rentBook.find(mem);
   if(iter == rentBook.end()) {
     printf("This pointer %p, is not found in the rentBook, please check if the memory is managed by memManager or returned already.\n", mem);

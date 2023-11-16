@@ -272,10 +272,10 @@ button[disabled] {
   }
   document.getElementById("uploadimg").addEventListener('click',async ()=>{
     const path = repo + document.getElementById('path').value +"/"
-    const url = 'process.php';
+    const url = 'savefile.php';
     const files = document.getElementById('background').files;
     const sigfiles = document.getElementById('image').files;
-    const formData = new FormData();
+    let formData = new FormData();
     const list = document.getElementsByName("idata");
     var idata = "1";
     for(i=0;i<list.length;i++){
@@ -284,14 +284,15 @@ button[disabled] {
     formData.append('path', path);
     document.getElementById('runbkgfile'+idata).value = files[0].name
     document.getElementById('runimgfile'+idata).value = sigfiles[0].name
-    formData.append('files[]', files[0]);
-    formData.append('files[]', sigfiles[0]);
+    formData.append('files[]', files[0], files[0].name);
+    formData.append('files[]', sigfiles[0], sigfiles[0].name);
     fetch(url, {
       method: 'POST',
       body: formData
     }).then(response => {
       return response.text();
-    }).then(()=>{
+    }).then(data=>{
+      console.log(data)
       return listFiles("cd " + repo + document.getElementById('path').value +" ; ls *.tif");
     }).then(data=>{
       autoFillDictionary["bkg"] = data;
@@ -300,7 +301,7 @@ button[disabled] {
   });
   document.getElementById("uploadfiles").addEventListener('click',async ()=>{
     const path = repo + "spectrum/"
-    const url = 'process.php';
+    const url = 'savefile.php';
     const filearray = document.getElementById('filestoupload').files;
     document.getElementById('runspectfile').value = filearray[0].name;
     const formData = new FormData();

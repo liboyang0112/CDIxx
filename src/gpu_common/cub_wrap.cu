@@ -74,6 +74,7 @@ store(findSumReal);
   if(store_##name##_n) {\
     store_##name##_n = 0;\
     memMngr.returnCache(store_##name);\
+    store_##name = 0;\
   }
 void initCub(){
   initStore(findMax);
@@ -126,35 +127,35 @@ Real findSum(Real* d_in, int num, bool debug=false)
 cuFunc(multiplyx,(complexFormat* object, Real* out),(object,out),{
   cuda1Idx();
   int x = index/cuda_column;
-  out[index] = cuCabsf(object[index]) * (Real(x)/cuda_row-0.5);
+  out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
 })
 
 cuFunc(multiplyy,(complexFormat* object, Real* out),(object,out),{
   cuda1Idx();
   int y = index%cuda_column;
-  out[index] = cuCabsf(object[index]) * (Real(y)/cuda_column-0.5);
+  out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
 })
 cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
   cuda1Idx();
   int x = index/cuda_column;
-  out[index] = object[index] * (Real(x)/cuda_row-0.5);
+  out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
 })
 
 cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
   cuda1Idx();
   int y = index%cuda_column;
-  out[index] = object[index] * (Real(y)/cuda_column-0.5);
+  out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
 })
 complexFormat findMiddle(complexFormat* d_in, int num){
-  int num_items = memMngr.getSize(d_in)/sizeof(complexFormat);
-  Real* tmp = (Real*) memMngr.borrowCache(num_items*sizeof(Real));
+  if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
+  myCuDMalloc(Real, tmp, num);
   getMod(tmp,d_in);
-  Real norm = findSum(tmp, num_items);
+  Real norm = findSum(tmp, num);
   multiplyx(d_in,tmp);
   complexFormat mid;
-  mid.x = findSum(tmp, num_items)/norm;
+  mid.x = findSum(tmp, num)/norm;
   multiplyy(d_in,tmp);
-  mid.y = findSum(tmp, num_items)/norm;
+  mid.y = findSum(tmp, num)/norm;
   memMngr.returnCache(tmp);
   return mid;
 };

@@ -33,27 +33,19 @@ cuFunc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor,
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
   multiplyFresnelPhase_Device((complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/(cuda_imgsz.x*cuda_imgsz.y)));
   cudaConvertFO((complexFormat*)field);
-  myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_FORWARD);
+  myFFT((complexFormat*)field, (complexFormat*)field);
   applyNorm((complexFormat*)field, 1./sqrt(cuda_imgsz.x*cuda_imgsz.y));
   cudaConvertFO((complexFormat*)field);
   multiplyPatternPhase_Device((complexFormat*)field, M_PI*lambda*d/(imagesize*imagesize), 2*d*M_PI/lambda - M_PI/2);
 }
 
-cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{
-  cudaIdx();
-  complexFormat phasefactor;
-  Real phase = a*sqrt(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
-  phasefactor.x = cos(phase);
-  phasefactor.y = sin(phase);
-  amp[index] = cuCmulf(amp[index],phasefactor);
-})
 void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambda, Real z_over_lambda){
-  myCufftExec(*plan, (complexFormat*)input, (complexFormat*)field, CUFFT_FORWARD);
+  myFFT((complexFormat*)input, (complexFormat*)field);
   applyNorm((complexFormat*)field, 1./(cuda_imgsz.x*cuda_imgsz.y));
   cudaConvertFO((complexFormat*)field);
   multiplyPropagatePhase((complexFormat*)field, 2*M_PI*z_over_lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
   cudaConvertFO((complexFormat*)field);
-  myCufftExec(*plan, (complexFormat*)field, (complexFormat*)field, CUFFT_INVERSE);
+  myIFFT((complexFormat*)field, (complexFormat*)field);
 }
 
 
@@ -73,8 +65,9 @@ void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforw
   angularSpectrumPropagate(datain, dataout, beamspotsize*oversampling/lambda, (isforward?d:-d)/lambda);
 }
 void experimentConfig::propagate(void* datain, void* dataout, bool isforward){
-  myCufftExec( *plan, (complexFormat*)datain, (complexFormat*)dataout, isforward? CUFFT_FORWARD: CUFFT_INVERSE);
-  applyNorm((complexFormat*)dataout, isforward? forwardFactor: inverseFactor);
+  if(isforward) myFFT((complexFormat*)datain, (complexFormat*)dataout);
+  else myIFFT((complexFormat*)datain, (complexFormat*)dataout);
+  applyNorm((complexFormat*)dataout, forwardFactor);
 }
 void experimentConfig::multiplyPatternPhase(void* amp, Real distance){
   if(costheta == 1){
@@ -119,6 +112,5 @@ void experimentConfig::multiplyFresnelPhase_factor(void* amp, Real factor){
 void experimentConfig::calculateParameters(){
   enhancement = sq(pixelsize)*sqrt(row*column)/(lambda*d); // this guarentee energy conservation
   fresnelFactor = lambda*d/sq(pixelsize)/row/column;
-  forwardFactor = fresnelFactor*enhancement;
-  inverseFactor = 1./row/column/forwardFactor;
+  forwardFactor = 1./sqrt(row*column);
 }

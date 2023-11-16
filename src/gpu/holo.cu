@@ -2,6 +2,7 @@
 #include "imgio.h"
 #include "cuPlotter.h"
 #include "cub_wrap.h"
+#include "cudaConfig.h"
 
 cuFunc(applySupportBar,(complexFormat* img, Real* spt),(img,spt),{
   cuda1Idx();
@@ -36,7 +37,7 @@ cuFunc(applySupport,(complexFormat* img, Real* spt),(img,spt),{
     img[index].x = img[index].y = 0;
 })
 
-cuFunc(dillate, (complexFormat* data, Real* support, int wid, int hit), (data,support,wid,hit),{
+cuFuncc(dillate, (float _Complex* data, Real* support, int wid, int hit), (complexFormat* data, Real* support, int wid, int hit), ((complexFormat*)data,support,wid,hit),{
   cudaIdx();
   if(abs(data[index].x) < 0.5 && abs(data[index].y) < 0.5) return;
   int idxp = 0;
@@ -64,7 +65,7 @@ cuFunc(devideStar, (complexFormat* obj, complexFormat* refer, complexFormat* xco
   cuda1Idx();
   complexFormat xctmp = xcorrelation[index];
   complexFormat reftmp = refer[index];
-  Real fact = max(sqSum(reftmp.x,reftmp.y),1e-5);
+  Real fact = max(sqSum(reftmp.x,reftmp.y),1e-4);
   xctmp = cuCmulf(xctmp, reftmp);
   obj[index].x = xctmp.x / fact;
   obj[index].y = xctmp.y / fact;
@@ -78,37 +79,38 @@ void holo::allocateMem_holo(){
   xcorrelation = (Real*)memMngr.borrowCache(sz);
   support_holo = (Real*)memMngr.borrowCache(sz);
   xcorrelation_support = (Real*)memMngr.borrowCache(sz);
-  patternWave_holo = (complexFormat*)memMngr.borrowCache(sz*2);
-  patternWave_obj = (complexFormat*)memMngr.borrowCache(sz*2);
-  objectWave_holo = (complexFormat*)memMngr.borrowCache(sz*2);
+  patternWave_holo = memMngr.borrowCache(sz*2);
+  patternWave_obj = memMngr.borrowCache(sz*2);
+  objectWave_holo = memMngr.borrowCache(sz*2);
 }
 void holo::calcXCorrelation(bool doplot){
   add( patternData_holo, patternData, -1);
-  extendToComplex( patternData_holo, patternWave_holo);
+  extendToComplex( patternData_holo, (complexFormat*)patternWave_holo);
   add( patternData_holo, patternData, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_FORWARD);
-  applyNorm( patternWave_holo, 1./(row*column));
-  applySupportBar( patternWave_holo, xcorrelation_support);
+  myFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
+  applyNorm( (complexFormat*)patternWave_holo, 1./(row*column));
+  applySupportBar( (complexFormat*)patternWave_holo, xcorrelation_support);
   if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1, 0, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
-  getReal( xcorrelation, patternWave_holo);
+  myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
+  getReal( xcorrelation, (complexFormat*)patternWave_holo);
 }
 void holo::calcXCorrelationHalf(bool doplot){
   add( patternData_holo, patternData, -1);
-  extendToComplex( patternData_holo, patternWave_holo);
+  extendToComplex( patternData_holo, (complexFormat*)patternWave_holo);
   add( patternData_holo, patternData, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_FORWARD);
-  applyNorm( patternWave_holo, 1./(row*column));
-  applySupportBarHalf( patternWave_holo, xcorrelation_support);
+  myFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
+  applyNorm( (complexFormat*)patternWave_holo, 1./(row*column));
+  applySupportBarHalf( (complexFormat*)patternWave_holo, xcorrelation_support);
   if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1, 0, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);  //OR*
+  myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);  //OR*
 }
 void holo::initXCorrelation(){
   add( patternData_holo, patternData, -1);
-  extendToComplex( patternData_holo, patternWave_holo);
+  //plt.plotFloat(patternData_holo, MOD, 1, 1, "patternDiff", 1, 0, 1);
+  extendToComplex( patternData_holo, (complexFormat*)patternWave_holo);
   add( patternData_holo, patternData, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_FORWARD);
-  applyNorm( patternWave_holo, 1./(row*column));
+  myFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
+  applyNorm( (complexFormat*)patternWave_holo, 1./(row*column));
 
   rect cir;
   cir.startx=row/2-objrow;
@@ -120,20 +122,21 @@ void holo::initXCorrelation(){
   cudaMemcpy(cuda_spt, &cir, sizeof(cir), cudaMemcpyHostToDevice);
   createMask( xcorrelation_support, cuda_spt, 1);
   
-  applySupportBar( patternWave_holo, xcorrelation_support);
+  applySupportBar( (complexFormat*)patternWave_holo, xcorrelation_support);
   plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1, 0, 1);
-  myCufftExec(*plan, patternWave_holo,patternWave_holo,CUFFT_INVERSE);
+  myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
   plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1, 0, 1);
-  getReal( xcorrelation, patternWave_holo);
+  getReal( xcorrelation, (complexFormat*)patternWave_holo);
 
   cudaMemset(support_holo, 0, memMngr.getSize(support_holo));
   plt.plotComplex(objectWave, MOD2, 0, 1, "object_ref", 0, 0, 0);
   linearConst( support_holo, support_holo, 0, 1);
-  dillate( (complexFormat*)objectWave, support_holo, row/oversampling-objrow-12, column/oversampling-objcol-18);
+  dillate( (float _Complex*)objectWave, support_holo, row/oversampling-objrow-12, column/oversampling-objcol-18);
   plt.plotFloat(support_holo, MOD, 0, 1, "holospt");
 }
 void holo::simulate(){
-  readObjectWave();
+  if(runSim) readObjectWave();
+  else readPattern();
   init();
   allocateMem_holo();
   if(runSim){
@@ -143,24 +146,23 @@ void holo::simulate(){
     resize_cuda_image(row, column);
     Real phasefactor = M_PI*lambda*d/sq(pixelsize*row);
     printf("phase factor, %f, %f, %f, %d\n", lambda, d, pixelsize, row);
-    createWaveFront( d_intensity, d_phase, objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2, phasefactor);
-    add( objectWave_holo, (complexFormat*)objectWave, 1);
-    propagate(objectWave_holo, patternWave_holo, 1);
-    getMod2( patternData_holo, patternWave_holo);
+    createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2, phasefactor);
+    add( (complexFormat*)objectWave_holo, (complexFormat*)objectWave, 1);
+    propagate((complexFormat*)objectWave_holo, (complexFormat*)patternWave_holo, 1);
+    getMod2( patternData_holo, (complexFormat*)patternWave_holo);
     plt.plotComplex(objectWave_holo, MOD2, 0, 1, "holoIntensity");
     plt.plotComplex(objectWave_holo, PHASE, 0, 1, "holoPhase");
     cudaMemset(objectWave_holo, 0, sizeof(complexFormat)*row*column);
     cudaMemset(patternWave_holo, 0, sizeof(complexFormat)*row*column);
-    if(simCCDbit) applyPoissonNoise_WO( patternData_holo, noiseLevel, devstates, 1./exposurepupil);
+    if(simCCDbit) applyPoissonNoise_WO( patternData_holo, noiseLevel, (curandStateMRG32k3a*)devstates, 1./exposurepupil);
     plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPattern");
     plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlogsim",1);
   }else{
-    readPattern();
-    objrow = objcol = 150;
+    objrow = objcol = 90;
     resize_cuda_image(row, column);
   }
   if(!runSim || simCCDbit) {
-    Real* intensity = readImage("holoPattern.png", row, column);
+    Real* intensity = readImage(pupil.Pattern, row, column);
     cudaMemcpy(patternData_holo, intensity, memMngr.getSize(patternData_holo), cudaMemcpyHostToDevice);
     ccmemMngr.returnCache(intensity);
     applyNorm( patternData_holo, 1./exposurepupil);
@@ -170,12 +172,12 @@ void holo::simulate(){
     prepareIter();
     phaseRetrieve();
   }else if(runSim){
-    propagate(objectWave,patternWave, 1);
-    getMod2(patternData, patternWave);
+    propagate((complexFormat*)objectWave,(complexFormat*)patternWave, 1);
+    getMod2(patternData, (complexFormat*)patternWave);
   }else{
     prepareIter();
   }
-  plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlog",1);
+  plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlog",1, 0, 1);
   resize_cuda_image(row, column);
   init_cuda_image(rcolor, 1./exposurepupil);
   initXCorrelation();
@@ -196,7 +198,7 @@ void holo::iterate(){
     ialgo = algo.next();
     if(ialgo < 0) break;
     if(ialgo == shrinkWrap){
-      getMod2( cuda_objMod, objectWave_holo);
+      getMod2( cuda_objMod, (complexFormat*)objectWave_holo);
       applyGaussConv(cuda_objMod, support_holo, d_gaussianKernel, gaussianSigma);
       cudaVarLocal->threshold = findMax(support_holo,row*column)*shrinkThreshold;
       cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
@@ -206,23 +208,23 @@ void holo::iterate(){
       continue;
     }
     if(ialgo == XCORRELATION){
-      add( patternWave_holo, patternWave_obj, patternWave, 1);
+      add( (complexFormat*)patternWave_holo, (complexFormat*)patternWave_obj, (complexFormat*)patternWave, 1);
       //applyMod( patternWave_holo, patternData_holo, useBS? beamstop:0, 1, nIter, 0);
-      applyModAbs( patternWave_holo, patternData_holo);
-      getMod2( patternData_holo, patternWave_holo);
+      applyModAbs( (complexFormat*)patternWave_holo, patternData_holo);
+      getMod2( patternData_holo, (complexFormat*)patternWave_holo);
       calcXCorrelation(0);
-      applyModCorr( patternWave_obj, (complexFormat*)patternWave, xcorrelation);
+      applyModCorr( (complexFormat*)patternWave_obj, (complexFormat*)patternWave, xcorrelation);
       continue;
     }
-    add( patternWave_holo, patternWave_obj, patternWave, 1.);
+    add( (complexFormat*)patternWave_holo, (complexFormat*)patternWave_obj, (complexFormat*)patternWave, 1.);
     //applyMod( patternWave_holo, patternData_holo, useBS? beamstop:0, 1, i, noiseLevel);
-    applyModAbs( patternWave_holo, patternData_holo);
-    add( patternWave_obj, patternWave_holo, patternWave, -1.);
-    myCufftExec(*plan, patternWave_obj, patternWave_obj, CUFFT_INVERSE);
-    applyNorm( patternWave_obj, 1./sqrt(row*column));
-    applySupport( objectWave_holo, patternWave_obj, (Algorithm)ialgo, support_holo);
-    myCufftExec(*plan, objectWave_holo, patternWave_obj, CUFFT_FORWARD);
-    applyNorm( patternWave_obj, 1./sqrt(row*column));
+    applyModAbs( (complexFormat*)patternWave_holo, patternData_holo);
+    add( (complexFormat*)patternWave_obj, (complexFormat*)patternWave_holo, (complexFormat*)patternWave, -1.);
+    myIFFT((complexFormat*)patternWave_obj, (complexFormat*)patternWave_obj);
+    applyNorm( (complexFormat*)patternWave_obj, 1./sqrt(row*column));
+    applySupport(objectWave_holo, patternWave_obj, (Algorithm)ialgo, support_holo);
+    myFFT((complexFormat*)objectWave_holo, (complexFormat*)patternWave_obj);
+    applyNorm( (complexFormat*)patternWave_obj, 1./sqrt(row*column));
   }
   bitMap( support_holo, support_holo, cudaVarLocal->threshold);
   plt.plotFloat(support_holo, MOD, 0, 1, "support", 0);
@@ -232,10 +234,14 @@ void holo::iterate(){
 }
 void holo::noniterative(){
   calcXCorrelationHalf(1);
-  devideStar( patternWave_obj, (complexFormat*)patternWave, patternWave_holo);
-  myCufftExec(*plan, patternWave_obj, objectWave_holo, CUFFT_INVERSE);
-  plt.plotComplex(patternWave_obj, MOD2, 1, 1, "object_pattern");
-  applyNorm( objectWave_holo, 1./sqrt(row*column));
+  plt.plotComplex(patternWave_holo, MOD2, 1, 1, "xcorr_pat", 1, 0, 1);
+  plt.plotComplex(patternWave, MOD2, 1, 1, "pat", 1, 0, 1);
+  devideStar( (complexFormat*)patternWave_obj, (complexFormat*)patternWave, (complexFormat*)patternWave_holo);
+  myIFFT((complexFormat*)patternWave_obj, (complexFormat*)objectWave_holo);
+  plt.plotComplex(patternWave_obj, MOD2, 1, exposurepupil, "object_pattern", 1, 0, 1);
+  applyNorm( (complexFormat*)objectWave_holo, 1./sqrt(row*column));
+  //cudaConvertFO((complexFormat*)objectWave_holo);
+  plt.saveComplex(objectWave_holo, "object");
   plt.plotComplex(objectWave_holo, MOD2, 0, 1, "object");
   plt.plotComplex(objectWave_holo, PHASE, 0, 1, "object_phase");
 }
