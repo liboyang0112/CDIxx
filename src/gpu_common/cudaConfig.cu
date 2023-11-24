@@ -86,6 +86,9 @@ void createPlan(int* handle, int row, int col){
 void createPlan1d(int* handle, int n){
   cufftPlan1d(handle, n, FFTformat, 1);
 }
+void destroyPlan(int handle){
+  cufftDestroy(handle);
+}
 void myFFTM(int handle, void* in, void* out){
   myCufftExec(handle, (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
 }

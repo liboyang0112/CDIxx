@@ -32,6 +32,7 @@ void myIFFTM(int handle, void* in, void* out);
 void myFFTR2C(void* in, void* out);
 void createPlan(int* handle, int row, int col);
 void createPlan1d(int* handle, int n);
+void destroyPlan(int handle);
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
