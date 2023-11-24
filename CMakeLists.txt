@@ -143,7 +143,6 @@ target_link_libraries(fdtd3d_cu ${Alllibs})
 target_link_libraries(fdtd2d_cu ${Alllibs})
 target_link_libraries(beamGenerator_cu ${Alllibs})
 target_link_libraries(cdi_cu cdi_cu_lib)
-target_link_libraries(cdi_dev_cu cdi_cu_lib)
 target_link_libraries(frog_cu ${Alllibs})
 target_link_libraries(ptycho_cu experimentConfig_cu_lib)
 
@@ -166,6 +165,7 @@ target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cu_lib cdi_cu_lib)
 target_link_libraries(testFISTA_run FISTA_cu_lib cdi_cu_lib)
 target_link_libraries(readHj_run monoChromo_cu_lib)
 target_link_libraries(simLineSpectrumImaging_run cdi_cu_lib monoChromo_cu_lib)
+target_link_libraries(cdi_dev_run cdi_cu_lib)
 
 find_package(VTK COMPONENTS 
   jsoncpp
