@@ -2,6 +2,7 @@
 #include "cudaConfig.h" //cuda related
 #include "cuPlotter.h" //plt
 #include "cub_wrap.h"
+#include <complex>
 using namespace std;
 
 
@@ -16,7 +17,7 @@ int main(int argc, char** argv )
   complexFormat* wave = (complexFormat*)readImage(argv[1], row, col);  //read the image to memory
   myCuDMalloc(complexFormat, d_wave, row*col); //allocate GPU memory
   myCuDMalloc(Real, d_mod2, row*col); //allocate GPU memory
-  cudaMemcpy(d_wave, wave, row*col*sizeof(complexFormat), cudaMemcpyHostToDevice); //copy the image from memory to GPU memory
+  myMemcpyH2D(d_wave, wave,row*col*sizeof(complexFormat));
   ccmemMngr.returnCache(wave); //the image on memory is not needed later, therefore we recycled it here.
   myCuDMalloc(complexFormat, d_propagatedwave, row*col) //allocate the memory on GPU memory for complex amplitude, oversampled by oversampling x oversampling
 
@@ -25,7 +26,7 @@ int main(int argc, char** argv )
   init_fft(row, col); //tell cufft to process the image of this size
   getMod2(d_mod2, d_wave);
   getMod2(d_mod2, d_mod2);
-  auto mid = findMiddle(d_mod2, row*col);
+  std::complex<Real> mid(findMiddle(d_mod2, row*col));
   plt.plotComplex(d_wave, MOD2, 0, 0.1, "bftest", 0, 0, 1);  //save the mod square to a png file
   plt.plotComplex(d_wave, PHASE, 0, 1, "bftest_phase", 0, 0, 0);  //save the mod square to a png file
   myFFT(d_wave, d_wave);  //execute FFT
@@ -41,7 +42,7 @@ int main(int argc, char** argv )
     multiplyPropagatePhase(d_wave, dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
     myIFFT(d_wave, d_propagatedwave);  //execute FFT
     resize_cuda_image(rowi, coli);  //tell cuda to process the image of this size
-    crop(d_propagatedwave, d_crop, row, col,mid.x,mid.y);
+    crop(d_propagatedwave, d_crop, row, col,mid.real(),mid.imag());
     //crop(d_propagatedwave, d_crop, row, col);
     plt.plotComplex(d_crop, MOD2, 0, 0.3, "test", 0, 0, 1);  //save the mod square to a png file
   }

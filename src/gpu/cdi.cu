@@ -1,22 +1,22 @@
-#include <complex>
 #include <cassert>
 #include <stdio.h>
 #include <time.h>
 #include <random>
 #include <chrono>
-
 #include <stdio.h>
 #include "imgio.h"
 #include "imageFile.h"
 #include <ctime>
 #include "cudaConfig.h"
+#include <curand_kernel.h>
+#include "cudaDefs.h"
 #include "experimentConfig.h"
 #include "mnistData.h"
 #include "tvFilter.h"
 #include "cuPlotter.h"
 #include "cub_wrap.h"
 #include "cdi.h"
-
+#include <complex.h>
 using namespace std;
 
 //#define Bits 16
@@ -30,7 +30,7 @@ Real gaussian_norm(Real x, Real y, Real sigma){
   return 1./(2*M_PI*sigma*sigma)*gaussian(x,y,sigma);
 }
 
-cuFunc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(a,b,output,bs),{
+cuFuncc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(cuComplex* a, Real* b, Real *output, Real *bs),((cuComplex*)a,b,output,bs),{
   cuda1Idx()
     Real mod2 = sq(a[index].x)+sq(a[index].y);
   Real tmp = b[index]-mod2;
@@ -39,7 +39,7 @@ cuFunc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(a,b,out
   output[index] = tmp;
 })
 
-cuFunc(takeMod2Sum,(complexFormat* a, Real* b),(a,b),{
+cuFuncc(takeMod2Sum,(complexFormat* a, Real* b),(cuComplex* a, Real* b),((cuComplex*)a,b),{
   cuda1Idx()
     Real tmp = b[index]+sq(a[index].x)+sq(a[index].y);
   if(tmp<0) tmp=0;
@@ -58,7 +58,7 @@ cuFunc(multiplySqx,(Real* object, Real* out),(object,out),{
   out[index] = object[index] * sq(Real(x)/cuda_row-0.5);
 })
 
-__device__ void ApplyHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
+__device__ void ApplyHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(insideS){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -68,7 +68,7 @@ __device__ void ApplyHIOSupport(bool insideS, complexFormat &rhonp1, complexForm
   }
 }
 
-__device__ void ApplyFHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
+__device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
@@ -81,7 +81,7 @@ __device__ void ApplyFHIOSupport(bool insideS, complexFormat &rhonp1, complexFor
 }
 
 
-__device__ void ApplyRAARSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
+__device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(insideS){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -91,7 +91,7 @@ __device__ void ApplyRAARSupport(bool insideS, complexFormat &rhonp1, complexFor
   }
 }
 
-__device__ void ApplyPOSERSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
+__device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS && rhoprime.x > 0){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -100,7 +100,7 @@ __device__ void ApplyPOSERSupport(bool insideS, complexFormat &rhonp1, complexFo
     rhonp1.y = 0;
   }
 }
-__device__ void ApplyERSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime){
+__device__ void ApplyERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
@@ -110,7 +110,7 @@ __device__ void ApplyERSupport(bool insideS, complexFormat &rhonp1, complexForma
   }
 }
 
-__device__ void ApplyPOSHIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
+__device__ void ApplyPOSHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(rhoprime.x > 0 && insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     //rhonp1.y = rhoprime.y;
@@ -120,7 +120,7 @@ __device__ void ApplyPOSHIOSupport(bool insideS, complexFormat &rhonp1, complexF
   rhonp1.y -= beta*rhoprime.y;
 }
 
-__device__ void ApplyPOS0HIOSupport(bool insideS, complexFormat &rhonp1, complexFormat &rhoprime, Real beta){
+__device__ void ApplyPOS0HIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(rhoprime.x > 0 && insideS){
     rhonp1.x = rhoprime.x;
     //rhonp1.y = rhoprime.y;
@@ -339,12 +339,12 @@ void CDI::saveState(){
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   bitMap( support, support, cudaVarLocal->threshold);
   plt.plotFloat(support, MOD, 0, 1, "support", 0);
-  auto mid = findMiddle(support, row*column);
+  complex<float> mid = findMiddle(support, row*column);
   resize_cuda_image(row/oversampling_spt,column/oversampling_spt);
   complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat*)*(row/oversampling_spt)*(column/oversampling_spt));
   Real* tmp1 = (Real*)memMngr.borrowCache(sizeof(Real*)*(row/oversampling_spt)*(column/oversampling_spt));
-  printf("mid= %f,%f\n",mid.x,mid.y);
-  crop(cuda_gkp1, tmp, row, column,mid.x,mid.y);
+  printf("mid= %f,%f\n",mid.real(), mid.imag());
+  crop(cuda_gkp1, tmp, row, column,mid.real(), mid.imag());
   getMod2(tmp1, tmp);
   Real max = min(1.,findMax(tmp1,row/oversampling_spt*(column/oversampling_spt)));
   plt.init(row/oversampling_spt,column/oversampling_spt);
@@ -363,11 +363,11 @@ void CDI::saveState(){
   plt.plotComplex(autoCorrelation, MOD, 1, exposure, "autocorrelation_recon", 1);
 }
 
-cuFunc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1),(gkp1,gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
+cuFuncc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1),(cuComplex* gkp1, cuComplex* gkprime, Algorithm algo, Real *spt, int iter, Real fresnelFactor, Real costheta_r),((cuComplex*)gkp1,(cuComplex*)gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
   cudaIdx()
     bool inside = spt[index] > vars->threshold;
-  complexFormat &gkp1data = gkp1[index];
-  complexFormat &gkprimedata = gkprime[index];
+  cuComplex &gkp1data = gkp1[index];
+  cuComplex &gkprimedata = gkprime[index];
   if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
   else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
@@ -387,8 +387,8 @@ cuFunc(applySupport,(void *gkp1, void *gkprime, Algorithm algo, Real *spt, int i
 
   cudaIdx();
   bool inside = spt[index] > vars->threshold;
-  complexFormat &gkp1data = ((complexFormat*)gkp1)[index];
-  complexFormat &gkprimedata = ((complexFormat*)gkprime)[index];
+  cuComplex &gkp1data = ((cuComplex*)gkp1)[index];
+  cuComplex &gkprimedata = ((cuComplex*)gkprime)[index];
   if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
   else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
   else if(algo==POSER) ApplyPOSERSupport(inside,gkp1data,gkprimedata);
@@ -405,7 +405,14 @@ cuFunc(applySupport,(void *gkp1, void *gkprime, Algorithm algo, Real *spt, int i
     }
   }
 })
-cuFunc(addPsbar,(complexFormat* lambda, complexFormat* cuda_gkp1, Real beta1, Real* support),(lambda, cuda_gkp1, beta1, support),{
+cuFunc(applyHIOpack,(void *gkp1, void *gkprime, int iter,Real* spt),(gkp1,gkprime,iter,spt),{
+  cuda1Idx();
+  if(spt[index] > vars->threshold){
+    ((cuComplex*)gkp1)[index].x = iter*((cuComplex*)gkp1)[index].x - (iter-1)*((cuComplex*)gkprime)[index].x;
+    ((cuComplex*)gkp1)[index].y = iter*((cuComplex*)gkp1)[index].y - (iter-1)*((cuComplex*)gkprime)[index].y;
+  }
+})
+cuFuncc(addPsbar,(complexFormat* lambda, complexFormat* cuda_gkp1, Real beta1, Real* support),(cuComplex* lambda, cuComplex* cuda_gkp1, Real beta1, Real* support),((cuComplex*)lambda, (cuComplex*)cuda_gkp1, beta1, support),{
   cuda1Idx();
   if(support[index] < vars->threshold){
     lambda[index].x += beta1*cuda_gkp1[index].x;
@@ -467,7 +474,7 @@ void* CDI::phaseRetrieve(){
     myFFT( cuda_gkp1, (complexFormat*)patternWave);
     if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
       plt.toVideo = vidhandle;
-      plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
+      plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
       plt.toVideo = -1;
     }
     if(iter%100==0) {
@@ -507,6 +514,177 @@ void* CDI::phaseRetrieve(){
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
   memMngr.returnCache(cuda_diff);
+
+  return patternWave;
+}
+cuFuncc(multStarIM,(Real* stepphase, complexFormat* patternWave, complexFormat* sbarfft),(Real* stepphase, cuComplex* patternWave, cuComplex* sbarfft),(stepphase, (cuComplex*)patternWave, (cuComplex*)sbarfft),{
+  cuda1Idx();
+  stepphase[index] = 2*(patternWave[index].x*sbarfft[index].y-patternWave[index].y*sbarfft[index].x);
+});
+cuFuncc(addPhase, (complexFormat* patternWave, Real* stepphase, Real stepsize),(cuComplex* patternWave, Real* stepphase, Real stepsize),((cuComplex*)patternWave, stepphase, stepsize),{
+  cuda1Idx();
+  Real dphase = -stepphase[index]*stepsize;
+  cuComplex tmp = {cos(dphase), sin(dphase)};
+  patternWave[index] = cuCmulf(patternWave[index], tmp);
+})
+/*
+void* CDI::phaseRetrievedev(){
+  int vidhandle = 0;
+  if(saveVideoEveryIter){
+    vidhandle = plt.initVideo("recon_intensity.mp4",24);
+    plt.showVid = -1;
+  }
+  //Real beta = -1;
+  //Real gammas = -1./beta;
+  //Real gammam = 1./beta;
+  Real gaussianSigma = 2.5;
+
+  size_t sz = row*column*sizeof(complexFormat);
+  complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
+
+  complexFormat *cuda_gkprime;
+  Real *cuda_objMod;
+  complexFormat *lambda = (complexFormat*)memMngr.borrowCleanCache(sz);
+  cuda_gkprime = (complexFormat*)memMngr.borrowCache(sz);
+  cuda_objMod = (Real*)memMngr.borrowCache(sz/2);
+
+  AlgoParser algo(algorithm);
+  int size = floor(gaussianSigma*6);
+  size = ((size>>1)<<1)+1;
+  Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
+  applyNorm(cuda_gkp1, 1./sqrt(row*column));
+  Real stepsize = 0.02;
+  for(int iter = 0; ; iter++){
+    int ialgo = algo.next();
+    if(ialgo<0) break;
+    myIFFT( (complexFormat*)patternWave, cuda_gkprime);
+    applyNorm(cuda_gkprime, 1./(row*column));
+    if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
+      plt.toVideo = vidhandle;
+      plt.plotComplex(cuda_gkprime, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
+      plt.toVideo = -1;
+    }
+    if(ialgo == shrinkWrap){
+      getMod2(cuda_objMod,cuda_gkprime);
+      applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
+      cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
+      //cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
+      if(gaussianSigma>1) {
+        gaussianSigma*=0.99;
+      }
+      continue;
+    }
+    applyMaskBar(cuda_gkprime, support, cudaVarLocal->threshold);
+    myFFT( cuda_gkprime, cuda_gkprime);
+    multStarIM(cuda_objMod, (complexFormat*)patternWave, cuda_gkprime);
+    addPhase((complexFormat*)patternWave,cuda_objMod,stepsize);
+    if(iter%100==0) {
+      std::string iterstr = to_string(iter);
+      if(saveIter){
+        plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
+      }
+    }
+  }
+  myIFFT( (complexFormat*)patternWave, cuda_gkp1);
+  applyNorm(cuda_gkp1, 1./sqrt(row*column));
+  if(saveVideoEveryIter) plt.saveVideo(vidhandle);
+  if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
+  if(verbose >= 4){
+    cudaConvertFO(cuda_gkp1, cuda_gkprime);
+    propagate(cuda_gkprime, cuda_gkprime, 1);
+    plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
+  }
+  getMod2(cuda_objMod, (complexFormat*)patternWave);
+  addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
+  getMod2(cuda_objMod, cuda_objMod);
+  plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
+  residual = findSum(cuda_objMod);
+  printf("residual= %f\n",residual);
+
+  memMngr.returnCache(cuda_gkprime);
+  memMngr.returnCache(cuda_objMod);
+
+  return patternWave;
+}
+*/
+void* CDI::phaseRetrievedev(){
+  int vidhandle = 0;
+  if(saveVideoEveryIter){
+    vidhandle = plt.initVideo("recon_intensity.mp4",24);
+    plt.showVid = -1;
+  }
+  //Real beta = -1;
+  //Real gammas = -1./beta;
+  //Real gammam = 1./beta;
+  Real gaussianSigma = 2.5;
+
+  size_t sz = row*column*sizeof(complexFormat);
+  complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
+
+  complexFormat *cuda_gkprime;
+  Real *cuda_objMod;
+  complexFormat *lambda = (complexFormat*)memMngr.borrowCleanCache(sz);
+  cuda_gkprime = (complexFormat*)memMngr.borrowCache(sz);
+  cuda_objMod = (Real*)memMngr.borrowCache(sz/2);
+
+  AlgoParser algo(algorithm);
+  int size = floor(gaussianSigma*6);
+  size = ((size>>1)<<1)+1;
+  Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
+  applyNorm(cuda_gkp1, 1./sqrt(row*column));
+  for(int iter = 0; ; iter++){
+    int ialgo = algo.next();
+    if(ialgo<0) break;
+    if(ialgo == shrinkWrap){
+      getMod2(cuda_objMod,cuda_gkp1);
+      applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
+      cudaVarLocal->threshold = findMax(support,row*column)*shrinkThreshold;
+      cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
+      if(gaussianSigma>1) {
+        gaussianSigma*=0.99;
+      }
+      continue;
+    }
+    applyMod((complexFormat*)patternWave,(Real*)patternData, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
+    myIFFT( (complexFormat*)patternWave, cuda_gkprime);
+    applyNorm(cuda_gkprime, 1./(row*column));
+    if(ialgo != HIO) applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
+    else applyHIOpack(cuda_gkp1, cuda_gkprime, 50, support);
+    myFFT( cuda_gkp1, (complexFormat*)patternWave);
+    if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
+      plt.toVideo = vidhandle;
+      plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
+      plt.toVideo = -1;
+    }
+    if(iter%100==0) {
+      std::string iterstr = to_string(iter);
+      if(saveIter){
+        plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
+      }
+    }
+  }
+  myIFFT( (complexFormat*)patternWave, cuda_gkp1);
+  applyNorm(cuda_gkp1, 1./sqrt(row*column));
+  if(saveVideoEveryIter) plt.saveVideo(vidhandle);
+  if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
+  if(verbose >= 4){
+    cudaConvertFO(cuda_gkp1, cuda_gkprime);
+    propagate(cuda_gkprime, cuda_gkprime, 1);
+    plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
+  }
+  getMod2(cuda_objMod, (complexFormat*)patternWave);
+  addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
+  getMod2(cuda_objMod, cuda_objMod);
+  plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
+  residual = findSum(cuda_objMod);
+  printf("residual= %f\n",residual);
+
+  memMngr.returnCache(cuda_gkprime);
+  memMngr.returnCache(cuda_objMod);
 
   return patternWave;
 }

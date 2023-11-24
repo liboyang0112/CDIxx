@@ -1,7 +1,7 @@
 #include "format.h"
 class monoChromo{
   public:
-    void *locplan;
+    int *locplan;
     void **gs=0;  //sample, for each wavelength
     void **refs=0;  //reference data, for each wavelength
     void *d_maskMap = 0; //reference data map. mapping data into masks. on device

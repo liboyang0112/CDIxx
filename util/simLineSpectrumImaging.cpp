@@ -6,22 +6,6 @@
 #include "monoChromo.h"
 #include "cuPlotter.h"
 
-cuFunc(assignX, (Real* img, int* intimg),(img, intimg),{
-  cuda1Idx();
-  int x = index/cuda_column;
-  if(img[index] > vars->threshold){
-    intimg[index] = x;
-  }
-})
-
-cuFunc(assignY, (Real* img, int* intimg),(img, intimg),{
-  cuda1Idx();
-  int y = index%cuda_column;
-  if(img[index] > vars->threshold){
-    intimg[index] = y;
-  }
-})
-
 int main(int argc, char* argv[]){
   ToyMaterial mat;
   readConfig cfg(argv[1]);

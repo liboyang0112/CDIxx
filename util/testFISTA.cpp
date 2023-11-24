@@ -1,25 +1,7 @@
-#include <complex>
-#include <cassert>
 #include <stdio.h>
-#include <time.h>
-#include <random>
-
-#include <stdio.h>
-#include <libconfig.h++>
-#include "cufft.h"
-#include "imgio.h"
-#include <ctime>
-#include "cudaConfig.h"
-#include "experimentConfig.h"
 #include "cuPlotter.h"
-#include "mnistData.h"
 #include "tvFilter.h"
-
 #include "cdi.h"
-
-void applyC(Real* input, Real* output){
-  cudaMemcpy(output, input, memMngr.getSize(input), cudaMemcpyDeviceToDevice);
-}
 
 int main(int argc, char** argv )
 {

@@ -4,10 +4,14 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 from numpy import log2
 
+cdef extern from "imageFile.h":
+    struct imageFile:
+        int rows;
+        int cols;
 cdef extern from "imgio.h":
     void writeComplexImage(const char* name, void* data, int row, int column);
     void writeFloatImage(const char* name, void* data, int row, int col);
-    float *readImage_c(const char* name, int *row, int *col, void* funcptr);
+    float *readImage_c(const char* name, imageFile* f, void* funcptr);
     void plotPng(const char* label, float* data, char* cache, int rows, int cols, char iscolor);
     void cvtLog(float* data, int nele);
 
@@ -37,10 +41,10 @@ def writePng(path, array, cache, iscolor, islog = 1):
 def readImage(path):
     fn = path.encode("utf8");
     cdef char* fname = fn;
-    cdef int row, col;
-    data = readImage_c(fname, &row, &col, <void*>0);
+    cdef imageFile f;
+    data = readImage_c(fname, &f, <void*>0);
     cdef np.npy_intp len[2];
-    len[0] = row;
-    len[1] = col;
+    len[0] = f.rows;
+    len[1] = f.cols;
     img = np.PyArray_SimpleNewFromData(2, len, np.NPY_FLOAT, data);
     return img;

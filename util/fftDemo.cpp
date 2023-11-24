@@ -12,7 +12,7 @@ int main(int argc, char** argv )
   int row, col;
   Real* img = readImage(argv[1], row, col);  //read the image to memory
   myCuDMalloc(Real, d_intensity, row*col); //allocate GPU memory
-  cudaMemcpy(d_intensity, img, row*col*sizeof(Real), cudaMemcpyHostToDevice); //copy the image from memory to GPU memory
+  myMemcpyH2D(d_intensity, img, row*col*sizeof(Real)); //copy the image from memory to GPU memory
   ccmemMngr.returnCache(img); //the image on memory is not needed later, therefore we recycled it here.
   myCuDMalloc(complexFormat, d_amp, row*col*sq(oversampling)) //allocate the memory on GPU memory for complex amplitude, oversampled by oversamplingxoversampling
 

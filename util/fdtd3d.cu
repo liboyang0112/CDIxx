@@ -2,7 +2,7 @@
 #include <cstring>
 #include <math.h>
 #include "cudaDefs.h"
-#include "memManager.h"
+#include "cudaConfig.h"
 #include "cuPlotter.h"
 #define n_PML 10
 #define k_PML 0.0035

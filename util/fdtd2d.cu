@@ -2,6 +2,7 @@
 #include <cstring>
 #include <math.h>
 #include "cudaConfig.h"
+#include "cudaDefs.h"
 #include "memManager.h"
 #include "cuPlotter.h"
 #define k_PML 1./20

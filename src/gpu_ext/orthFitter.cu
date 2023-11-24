@@ -1,4 +1,5 @@
 #include "cudaDefs.h"
+#include "cudaConfig.h"
 #include "orthFitter.h"
 
 __global__ void calcLambdas(int rows, double* lambdas, double step_lambda, double* matrix, double* bi, bool debug = 0){

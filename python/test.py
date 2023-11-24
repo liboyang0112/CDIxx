@@ -38,7 +38,7 @@ fig.savefig("exp.png")
 
 data = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
 dataloader = DataLoader(data, batch_size=4, shuffle=True,num_workers=0,drop_last=True)
-saveidx = 5;
+saveidx = 0;
 for idx in range(0,10):
     img,label=data[idx]
     img=torch.unsqueeze(img,dim=0)

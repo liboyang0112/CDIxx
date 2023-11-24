@@ -1,16 +1,12 @@
 #include "holo.h"
 #include "imgio.h"
+#include "cudaDefs.h"
+#include <curand_kernel.h>
 #include "cuPlotter.h"
 #include "cub_wrap.h"
 #include "cudaConfig.h"
 
-cuFunc(applySupportBar,(complexFormat* img, Real* spt),(img,spt),{
-  cuda1Idx();
-  if(spt[index] > vars->threshold)
-    img[index].x = img[index].y = 0;
-})
-
-cuFunc(applySupportBarHalf,(complexFormat* img, Real* spt),(img,spt),{
+cuFuncc(applySupportBarHalf,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
   cudaIdx();
   int hr = cuda_row>>1;
   int hc = cuda_column>>1;
@@ -23,7 +19,7 @@ cuFunc(applySupportBarHalf,(complexFormat* img, Real* spt),(img,spt),{
 })
 
 
-cuFunc(applySupportBar_Flip,(complexFormat* img, Real* spt),(img,spt),{
+cuFuncc(applySupportBar_Flip,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
   cuda1Idx();
   if(spt[index] > vars->threshold){
     img[index].x *= -0.3;
@@ -31,13 +27,13 @@ cuFunc(applySupportBar_Flip,(complexFormat* img, Real* spt),(img,spt),{
   }
 })
 
-cuFunc(applySupport,(complexFormat* img, Real* spt),(img,spt),{
+cuFuncc(applySupport,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
   cuda1Idx();
   if(spt[index] < vars->threshold)
     img[index].x = img[index].y = 0;
 })
 
-cuFuncc(dillate, (float _Complex* data, Real* support, int wid, int hit), (complexFormat* data, Real* support, int wid, int hit), ((complexFormat*)data,support,wid,hit),{
+cuFuncc(dillate, (complexFormat* data, Real* support, int wid, int hit), (cuComplex* data, Real* support, int wid, int hit), ((cuComplex*)data,support,wid,hit),{
   cudaIdx();
   if(abs(data[index].x) < 0.5 && abs(data[index].y) < 0.5) return;
   int idxp = 0;
@@ -50,10 +46,10 @@ cuFuncc(dillate, (float _Complex* data, Real* support, int wid, int hit), (compl
   }
 })
 
-cuFunc(applyModCorr, (complexFormat* obj, complexFormat* refer, Real* xcorrelation),(obj,refer,xcorrelation),{
+cuFuncc(applyModCorr, (complexFormat* obj, complexFormat* refer, Real* xcorrelation),(cuComplex* obj ,cuComplex* refer, Real* xcorrelation),((cuComplex*)obj,(cuComplex*)refer,xcorrelation),{
   cuda1Idx();
-  complexFormat objtmp = obj[index];
-  complexFormat reftmp = refer[index];
+  cuComplex objtmp = obj[index];
+  cuComplex reftmp = refer[index];
   if(reftmp.x == 0 && reftmp.y == 0) return;
   Real fact = xcorrelation[index]/2 - reftmp.x*objtmp.x - reftmp.y*objtmp.y;
   fact /= reftmp.x*reftmp.x + reftmp.y*reftmp.y;
@@ -61,10 +57,10 @@ cuFunc(applyModCorr, (complexFormat* obj, complexFormat* refer, Real* xcorrelati
   obj[index].y = objtmp.y + fact*reftmp.y;
 })
 
-cuFunc(devideStar, (complexFormat* obj, complexFormat* refer, complexFormat* xcorrelation),(obj,refer,xcorrelation),{
+cuFuncc(devideStar, (complexFormat* obj, complexFormat* refer, complexFormat* xcorrelation),(cuComplex* obj ,cuComplex* refer, cuComplex* xcorrelation),((cuComplex*)obj,(cuComplex*)refer,(cuComplex*)xcorrelation),{
   cuda1Idx();
-  complexFormat xctmp = xcorrelation[index];
-  complexFormat reftmp = refer[index];
+  cuComplex xctmp = xcorrelation[index];
+  cuComplex reftmp = refer[index];
   Real fact = max(sqSum(reftmp.x,reftmp.y),1e-4);
   xctmp = cuCmulf(xctmp, reftmp);
   obj[index].x = xctmp.x / fact;
@@ -89,7 +85,7 @@ void holo::calcXCorrelation(bool doplot){
   add( patternData_holo, patternData, 1);
   myFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
   applyNorm( (complexFormat*)patternWave_holo, 1./(row*column));
-  applySupportBar( (complexFormat*)patternWave_holo, xcorrelation_support);
+  applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
   if(doplot) plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation", 1, 0, 1);
   myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
   getReal( xcorrelation, (complexFormat*)patternWave_holo);
@@ -122,7 +118,7 @@ void holo::initXCorrelation(){
   cudaMemcpy(cuda_spt, &cir, sizeof(cir), cudaMemcpyHostToDevice);
   createMask( xcorrelation_support, cuda_spt, 1);
   
-  applySupportBar( (complexFormat*)patternWave_holo, xcorrelation_support);
+  applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
   plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1, 0, 1);
   myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
   plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1, 0, 1);

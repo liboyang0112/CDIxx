@@ -1,32 +1,33 @@
 #include "experimentConfig.h"
+#include "cudaDefs.h"
 #include "cudaConfig.h"
 
 // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
-cuFunc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(amp,r_d_lambda,d_r_lambda),{
+cuFuncc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda),((cuComplex*)amp,r_d_lambda,d_r_lambda),{
   cudaIdx()
   Real phase = (sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-  complexFormat p = {cos(phase),sin(phase)};
+  cuComplex p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
 })
 
-cuFunc(multiplyPatternPhaseOblique_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
+cuFuncc(multiplyPatternPhaseOblique_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),((cuComplex*)amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
   cudaIdx()
   Real phase = (sq((x-(cuda_row>>1)*costheta))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-  complexFormat p = {cos(phase),sin(phase)};
+  cuComplex p = {cos(phase),sin(phase)};
   amp[index] = cuCmulf(amp[index], p);
 })
 
-cuFunc(multiplyFresnelPhase_Device,(complexFormat* amp, Real phaseFactor),(amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
+cuFuncc(multiplyFresnelPhase_Device,(complexFormat* amp, Real phaseFactor),(cuComplex* amp, Real phaseFactor),((cuComplex*)amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
   cudaIdx()
   Real phase = phaseFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
-  complexFormat p = {cos(phase),sin(phase)};
+  cuComplex p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
 })
 
-cuFunc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor, Real costheta_r),(amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
+cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor, Real costheta_r),(cuComplex* amp, Real phaseFactor, Real costheta_r),((cuComplex*)amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
   cudaIdx()
   Real phase = phaseFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
-  complexFormat p = {cos(phase),sin(phase)};
+  cuComplex p = {cos(phase),sin(phase)};
   if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
 })
 

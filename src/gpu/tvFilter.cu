@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <cuda.h>
 #include "cudaConfig.h"
+#include "cudaDefs.h"
 #include "imgio.h"
 
 #define BLOCK_SIZE      16

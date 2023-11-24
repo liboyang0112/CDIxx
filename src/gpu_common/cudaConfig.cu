@@ -1,8 +1,64 @@
 #include "cudaConfig.h"
+#include "cudaDefs.h"
 #include "imgio.h"
+#include <curand_kernel.h>
 #include <iostream>
+cudaVars* cudaVar = 0;
+cudaVars* cudaVarLocal = 0;
+dim3 numBlocks;
+const dim3 threadsPerBlock = 256;
+complexFormat *cudaData = 0;
+cufftHandle *plan, *planR2C;
+int2 cuda_imgsz = {0,0};
+void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
+void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
+cuMemManager memMngr;
+void myMemcpyH2D(void* d, void* s, size_t sz){
+  cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice);
+}
+void myMemcpyD2D(void* d, void* s, size_t sz){
+  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice);
+}
+void myMemcpyD2H(void* d, void* s, size_t sz){
+  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToHost);
+}
+void resize_cuda_image(int rows, int cols){
+  cuda_imgsz.x = rows;
+  cuda_imgsz.y = cols;
+  numBlocks.x=(rows*cols-1)/threadsPerBlock.x+1;
+  //numBlocks.y=(cols-1)/threadsPerBlock.x+1;
+}
+void init_cuda_image(int rcolor, Real scale){
+  const int sz = sizeof(cudaVars);
+  if(!cudaVar){
+    cudaVar = (cudaVars*) memMngr.borrowCache(sz);
+    cudaVarLocal = (cudaVars*) malloc(sz);
+    cudaVarLocal->threshold = 0.5;
+    cudaVarLocal->beta_HIO = 1;
+    if(scale==scale) cudaVarLocal->scale = scale;
+    if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
+    else cudaVarLocal->rcolor=65535;
+    cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
+    return;
+  }
+  if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
+  if(scale==scale) cudaVarLocal->scale = scale;
+  cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
+};
+void* newRand(size_t sz){
+  return memMngr.borrowCache(sz * sizeof(curandStateMRG32k3a));
+}
 using namespace std;
 static int rows_fft, cols_fft, batch_fft;
+__device__ __host__ bool rect::isInside(int x, int y){
+  if(x > startx && x <= endx && y > starty && y <= endy) return true;
+  return false;
+}
+__device__ __host__ bool C_circle::isInside(int x, int y){
+  Real dr = hypot(Real(x-x0),Real(y-y0));
+  if(dr < r) return true;
+  return false;
+}
 void init_fft(int rows, int cols, int batch){
   if(rows!=rows_fft||cols!=cols_fft||batch_fft!=batch){
     if(!plan){
@@ -24,11 +80,79 @@ void init_fft(int rows, int cols, int batch){
     rows_fft = rows;
   }
 }
+void createPlan(int* handle, int row, int col){
+  cufftPlan2d (handle, row, col, FFTformat);
+}
+void createPlan1d(int* handle, int n){
+  cufftPlan1d(handle, n, FFTformat, 1);
+}
+void myFFTM(int handle, void* in, void* out){
+  myCufftExec(handle, (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
+}
+void myIFFTM(int handle, void* in, void* out){
+  myCufftExec(handle, (cuComplex*)in, (cuComplex*)out, CUFFT_INVERSE);
+}
+void myFFT(void* in, void* out){
+  myCufftExec(*plan, (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
+}
+void myIFFT(void* in, void* out){
+  myCufftExec(*plan, (cuComplex*)in, (cuComplex*)out, CUFFT_INVERSE);
+}
+void myFFTR2C(void* in, void* out){
+  myCufftExecR2C(*planR2C, (Real*)in, (cuComplex*)out);
+}
+cuFuncTemplate(cudaConvertFO, (T* data, T* out),(data,out==0?data:out),{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= (cuda_row*cuda_column)/2) return;
+  int x = index%cuda_row;
+  int y = index/cuda_row;
+  index = x*cuda_column+y;
+  int indexp = (x >= (cuda_row>>1)? x - (cuda_row>>1) : (x + (cuda_row>>1)))*cuda_column + y + (cuda_column>>1);
+  T tmp = data[index];
+  out[index]=data[indexp];
+  out[indexp]=tmp;
+})
+template void cudaConvertFO<Real>(Real*, Real*);
+template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat* out){
+  cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)data, (cuComplex*)(out==0?data:out));
+}
 
-cuFunc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(object,shiftx,shifty),{
+template <typename T1, typename T2>
+__global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
+  cuda1Idx()
+	out[index] = input[index];
+}
+template <typename T1, typename T2>
+void assignVal(T1* out, T2* input){
+  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,out,input);
+}
+template void assignVal<Real,Real>(Real*, Real*);
+template void assignVal<Real,double>(Real*, double*);
+template<> void assignVal<complexFormat, complexFormat>(complexFormat* out, complexFormat* input){
+  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,(cuComplex*)out,(cuComplex*)input);
+}
+
+cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx, Real midy),(src,dest,row,col,midx,midy),{
+  cudaIdx()
+  int shiftx = int(row*midx);
+  if(shiftx + cuda_row/2 > row/2) shiftx = (row-cuda_row)/2;
+  else if(shiftx - cuda_row/2 < - row/2) shiftx = (cuda_row-row)/2;
+  int shifty = int(col*midy);
+  if(shifty + cuda_column/2 > col/2) shifty = (row-cuda_column)/2;
+  else if(shifty - cuda_column/2 < - col/2) shifty = (cuda_column-col)/2;
+	int targetindex = (x+(row-cuda_row)/2+shiftx)*col + y+(col-cuda_column)/2+shifty;
+	dest[index] = src[targetindex];
+})
+template void crop<Real>(Real*, Real*, int, int, Real, Real);
+template<> void crop<complexFormat>(complexFormat* src, complexFormat* dest, int row, int col, Real midx, Real midy){
+  cropWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)src, (cuComplex*)dest, row, col, midx, midy);
+}
+
+
+cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuComplex* object, Real shiftx, Real shifty),((cuComplex*)object,shiftx,shifty),{
     cudaIdx();
     Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
-    complexFormat tmp = {cos(phi),sin(phi)};
+    cuComplex tmp = {cos(phi),sin(phi)};
     object[index] = cuCmulf(object[index],tmp);
     })
 
@@ -42,13 +166,13 @@ void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
   myIFFT(wave, wave);
 }
 
-cuFunc(rotateToReal,(complexFormat* data),(data),{
+cuFuncc(rotateToReal,(complexFormat* data),(cuComplex* data),((cuComplex*)data),{
     cuda1Idx();
     data[index].x = cuCabsf(data[index]);
     data[index].y = 0;
     })
 
-cuFunc(removeImag,(complexFormat* data),(data),{
+cuFuncc(removeImag,(complexFormat* data),(cuComplex* data),((cuComplex*)data),{
     cuda1Idx();
     data[index].y = 0;
     })
@@ -81,7 +205,7 @@ void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma){
   applyConvolution((sq(width-1+16)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
 }
 
-cuFunc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(data,dataout,factor),{
+cuFuncc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(cuComplex* data, cuComplex* dataout, Real factor),((cuComplex*)data,(cuComplex*)dataout,factor),{
     cudaIdx()
     int targetIndex = x*(cuda_column/2+1)+y;
     if(y <= cuda_column/2) {
@@ -130,7 +254,7 @@ cuFuncShared(applyConvolution,(Real *input, Real *output, Real* kernel, int kern
     output[index] = n_output;
     })
 
-cuFunc(applyNorm,(complexFormat* data, Real factor),(data,factor),{
+cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
     cuda1Idx()
     data[index].x*=factor;
     data[index].y*=factor;
@@ -143,7 +267,7 @@ cuFunc(interpolate,(Real* out, Real* data0, Real* data1, Real dx),(out, data0,da
     cuda1Idx()
     out[index] = data0[index]*(1-dx) + data1[index]*dx;
     })
-cuFunc(interpolate,(complexFormat* out, complexFormat* data0, complexFormat* data1, Real dx),(out, data0,data1,dx),{
+cuFuncc(interpolate,(complexFormat* out, complexFormat* data0, complexFormat* data1, Real dx),(cuComplex* out, cuComplex* data0, cuComplex* data1, Real dx),((cuComplex*)out, (cuComplex*)data0,(cuComplex*)data1,dx),{
     cuda1Idx()
     out[index].x = data0[index].x*(1-dx) + data1[index].x*dx;
     out[index].y = data0[index].y*(1-dx) + data1[index].y*dx;
@@ -153,32 +277,32 @@ cuFunc(adamUpdateV,(Real* v, Real* grad, Real beta2),(v,grad,beta2),{
     Real tmp = grad[index];
     v[index] = tmp*tmp*(1-beta2) + beta2*v[index];
     })
-cuFunc(adamUpdateV,(Real* v, complexFormat* grad, Real beta2),(v,grad,beta2),{
+cuFuncc(adamUpdateV,(Real* v, complexFormat* grad, Real beta2),(Real* v, cuComplex* grad, Real beta2),(v,(cuComplex*)grad,beta2),{
     cuda1Idx()
     Real tmp = grad[index].x;
     v[index] = tmp*tmp*(1-beta2) + beta2*v[index];
     })
-cuFunc(adamUpdate,(complexFormat* xn, complexFormat* m, Real* v, Real lr, Real eps),(xn,m,v,lr,eps),{
+cuFuncc(adamUpdate,(complexFormat* xn, complexFormat* m, Real* v, Real lr, Real eps),(cuComplex* xn, cuComplex* m, Real* v, Real lr, Real eps),((cuComplex*)xn,(cuComplex*)m,v,lr,eps),{
     cuda1Idx()
     xn[index].x += lr*m[index].x/(sqrt(v[index])+eps);
     })
-cuFunc(ceiling,(complexFormat* data, Real ceilval),(data,ceilval),{
+cuFuncc(ceiling,(complexFormat* data, Real ceilval),(cuComplex* data, Real ceilval),((cuComplex*)data,ceilval),{
     cuda1Idx()
     Real factor = ceilval/hypot(data[index].x, data[index].y);
     if(factor>1) return;
     data[index].x*=factor;
     data[index].y*=factor;
     })
-cuFunc(multiplyReal,(Real* store, complexFormat* src, complexFormat* target),(store,src,target),{
+cuFuncc(multiplyReal,(Real* store, complexFormat* src, complexFormat* target),(Real* store, cuComplex* src, cuComplex* target),(store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx();
     store[index] = src[index].x*target[index].x;
     })
 
-cuFunc(multiply,(complexFormat* src, complexFormat* target),(src,target),{
+cuFuncc(multiply,(complexFormat* src, complexFormat* target),(cuComplex* src, cuComplex* target),((cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     src[index] = cuCmulf(src[index], target[index]);
     })
-cuFunc(forcePositive,(complexFormat* a),(a),{
+cuFuncc(forcePositive,(complexFormat* a),(cuComplex* a),((cuComplex*)a),{
     cuda1Idx()
     if(a[index].x<0) a[index].x=0;
     a[index].y = 0;
@@ -189,7 +313,7 @@ cuFunc(forcePositive,(Real* a),(a),{
     if(a[index]<0) a[index]=0;
     })
 
-cuFunc(multiply,(complexFormat* store, complexFormat* src, complexFormat* target),(store,src,target),{
+cuFuncc(multiply,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     store[index] = cuCmulf(src[index], target[index]);
     })
@@ -199,16 +323,16 @@ cuFunc(multiply,(Real* store, Real* src, Real* target),(store,src,target),{
     store[index] = src[index]* target[index];
     })
 
-cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{ // a=z/lambda, b = (lambda/s)^2, s is the image size
+cuFuncc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(cuComplex* amp, Real a, Real b),((cuComplex*)amp,a,b),{ // a=z/lambda, b = (lambda/s)^2, s is the image size
     cudaIdx();
-    complexFormat phasefactor;
+    cuComplex phasefactor;
     Real phase = a*sqrt(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
     phasefactor.x = cos(phase);
     phasefactor.y = sin(phase);
     amp[index] = cuCmulf(amp[index],phasefactor);
     })
 
-cuFunc(extendToComplex,(Real* a, complexFormat* b),(a,b),{
+cuFuncc(extendToComplex,(Real* a, complexFormat* b),(Real* a, cuComplex* b),(a,(cuComplex*)b),{
     cuda1Idx()
     b[index].x = a[index];
     b[index].y = 0;
@@ -224,7 +348,7 @@ cuFunc(add,(Real* store, Real* a, Real* b, Real c),(store, a,b,c),{
     store[index] = a[index]+b[index]*c;
     })
 
-cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty, Real phaseFactor),(d_intensity,d_phase,objectWave,row,col,shiftx,shifty,phaseFactor),{
+cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx, int shifty, Real phaseFactor),(Real* d_intensity, Real* d_phase, cuComplex* objectWave, int row, int col, int shiftx, int shifty, Real phaseFactor),(d_intensity,d_phase,(cuComplex*)objectWave,row,col,shiftx,shifty,phaseFactor),{
     cudaIdx()
     int marginx = (cuda_row-row)/2+shiftx;
     int marginy = (cuda_column-col)/2+shifty;
@@ -247,7 +371,7 @@ cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectW
     }
 })
 
-cuFunc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx, Real shifty, Real phaseFactor),(d_intensity,d_phase,objectWave,oversampling,shiftx,shifty,phaseFactor),{
+cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* objectWave, Real oversampling, Real shiftx, Real shifty, Real phaseFactor),(Real* d_intensity, Real* d_phase, cuComplex* objectWave, Real oversampling, Real shiftx, Real shifty, Real phaseFactor),(d_intensity,d_phase,(cuComplex*)objectWave,oversampling,shiftx,shifty,phaseFactor),{
     cudaIdx()
     Real marginratio = (1-1./oversampling)/2;
     int marginx = (marginratio+shiftx)*cuda_row;
@@ -311,92 +435,92 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
   gpuErrchk(cudaGetLastError());
 }
 
-cuFunc(initRand,(curandStateMRG32k3a *state, unsigned long long seed),(state,seed),{
+cuFunc(initRand,(void* state, unsigned long long seed),(state,seed),{
     cuda1Idx()
-    curand_init(seed,index,0,&state[index]);
+    curand_init(seed,index,0,&((curandStateMRG32k3a*)state)[index]);
     })
 
-cuFunc(applyPoissonNoise_WO,(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale),
+cuFunc(applyPoissonNoise_WO,(Real* wave, Real noiseLevel, void* state, Real scale),
     (wave,noiseLevel,state,scale),{
     cuda1Idx()
     if(scale==0) scale = vars->scale;
-    wave[index]=scale*(int(wave[index]*vars->rcolor/scale) + curand_poisson(&state[index], noiseLevel)-noiseLevel)/vars->rcolor;
+    wave[index]=scale*(int(wave[index]*vars->rcolor/scale) + curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel)-noiseLevel)/vars->rcolor;
     })
-cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, void* state, Real exposure),
     (data,wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = dataint-noiseLevel;
     });
-cuFunc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
-    (data,wave,noiseLevel,state,exposure),{
+cuFuncc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(uint16_t* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
+    (data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    complexFormat tmp = wave[index];
-    int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    cuComplex tmp = wave[index];
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = dataint-noiseLevel;
     });
-cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
+cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exposure),
     (data,wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = Real(dataint-noiseLevel)/vars->rcolor;
     });
-cuFunc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
-    (data,wave,noiseLevel,state,exposure),{
+cuFuncc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(Real* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
+    (data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    complexFormat tmp = wave[index];
-    int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    cuComplex tmp = wave[index];
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = Real(dataint-noiseLevel)/vars->rcolor;
     });
-cuFunc(ccdRecord, (complexFormat* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure),
-    (data,wave,noiseLevel,state,exposure),{
+cuFuncc(ccdRecord, (complexFormat* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(cuComplex* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
+    ((cuComplex*)data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    complexFormat tmp = wave[index];
-    int dataint = curand_poisson(&state[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    cuComplex tmp = wave[index];
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index].x = Real(dataint-noiseLevel)/vars->rcolor;
     data[index].y = 0;
     });
-cuFunc(applyPoissonNoise,(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale),
+cuFunc(applyPoissonNoise,(Real* wave, Real noiseLevel, void* state, Real scale),
     (wave,noiseLevel,state,scale),{
     cuda1Idx()
-    curand_init(1,index,0,&state[index]);
+    curand_init(1,index,0,&((curandStateMRG32k3a*)state)[index]);
     if(scale==0) scale = vars->scale;
-    wave[index]+=scale*(curand_poisson(&state[index], noiseLevel)-noiseLevel)/vars->rcolor;
+    wave[index]+=scale*(curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel)-noiseLevel)/vars->rcolor;
     })
 
-cuFunc(getMod,(Real* mod, complexFormat* amp),(mod,amp),{
+cuFuncc(getMod,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     mod[index] = cuCabsf(amp[index]);
     })
-cuFunc(getReal,(Real* mod, complexFormat* amp),(mod,amp),{
+cuFuncc(getReal,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     mod[index] = amp[index].x;
     })
-cuFunc(getImag,(Real* mod, complexFormat* amp),(mod,amp),{
+cuFuncc(getImag,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     mod[index] = amp[index].y;
     })
-cuFunc(assignReal,(Real* mod, complexFormat* amp),(mod,amp),{
+cuFuncc(assignReal,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     amp[index].x = mod[index];
     })
-cuFunc(assignImag,(Real* mod, complexFormat* amp),(mod,amp),{
+cuFuncc(assignImag,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     amp[index].y = mod[index];
     })
-cuFunc(getMod2,(Real* mod2, complexFormat* amp),(mod2,amp),{
+cuFuncc(getMod2,(Real* mod2, complexFormat* amp),(Real* mod2, cuComplex* amp),(mod2,(cuComplex*)amp),{
     cuda1Idx()
-    complexFormat tmp = amp[index];
+    cuComplex tmp = amp[index];
     mod2[index] = tmp.x*tmp.x + tmp.y*tmp.y;
     })
-cuFunc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(mod2,amp,norm),{
+cuFuncc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(Real* mod2, cuComplex* amp, Real norm),(mod2,(cuComplex*)amp,norm),{
     cuda1Idx()
-    complexFormat tmp = amp[index];
+    cuComplex tmp = amp[index];
     mod2[index] += tmp.x*tmp.x*norm + tmp.y*tmp.y*norm;
     })
 cuFunc(getMod2,(Real* mod2, Real* mod),(mod2,mod),{
@@ -404,9 +528,9 @@ cuFunc(getMod2,(Real* mod2, Real* mod),(mod2,mod),{
     mod2[index] = sq(mod[index]);
     })
 
-cuFunc(bitMap,(Real* store, complexFormat* amp, Real threshold),(store,amp, threshold),{
+cuFuncc(bitMap,(Real* store, complexFormat* amp, Real threshold),(Real* store, cuComplex* amp, Real threshold),(store,(cuComplex*)amp, threshold),{
     cuda1Idx()
-    complexFormat tmp = amp[index];
+    cuComplex tmp = amp[index];
     store[index] = tmp.x*tmp.x+tmp.y*tmp.y > threshold*threshold;
     })
 
@@ -425,14 +549,14 @@ cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data
     store[index] = fact*data[index]+shift;
     })
 
-cuFunc(applyModAbs,(complexFormat* source, Real* target, curandStateMRG32k3a *state),(source, target, state),{
+cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComplex* source, Real* target, void* state),((cuComplex*)source, target, state),{
     cuda1Idx();
     Real mod = hypot(source[index].x, source[index].y);
     Real rat = target[index];
     if(rat > 0) rat = sqrt(rat);
     else rat = 0;
     if(mod==0) {
-    Real randphase = state?curand_uniform(&state[index])*2*M_PI:0;
+    Real randphase = state?curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI:0;
     source[index].x = rat*cos(randphase);
     source[index].y = rat*sin(randphase);
     return;
@@ -441,7 +565,7 @@ cuFunc(applyModAbs,(complexFormat* source, Real* target, curandStateMRG32k3a *st
     source[index].x *= rat;
     source[index].y *= rat;
     })
-cuFunc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col, Real norm, curandStateMRG32k3a *state),(source,target,row,col,norm, state),{
+cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col, Real norm, void* state),(cuComplex* source, Real* target,  int row, int col, Real norm, void* state),((cuComplex*)source,target,row,col,norm, state),{
     cudaIdx()
     int targetx = x >= cuda_row/2 ? x - (cuda_row - row) : x;
     int targety = y >= cuda_column/2 ? y - (cuda_column - col) : y;
@@ -451,7 +575,7 @@ cuFunc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col,
     if(rat > 0) rat = sqrt(rat);
     else rat = 0;
     if(mod==0) {
-    Real randphase = state?curand_uniform(&state[index])*2*M_PI:0;
+    Real randphase = state?curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI:0;
     source[index].x = rat*cos(randphase);
     source[index].x = rat*sin(randphase);
     return;
@@ -461,8 +585,8 @@ cuFunc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col,
     source[index].y *= rat;
     })
 
-cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),
-    (source, target, bs, loose, iter, noiseLevel),{
+cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),(cuComplex* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),
+    ((cuComplex*)source, target, bs, loose, iter, noiseLevel),{
     cuda1Idx()
     Real maximum = vars->scale*0.95;
     Real mod2 = target[index];
@@ -473,7 +597,7 @@ cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int 
     return;
     }
     Real tolerance = (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
-    complexFormat sourcedata = source[index];
+    cuComplex sourcedata = source[index];
     Real srcmod2 = sourcedata.x*sourcedata.x + sourcedata.y*sourcedata.y;
     if(mod2>=maximum) {
     if(loose) mod2 = max(maximum,srcmod2);
@@ -495,19 +619,19 @@ cuFunc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int 
     source[index].x = (0.+val)/1.*sourcedata.x;
     source[index].y = (0.+val)/1.*sourcedata.y;
     })
-cuFunc(add,(complexFormat* a, complexFormat* b, Real c ),(a,b,c),{
+cuFuncc(add,(complexFormat* a, complexFormat* b, Real c ),(cuComplex* a, cuComplex* b, Real c ),((cuComplex*)a,(cuComplex*)b,c),{
     cuda1Idx()
     a[index].x+=b[index].x*c;
     a[index].y+=b[index].y*c;
     })
-cuFunc(convertFOPhase, (complexFormat* data),(data),{
+cuFuncc(convertFOPhase, (complexFormat* data),(cuComplex* data),((cuComplex*)data),{
     cudaIdx()
     if((x+y)%2==1) {
     data[index].x = -data[index].x;
     data[index].y = -data[index].y;
     }
     })
-cuFunc(add,(complexFormat* store, complexFormat* a, complexFormat* b, Real c ),(store,a,b,c),{
+cuFuncc(add,(complexFormat* store, complexFormat* a, complexFormat* b, Real c ),(cuComplex* store, cuComplex* a, cuComplex* b, Real c ),((cuComplex*)store,(cuComplex*)a,(cuComplex*)b,c),{
     cuda1Idx()
     store[index].x=a[index].x + b[index].x*c;
     store[index].y=a[index].y + b[index].y*c;
@@ -520,24 +644,24 @@ cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
     src[index] = 0;
     }
     });
-cuFunc(applyRandomPhase,(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state),
-    (wave, beamstop, state),{
+cuFuncc(applyRandomPhase,(complexFormat* wave, Real* beamstop, void* state),(cuComplex* wave, Real* beamstop, void* state),
+    ((cuComplex*)wave, beamstop, state),{
     cuda1Idx()
-    complexFormat tmp = wave[index];
+    cuComplex tmp = wave[index];
     if(beamstop && beamstop[index]>vars->threshold) {
     tmp.x = tmp.y = 0;
     }
     else{
     Real mod = cuCabsf(wave[index]);
-    Real randphase = curand_uniform(&state[index])*2*M_PI;
+    Real randphase = curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI;
     tmp.x = mod*cos(randphase);
     tmp.y = mod*sin(randphase);
     }
     wave[index] = tmp;
     })
 
-__device__ complexFormat getFact(Real phase, int l){
-  complexFormat nom;
+__device__ cuComplex getFact(Real phase, int l){
+  cuComplex nom;
   if(phase != 0){
     nom.x = cos(phase)-1;
     nom.y = sin(phase);
@@ -563,10 +687,10 @@ cuFunc(stretch,(Real* src, Real* dest, Real rat, int prec),(src,dest,rat,prec),{
     Real sum1 = 0;
     for(int tx = targetx - prec; tx < targetx+prec; tx++){
       Real phase = 2*M_PI*(Real(x-cuda_row/2)/rat-tx+cuda_row/2)/cuda_row;
-      complexFormat factor1 = getFact(phase, cuda_row);
+      cuComplex factor1 = getFact(phase, cuda_row);
       for(int ty = targety - prec; ty < targety+prec; ty++){
         phase = 2*M_PI*(Real(y-cuda_column/2)/rat-ty+cuda_column/2)/cuda_column;
-        complexFormat factor2 = getFact(phase, cuda_row);
+        cuComplex factor2 = getFact(phase, cuda_row);
         factor2 = cuCmulf(factor1,factor2);
         if(x == 1 && y == 1) {
         sum += factor2.x/f;
@@ -599,7 +723,7 @@ cuFunc(mergePixel, (Real* output, Real* input, int row, int col, int nmerge),(ou
     output[index] = out/(nmerge*nmerge);
     })
 
-cuFunc(cropinner,(complexFormat* src, complexFormat* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
+cuFuncc(cropinner,(complexFormat* src, complexFormat* dest, int row, int col, Real norm),(cuComplex* src, cuComplex* dest, int row, int col, Real norm),((cuComplex*)src,(cuComplex*)dest,row,col,norm),{
     cudaIdx()
     int targetx = x >= cuda_row/2 ? x + row - cuda_row : x;
     int targety = y >= cuda_column/2 ? y + col - cuda_column : y;
@@ -618,7 +742,7 @@ cuFunc(padinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,r
     dest[index] = src[targetx*col+targety]*norm;
     })
 
-cuFunc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Real norm), (src, dest, row, col, norm),{
+cuFuncc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Real norm),(cuComplex* src, cuComplex* dest, int row, int col, Real norm), ((cuComplex*)src, (cuComplex*)dest, row, col, norm),{
     cudaIdx()
     if((x >= row/2 && x < (cuda_row - row/2)) || (y >= col/2 && y < (cuda_column - col/2))){
     dest[index].x = dest[index].y = 0;
@@ -631,16 +755,90 @@ cuFunc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Rea
     dest[index].y = src[targetidx].y*norm;
     })
 
-cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx, Real midy),(src,dest,row,col,midx,midy),{
+cuFuncTemplate(createMask, (Real* data, T* spt, bool isFrequency),(data,spt,isFrequency),{
   cudaIdx()
-  int shiftx = int(row*midx);
-  if(shiftx + cuda_row/2 > row/2) shiftx = (row-cuda_row)/2;
-  else if(shiftx - cuda_row/2 < - row/2) shiftx = (cuda_row-row)/2;
-  int shifty = int(col*midy);
-  if(shifty + cuda_column/2 > col/2) shifty = (row-cuda_column)/2;
-  else if(shifty - cuda_column/2 < - col/2) shifty = (cuda_column-col)/2;
-	int targetindex = (x+(row-cuda_row)/2+shiftx)*col + y+(col-cuda_column)/2+shifty;
+  if(isFrequency){
+    if(x>=cuda_row/2) x-=cuda_row/2;
+    else x+=cuda_row/2;
+    if(y>=cuda_column/2) y-=cuda_column/2;
+    else y+=cuda_column/2;
+  }
+  data[index]=spt->isInside(x,y);
+})
+template void createMask<rect>(Real*, rect*, bool isFrequency);
+template void createMask<C_circle>(Real*, C_circle*, bool isFrequency);
+cuFuncTemplate(createMaskBar, (Real* data, T* spt, bool isFrequency),(data,spt,isFrequency),{
+  cudaIdx()
+  if(isFrequency){
+    if(x>=cuda_row/2) x-=cuda_row/2;
+    else x+=cuda_row/2;
+    if(y>=cuda_column/2) y-=cuda_column/2;
+    else y+=cuda_column/2;
+  }
+  data[index]=!spt->isInside(x,y);
+})
+template void createMaskBar<rect>(Real*, rect*, bool isFrequency);
+template void createMaskBar<C_circle>(Real*, C_circle*, bool isFrequency);
+cuFunc(applyMask, (Real* data, Real* mask, Real threshold),(data,mask,threshold),{
+  cuda1Idx();
+  if(mask[index]<=threshold) data[index] = 0;
+})
+
+cuFuncc(applyMask, (complexFormat* data, Real* mask, Real threshold),(cuComplex* data, Real* mask, Real threshold),((cuComplex*)data,mask,threshold),{
+  cuda1Idx();
+  if(mask[index]<=threshold) data[index].x = data[index].y = 0;
+})
+cuFunc(applyMaskBar, (Real* data, Real* mask, Real threshold),(data,mask,threshold),{
+  cuda1Idx();
+  if(mask[index]>threshold) data[index] = 0;
+})
+cuFuncc(applyMaskBar, (Real* data, complexFormat* mask, Real threshold),(Real* data, cuComplex* mask, Real threshold),(data,(cuComplex*)mask,threshold),{
+  cuda1Idx();
+  if(mask[index].x>threshold) data[index] = 0;
+})
+cuFuncc(applyMaskBar, (complexFormat* data, Real* mask, Real threshold),(cuComplex* data, Real* mask, Real threshold),((cuComplex*)data,mask,threshold),{
+  cuda1Idx();
+  if(mask[index]>threshold) data[index].x = data[index].y = 0;
+})
+cuFuncc(zeroEdge,(complexFormat* a, int n),(cuComplex* a, int n),((cuComplex*)a,n),{
+  cudaIdx()
+  if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
+    a[index] = cuComplex();
+})
+cuFunc(zeroEdge,(Real* a, int n),(a,n),{
+  cudaIdx()
+  if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
+    a[index] = 0;
+})
+
+cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx, int shifty),(src, dest, row, col, shiftx, shifty),{
+  cudaIdx()
+	int marginx = (cuda_row-row)/2+shiftx;
+	int marginy = (cuda_column-col)/2+shifty;
+	if(x < marginx || x >= row+marginx || y < marginy || y >= col+marginy){
+		dest[index] = T();
+		return;
+	}
+	int targetindex = (x-marginx)*col + y-marginy;
 	dest[index] = src[targetindex];
 })
-template void crop<Real>(Real*, Real*, int, int, Real, Real);
-template void crop<complexFormat>(complexFormat*, complexFormat*, int, int, Real, Real);
+template void pad<Real>(Real*, Real*, int, int, int, int);
+template<> void pad<complexFormat>(complexFormat* src, complexFormat* dest, int row, int col, int shiftx, int shifty){
+  padWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)src, (cuComplex*)dest, row, col, shiftx, shifty);
+};
+
+cuFuncTemplate(refine,(T* src, T* dest, int refinement),(src,dest,refinement),{
+  cudaIdx()
+	int indexlu = (x/refinement)*(cuda_row/refinement) + y/refinement;
+	int indexld = (x/refinement)*(cuda_row/refinement) + y/refinement+1;
+	int indexru = (x/refinement+1)*(cuda_row/refinement) + y/refinement;
+	int indexrd = (x/refinement+1)*(cuda_row/refinement) + y/refinement+1;
+	Real dx = Real(x%refinement)/refinement;
+	Real dy = Real(y%refinement)/refinement;
+	dest[index] = 
+		src[indexlu]*(1-dx)*(1-dy)
+		+((y<cuda_column-refinement)?src[indexld]*(1-dx)*dy:0)
+		+((x<cuda_row-refinement)?src[indexru]*dx*(1-dy):0)
+		+((y<cuda_column-refinement&&x<cuda_row-refinement)?src[indexrd]*dx*dy:0);
+})
+template void refine<Real>(Real*, Real*, int);

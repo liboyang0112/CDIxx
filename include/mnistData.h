@@ -24,6 +24,9 @@ class cuMnist : public mnistData{
   int col;
   int refinement;
   int nmerge;
+  int handleraw;
+  int handle;
+  complexFormat* cache, *cacheraw;
   public:
   cuMnist(const char* dir, int nm, int re, int r, int c);
   void cuRead(void*);

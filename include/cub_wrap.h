@@ -1,5 +1,4 @@
 #include "format.h"
-#include <cufft.h>
 Real findSum(Real* d_in, int num = 0, bool debug=false);
 Real findMax(Real* d_in, int num = 0);
 int findMax(int* d_in, int num = 0);

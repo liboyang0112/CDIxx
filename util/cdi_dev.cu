@@ -173,16 +173,16 @@ int main(int argc, char** argv )
       for(int i = 0; i < setups.mnistN; i++){
         setups.save_suffix = to_string(i);
         setups.prepareIter();
-        setups.phaseRetrieve(); 
+        setups.phaseRetrievedev(); 
       }
     }else{
       setups.prepareIter();
-      setups.phaseRetrieve();
+      setups.phaseRetrievedev();
       setups.saveState();
       double smallresidual = setups.residual;
       for(int i = 0; i < setups.nIter; i++){
         setups.prepareIter();
-        setups.phaseRetrieve();
+        setups.phaseRetrievedev();
         if(smallresidual > setups.residual){
           smallresidual = setups.residual;
           setups.saveState();

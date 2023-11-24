@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="CairoPainter" parent="GtkBox">
+    <property name="orientation">vertical</property>
+    <child>
+      <object class="GtkImage" id="img">
+        <property name="pixel-size">500</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkBox" id="cbox">
+        <property name="halign">GTK_ALIGN_CENTER</property>
+        <child>
+          <object id="rotate" class="GtkButton">
+            <property name="label">Rotate</property>
+          </object>
+        </child>
+        <child>
+          <object id="flip" class="GtkButton">
+            <property name="label">Flip</property>
+          </object>
+        </child>
+        <child>
+          <object id="reset" class="GtkButton">
+            <property name="label">Reset</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

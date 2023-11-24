@@ -2,11 +2,8 @@
 #define __CUDADEFS_H__
 #include <cufft.h>
 #include "format.h"
-#include "memManager.h"
 #include <stdio.h>
-#define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
-#define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
-#define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
+#define cuComplex float2
 #define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
 #define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, x
 #define cuFunc(name,args,param,content...)\
@@ -24,6 +21,13 @@
   __global__ void name##Wrap(addVarArg args) content \
   template<typename T>\
   void name args{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+  }
+#define cuFunccTemplate(name,argsf,argsw,param,content...)\
+  template<typename T>\
+  __global__ void name##Wrap(addVarArg argsw) content \
+  template<typename T>\
+  void name argsf{\
     name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
   }
 #define addSize(args...) size_t size, args
@@ -56,19 +60,8 @@ struct cudaVars{
 };
 extern cudaVars* cudaVar;
 extern cudaVars* cudaVarLocal;
-extern complexFormat *cudaData;
 extern cufftHandle *plan, *planR2C;
 extern int2 cuda_imgsz;
-void resize_cuda_image(int row, int col);
-void init_cuda_image(int rcolor=0, Real scale=NAN);
-
-class cuMemManager : public memManager{
-  void c_malloc(void*& ptr, size_t sz);
-  void c_memset(void*& ptr, size_t sz);
-  public:
-  cuMemManager():memManager(){};
-};
-extern cuMemManager memMngr;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line)
 {

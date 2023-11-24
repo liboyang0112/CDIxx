@@ -3,6 +3,7 @@
 #include <random>
 #include "cuPlotter.h"
 #include "cudaConfig.h"
+#include "cudaDefs.h"
 #include "memManager.h"
 using namespace std;
 cuFunc(setHoloRef,(Real* image), (image),{

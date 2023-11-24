@@ -92,7 +92,7 @@ void cuPlotter::init(int rows_, int cols_){
   rows=rows_;
   cols=cols_;
   cv_cache = ccmemMngr.borrowCache(rows*cols*3);
-  cv_data = ccmemMngr.borrowCache(rows*cols*2);
+  cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
   freeCuda();
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
@@ -117,9 +117,10 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
   saveFloatData(cudaData);
   writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
-void* cuPlotter::cvtTurbo(){
+void* cuPlotter::cvtTurbo(void* icache){
+  char* cache = (char*)(icache?icache:cv_cache);
   for(int i = 0 ; i < rows*cols; i++){
-    getTurboColor(((pixeltype*)cv_data)[i], Bits, (char*)cv_cache+i*3);
+    getTurboColor(((pixeltype*)cv_data)[i], Bits, cache+i*3);
   }
   return cv_cache;
 }

@@ -1,4 +1,5 @@
 #include "mnistData.h"
+#include "cudaDefs.h"
 #include "cudaConfig.h"
 #include "imgio.h"
 #include "cuPlotter.h"
@@ -8,6 +9,12 @@ cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir)
   rowrf = rowraw*nmerge;
   colrf = colraw*nmerge;
   cuRefine = memMngr.borrowCache(rowrf*colrf*refinement*refinement*sizeof(Real));
+  if(refinement!=1){
+    createPlan(&handle, rowrf*refinement, colrf*refinement);
+    createPlan(&handleraw, rowrf, colrf);
+  }
+  myCuMalloc(complexFormat, cacheraw, rowrf*colrf);
+  myCuMalloc(complexFormat, cache, rowrf*colrf*refinement*refinement);
 };
 
 cuFunc(paste, (Real* out, Real* in, int rowin, int colin, int posx, int posy),(out, in, rowin, colin, posx, posy),{
@@ -37,10 +44,16 @@ void cuMnist::cuRead(void* out){
     }
   }
   if(refinement!=1){
+    resize_cuda_image(rowrf, colrf);
+    extendToComplex((Real*)out, cacheraw);
+    myFFTM(handleraw,cacheraw, cacheraw);
     resize_cuda_image(rowrf*refinement, colrf*refinement);
-    refine((Real*)out, (Real*)cuRefine, refinement);
+    padinner(cacheraw, cache, rowrf, colrf, 1./(rowrf*colrf));
+    myIFFTM(handle,cache, cache);
+    getMod((Real*)cache, cache);
+    applyThreshold((Real*)cache, (Real*)cache, 0.5);
     resize_cuda_image(row, col);
-    pad( (Real*)cuRefine, (Real*)out,rowrf*refinement, colrf*refinement);
+    pad( (Real*)cache, (Real*)out,rowrf*refinement, colrf*refinement);
   }else{
     resize_cuda_image(row, col);
     pad( (Real*)media, (Real*)out,rowrf, colrf);

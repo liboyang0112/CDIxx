@@ -8,23 +8,23 @@
 #include <math.h>
 png_colorp palette = 0;
 const Real rgb2gray[3] = {0.299,0.587,0.114};
-Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
+Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   void* (*cmalloc)(size_t) = malloc;
   if(funcptr) cmalloc = funcptr;
   printf("Reading image: %s\n", name);
   const char* fext = strrchr(name, '.');
   Real* ret = 0;
+  int row, col;
   if(!strcmp(fext, ".bin")){
     FILE* fin = fopen(name, "r");
-    struct imageFile fdata;
-    fread(&fdata, sizeof(struct imageFile), 1, fin);
-    *row = fdata.rows;
-    *col = fdata.cols;
-    size_t datasz = *row*(*col)*typeSizes[fdata.type];
+    fread(fdata, sizeof(struct imageFile), 1, fin);
+    row = fdata->rows;
+    col = fdata->cols;
+    size_t datasz = row*col*typeSizes[fdata->type];
     ret = (Real*) cmalloc(datasz);
     fread(ret, datasz, 1, fin);
-    if(fdata.type != REALIDX && fdata.type != COMPLEXIDX){  //only save floats with bin;
-      fprintf(stderr, "ERROR: FILETYPE unrecognized: %d\n", fdata.type);
+    if(fdata->type != REALIDX && fdata->type != COMPLEXIDX){  //only save floats with bin;
+      fprintf(stderr, "ERROR: FILETYPE unrecognized: %d\n", fdata->type);
       abort();
     }
     fclose(fin);
@@ -52,14 +52,17 @@ Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
       fprintf(stderr, "ERROR: get nchann failed with tiff file %s!\n", name);
       abort();
     }
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, row);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, col);
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &row);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &col);
+    fdata->rows = row;
+    fdata->cols = col;
+    fdata->type = REALIDX;
     tdata_t buf = _TIFFmalloc(TIFFScanlineSize(tif));
-    ret = (Real*) cmalloc(*row*(*col)*sizeof(Real));
-    for(int i = 0; i < *col; i++){
+    ret = (Real*) cmalloc(row*col*sizeof(Real));
+    for(int i = 0; i < col; i++){
       TIFFReadScanline(tif, buf, i, 0);
-      int idx = i**row;
-      for(int j = 0; j < *row; j++){
+      int idx = i*row;
+      for(int j = 0; j < row; j++){
         if(nchann == 1) {
           Real val;
           if(typesize==8) val = (Real)(((unsigned char*)buf)[j])/255;
@@ -102,12 +105,15 @@ Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
     png_init_io(png_ptr, f);
     png_read_info(png_ptr, info_ptr);
     png_bytep rowbuf = (png_bytep)png_malloc(png_ptr, png_get_rowbytes(png_ptr, info_ptr));
-    if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)row, (unsigned int*)col,
+    if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)&row, (unsigned int*)&col,
           &bit_depth, &color_type, &interlace_method,
           &compression_method, &filter_method)){
       png_error(png_ptr, "pngpixel: png_get_IHDR failed");
       abort();
     }
+    fdata->rows = row;
+    fdata->cols = col;
+    fdata->type = REALIDX;
     png_start_read_image(png_ptr);
     unsigned int typesize = png_get_bit_depth(png_ptr, info_ptr);
     if(typesize == 16) png_set_swap(png_ptr);
@@ -119,11 +125,11 @@ Real* readImage_c(const char* name, int *row, int *col, void* funcptr){
       fprintf(stderr, "ERROR: color type not know\n");
       abort();
     }
-    ret = (Real*) cmalloc(*row**col*sizeof(Real));
-    for(int i = 0; i < *col; i++){
+    ret = (Real*) cmalloc(row*col*sizeof(Real));
+    for(int i = 0; i < col; i++){
       png_read_row(png_ptr, rowbuf, NULL);
-      int idx = i**row;
-      for(int j = 0; j < *row; j++){
+      int idx = i*row;
+      for(int j = 0; j < row; j++){
         if(nchann == 1) {
           Real val;
           if(typesize==8) val = (Real)(((unsigned char*)rowbuf)[j])/255;

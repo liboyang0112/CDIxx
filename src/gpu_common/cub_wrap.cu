@@ -1,3 +1,4 @@
+#include "cudaDefs.h"
 #include "cudaConfig.h"
 #include <cub/device/device_reduce.cuh>
 #include <iostream>
@@ -6,10 +7,10 @@ T *d_out = (T*)memMngr.borrowCache(sizeof(T));\
 size_t num_items = num;\
 if(num_items == 0) num_items = memMngr.getSize(d_in)/sizeof(T);\
 if(!STORE##_n){\
-  gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, d_in, d_out, num_items, OP, INIT));\
+  gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, d_out, num_items, OP, INIT));\
   STORE = memMngr.borrowCache(STORE##_n);\
 }\
-gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, d_in, d_out, num_items, OP, INIT));\
+gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, d_out, num_items, OP, INIT));\
 T output;\
 cudaMemcpy(&output, d_out, sizeof(T), cudaMemcpyDeviceToHost);\
 if (d_out) memMngr.returnCache(d_out);
@@ -19,7 +20,7 @@ using namespace std;
 struct Mod2Max
 {
   __device__ __forceinline__
-    complexFormat operator()(const complexFormat &a, const complexFormat &b) const {
+    cuComplex operator()(const cuComplex &a, const cuComplex &b) const {
       Real mod2a = a.x*a.x+a.y*a.y;
       Real mod2b = b.x*b.x+b.y*b.y;
       return (mod2a > mod2b) ? a : b;
@@ -41,7 +42,7 @@ static CustomSum sum_op;
 struct CustomSumReal
 {
   __device__ __forceinline__
-    complexFormat operator()(const complexFormat &a, const complexFormat &b) const {
+    cuComplex operator()(const cuComplex &a, const cuComplex &b) const {
       return {a.x+b.x,0};
     }
 };
@@ -104,17 +105,17 @@ int findMin(int* d_in, int num)
 
 Real findMod2Max(complexFormat* d_in, int num)
 {
-  complexFormat tmp;
+  cuComplex tmp;
   tmp.x = tmp.y = 0;
-  FUNC(complexFormat, mod2max_op, tmp, store_findMod2Max);
+  FUNC(cuComplex, mod2max_op, tmp, store_findMod2Max);
   return output.x*output.x + output.y*output.y;
 }
 
 Real findSumReal(complexFormat* d_in, int num)
 {
-  complexFormat tmp;
+  cuComplex tmp;
   tmp.x = 0;
-  FUNC(complexFormat, sumreal_op, tmp, store_findSumReal);
+  FUNC(cuComplex, sumreal_op, tmp, store_findSumReal);
   return output.x;
 }
 
@@ -124,13 +125,13 @@ Real findSum(Real* d_in, int num, bool debug=false)
   return output;
 }
 
-cuFunc(multiplyx,(complexFormat* object, Real* out),(object,out),{
+cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
   cuda1Idx();
   int x = index/cuda_column;
   out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
 })
 
-cuFunc(multiplyy,(complexFormat* object, Real* out),(object,out),{
+cuFuncc(multiplyy,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
   cuda1Idx();
   int y = index%cuda_column;
   out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
@@ -153,9 +154,9 @@ complexFormat findMiddle(complexFormat* d_in, int num){
   Real norm = findSum(tmp, num);
   multiplyx(d_in,tmp);
   complexFormat mid;
-  mid.x = findSum(tmp, num)/norm;
+  mid = findSum(tmp, num)/norm;
   multiplyy(d_in,tmp);
-  mid.y = findSum(tmp, num)/norm;
+  mid += findSum(tmp, num)/norm*1.0iF;
   memMngr.returnCache(tmp);
   return mid;
 };
@@ -166,9 +167,9 @@ complexFormat findMiddle(Real* d_in, int num){
   Real norm = findSum(d_in, num_items);
   multiplyx(d_in,tmp);
   complexFormat mid;
-  mid.x = findSum(tmp, num_items)/norm;
+  mid = findSum(tmp, num_items)/norm;
   multiplyy(d_in,tmp);
-  mid.y = findSum(tmp, num_items)/norm;
+  mid += findSum(tmp, num_items)/norm*1.0iF;
   memMngr.returnCache(tmp);
   return mid;
 };

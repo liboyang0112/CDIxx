@@ -25,10 +25,11 @@ class cuPlotter
   int showVid = 0;
   cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_data(0){};
   void init(int rows_, int cols_);
+  void* getCache(){return cv_cache;}
   int initVideo(const char* filename, int fps = 24);
   void saveVideo(int handle = 0);
   void freeCuda();
-  void* cvtTurbo();
+  void* cvtTurbo(void* cache = 0);
   void saveFloat(void* cudaData, const char* label= "default");  //call saveData
   void saveComplex(void* cudaData, const char* label= "default");  //call saveData
   void saveFloatData(void* cudaData);

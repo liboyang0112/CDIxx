@@ -1,4 +1,5 @@
 #include "tvFilter.h"
+#include "cudaDefs.h"
 #include "memManager.h"
 #include "cudaConfig.h"
 #include "cuPlotter.h"

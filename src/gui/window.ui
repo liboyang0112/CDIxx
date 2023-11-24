@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="DataviewerWindow" parent="GtkApplicationWindow">
+    <property name="title" translatable="yes">Data Viewer</property>
+    <property name="default-width">1500</property>
+    <property name="default-height">900</property>
+  </template>
+</interface>

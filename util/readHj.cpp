@@ -33,7 +33,7 @@ int main(int argc, const char* argv[])
 
     Real* realb = (Real*)memMngr.borrowCache(sizeof(Real)*row*col);
     double* doubleb = (double*)memMngr.useOnsite(sizeof(double)*row*col);
-    cudaMemcpy(doubleb, b.data<double>(), sizeof(double)*row*col, cudaMemcpyHostToDevice);
+    myMemcpyH2D(doubleb, b.data<double>(), sizeof(double)*row*col);
     init_cuda_image(row, col);
     assignVal(realb, doubleb);
     applyNorm(realb, 1./findMax(realb));

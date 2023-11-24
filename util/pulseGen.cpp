@@ -4,6 +4,7 @@
 #include <vector>
 #include "cudaConfig.h"
 #include "cuPlotter.h"
+#include <string.h>
 #include "mnistData.h"
 #include "imgio.h"
 #include "monoChromo.h"
@@ -100,10 +101,9 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 }
 
 int main(int argc, char** argv){
-  cudaFree(0); // to speed up the cuda malloc; https://forums.developer.nvidia.com/t/cudamalloc-slow/40238
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
-  bool training = 0;
+  bool training = 1;
   int ntraining = 1000;
   int testingstart = ntraining;
   monoChromo mwl;
@@ -136,7 +136,7 @@ int main(int argc, char** argv){
     else {
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
       d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
-      cudaMemcpy(d_input, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
+      myMemcpyH2D(d_input, intensity, objrow*objcol*sizeof(Real));
       ccmemMngr.returnCache(intensity);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
@@ -168,7 +168,7 @@ int main(int argc, char** argv){
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
-  Real startlambda = 500;
+  Real startlambda = 480;
   Real endlambda = 1000;
   int nlambda;
   if(cdi.solveSpectrum) {
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
   complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
   resize_cuda_image(mwl.row, mwl.column);
   plt.init(mwl.row, mwl.column);
-  curandStateMRG32k3a *devstates = (curandStateMRG32k3a *)memMngr.borrowCache(mwl.column * mwl.row * sizeof(curandStateMRG32k3a));
+  void *devstates = newRand(mwl.column * mwl.row);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   initRand(devstates,seed);
   mwl.devstates = 0;//devstates;
@@ -206,18 +206,19 @@ int main(int argc, char** argv){
         resize_cuda_image(mwl.row, mwl.column);
         plt.init(mwl.row, mwl.column);
         pad(d_input, d_obj, objrow/cdi.oversampling, objcol/cdi.oversampling);
-        //plt.plotFloat(d_obj, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
-        //exit(0);
+        if(j==0){
+          plt.plotFloat(d_obj, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
+        }
       }
       mwl.generateMWL(d_obj, d_patternSum, d_solved);
       if(maxmerged==0) maxmerged = findMax(d_patternSum);
       if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "floatimage");
-      cudaMemcpy(merged, d_patternSum, sz, cudaMemcpyDeviceToHost);
+      myMemcpyD2H(merged, d_patternSum, sz);
       getMod( realcache, d_solved);
       applyNorm( realcache, 1./findMax(realcache));
-      cudaMemcpy(single, realcache, sz, cudaMemcpyDeviceToHost);
+      myMemcpyD2H(single, realcache, sz);
       if(cdi.domnist) {
         int key = j;
         void* ptrs[] = {merged, single};
@@ -230,12 +231,12 @@ int main(int argc, char** argv){
         plt.plotComplex(d_solved, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
       }
     }else{
-      cudaMemcpy(d_patternSum, intensity, objrow*objcol*sizeof(Real), cudaMemcpyHostToDevice);
+      myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));
       ccmemMngr.returnCache(intensity);
       if(cdi.solveSpectrum){
         int tmprow, tmpcol;
         intensity = readImage(cdi.pupil.Pattern, tmprow, tmpcol);
-        cudaMemcpy(d_solved, intensity, tmprow*tmpcol*sizeof(Real), cudaMemcpyHostToDevice);
+        myMemcpyH2D(d_solved, intensity, tmprow*tmpcol*sizeof(Real));
         if(tmprow > objrow) crop((Real*)d_solved, realcache, tmprow, tmpcol);
         else pad((Real*)d_solved, realcache, tmprow,tmpcol);
         extendToComplex(realcache, d_solved);

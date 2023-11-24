@@ -4,5 +4,9 @@ void* ccmalloc(size_t sz){
   return ccmemMngr.borrowCache(sz);
 }
 Real *readImage(const char* name, int &row, int &col, void* (cmalloc)(size_t)){
-  return readImage_c(name, &row, &col, (void*)(cmalloc?cmalloc:ccmalloc));
+  struct imageFile f;
+  Real* ptr = readImage_c(name, &f, (void*)(cmalloc?cmalloc:ccmalloc));
+  row = f.rows;
+  col = f.cols;
+  return ptr;
 };

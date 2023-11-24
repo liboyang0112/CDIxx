@@ -1,16 +1,37 @@
 #ifndef __CUDACONFIG_H__
 #define __CUDACONFIG_H__
 #include "format.h"
-#include "cudaDefs.h"
-#include <curand_kernel.h>
+#include<stddef.h>
 #include<stdint.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
-#define myFFT(args...) myCufftExec(*plan, args, CUFFT_FORWARD)
-#define myIFFT(args...) myCufftExec(*plan, args, CUFFT_INVERSE)
 #define myCufftExecR2C cufftExecR2C
-#define myFFTR2C(args...) myCufftExecR2C(*planR2C, args)
+#define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
+#define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
+#define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
+#include "memManager.h"
+void myMemcpyH2D(void*, void*, size_t sz);
+void myMemcpyD2D(void*, void*, size_t sz);
+void myMemcpyD2H(void*, void*, size_t sz);
+void resize_cuda_image(int row, int col);
+void init_cuda_image(int rcolor=0, Real scale=0);
+void* newRand(size_t sz);
+
+class cuMemManager : public memManager{
+  void c_malloc(void*& ptr, size_t sz);
+  void c_memset(void*& ptr, size_t sz);
+  public:
+  cuMemManager():memManager(){};
+};
+extern cuMemManager memMngr;
+void myFFT(void* in, void* out);
+void myIFFT(void* in, void* out);
+void myFFTM(int handle, void* in, void* out);
+void myIFFTM(int handle, void* in, void* out);
+void myFFTR2C(void* in, void* out);
+void createPlan(int* handle, int row, int col);
+void createPlan1d(int* handle, int n);
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
@@ -42,22 +63,22 @@ void assignImag(Real* mod, complexFormat* amp);
 void getMod2(Real* mod, complexFormat* amp);
 void addMod2(Real* mod, complexFormat* amp, Real norm);
 void getMod2(Real* mod2, Real* mod);
-void applyPoissonNoise(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-void applyPoissonNoise_WO(Real* wave, Real noiseLevel, curandStateMRG32k3a *state, Real scale = 0);
-void ccdRecord(uint16_t* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
-void ccdRecord(uint16_t* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
-void ccdRecord(Real* data, Real* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
-void ccdRecord(Real* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
-void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, curandStateMRG32k3a *state, Real exposure = 1);
-void initRand(curandStateMRG32k3a *state,unsigned long long seed);
+void applyPoissonNoise(Real* wave, Real noiseLevel, void *state, Real scale = 0);
+void applyPoissonNoise_WO(Real* wave, Real noiseLevel, void *state, Real scale = 0);
+void ccdRecord(uint16_t* data, Real* wave, int noiseLevel, void *state, Real exposure = 1);
+void ccdRecord(uint16_t* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
+void ccdRecord(Real* data, Real* wave, int noiseLevel, void *state, Real exposure = 1);
+void ccdRecord(Real* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
+void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
+void initRand(void *state,unsigned long long seed);
 void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
 void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
-void applyModAbs(complexFormat* source, Real* target, curandStateMRG32k3a *state = 0);
-void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, curandStateMRG32k3a *state);
+void applyModAbs(complexFormat* source, Real* target, void *state = 0);
+void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
 void add(complexFormat* a, complexFormat* b, Real c = 1);
 void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
-void applyRandomPhase(complexFormat* wave, Real* beamstop, curandStateMRG32k3a *state);
+void applyRandomPhase(complexFormat* wave, Real* beamstop, void *state);
 void multiply(complexFormat* source, complexFormat* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
@@ -73,70 +94,28 @@ void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
-cuFuncTemplate(cudaConvertFO, (T* data, T* out = 0),(data,out==0?data:out),{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= (cuda_row*cuda_column)/2) return;
-  int x = index%(cuda_row>>1);
-  int y = index/(cuda_row>>1);
-  index = x*cuda_column+y;
-  int indexp = (x+(cuda_row>>1))*cuda_column + (y >= (cuda_column>>1)? y-(cuda_column>>1): (y+(cuda_column>>1)));
-  T tmp = data[index];
-  out[index]=data[indexp];
-  out[indexp]=tmp;
-})
-
-cuFuncTemplate(applyMask, (T* data, Real* mask, Real threshold = 0.5),(data,mask,threshold),{
-  cuda1Idx();
-  if(mask[index]<=threshold) data[index] = T();
-})
-cuFuncTemplate(applyMaskBar, (T* data, complexFormat* mask, Real threshold = 0.5),(data,mask,threshold),{
-  cuda1Idx();
-  if(mask[index].x>threshold) data[index] = T();
-})
-
-
-cuFuncTemplate(zeroEdge, (T* a, int n), (a,n),{
-  cudaIdx()
-  if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
-    a[index] = T();
-})
-
-template <typename T1, typename T2>
-__global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
-  cuda1Idx()
-	out[index] = input[index];
-}
-template <typename T1, typename T2>
-void assignVal(T1* out, T2* input){
-  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,out,input);
-}
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
-cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0),(src, dest, row, col, shiftx, shifty),{
-  cudaIdx()
-	int marginx = (cuda_row-row)/2+shiftx;
-	int marginy = (cuda_column-col)/2+shifty;
-	if(x < marginx || x >= row+marginx || y < marginy || y >= col+marginy){
-		dest[index] = T();
-		return;
-	}
-	int targetindex = (x-marginx)*col + y-marginy;
-	dest[index] = src[targetindex];
-})
-cuFuncTemplate(refine,(T* src, T* dest, int refinement),(src,dest,refinement),{
-  cudaIdx()
-	int indexlu = (x/refinement)*(cuda_row/refinement) + y/refinement;
-	int indexld = (x/refinement)*(cuda_row/refinement) + y/refinement+1;
-	int indexru = (x/refinement+1)*(cuda_row/refinement) + y/refinement;
-	int indexrd = (x/refinement+1)*(cuda_row/refinement) + y/refinement+1;
-	Real dx = Real(x%refinement)/refinement;
-	Real dy = Real(y%refinement)/refinement;
-	dest[index] = 
-		src[indexlu]*(1-dx)*(1-dy)
-		+((y<cuda_column-refinement)?src[indexld]*(1-dx)*dy:0)
-		+((x<cuda_row-refinement)?src[indexru]*dx*(1-dy):0)
-		+((y<cuda_column-refinement&&x<cuda_row-refinement)?src[indexrd]*dx*dy:0);
-})
+void applyMaskBar(complexFormat* data, Real* mask, Real threshold = 0.5);
+void applyMaskBar(Real* data, Real* mask, Real threshold = 0.5);
+void applyMaskBar(Real* data, complexFormat* mask, Real threshold = 0.5);
+void applyMask(complexFormat* data, Real* mask, Real threshold = 0.5);
+void applyMask(Real* data, Real* mask, Real threshold = 0.5);
+
+template<typename T>
+void refine(T* src, T* dest, int refinement);
+template<typename T>
+void pad(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0);
+template <typename T1, typename T2>
+void assignVal(T1* out, T2* input);
+template<typename T>
+void zeroEdge(T* a, int n);
+template<typename T>
+void cudaConvertFO(T* data, T* out = 0);
+template<typename T>
+void createMask(Real* data, T* spt, bool isFrequency=0);
+template<typename T>
+void createMaskBar(Real* data, T* spt, bool isFrequency);
 
 class rect{
   public:
@@ -144,40 +123,13 @@ class rect{
     int starty;
     int endx;
     int endy;
-    __device__ __host__ bool isInside(int x, int y){
-      if(x > startx && x <= endx && y > starty && y <= endy) return true;
-      return false;
-    }
+    bool isInside(int x, int y);
 };
 class C_circle{
   public:
     int x0;
     int y0;
     Real r;
-    __device__ __host__ bool isInside(int x, int y){
-      Real dr = hypot(Real(x-x0),Real(y-y0));
-      if(dr < r) return true;
-      return false;
-    }
+    bool isInside(int x, int y);
 };
-cuFuncTemplate(createMask,(Real* data, T* spt, bool isFrequency=0),(data,spt,isFrequency),{
-  cudaIdx()
-  if(isFrequency){
-    if(x>=cuda_row/2) x-=cuda_row/2;
-    else x+=cuda_row/2;
-    if(y>=cuda_column/2) y-=cuda_column/2;
-    else y+=cuda_column/2;
-  }
-  data[index]=spt->isInside(x,y);
-})
-cuFuncTemplate(createMaskBar,(Real* data, T* spt, bool isFrequency=0),(data,spt,isFrequency),{
-  cudaIdx()
-  if(isFrequency){
-    if(x>=cuda_row/2) x-=cuda_row/2;
-    else x+=cuda_row/2;
-    if(y>=cuda_column/2) y-=cuda_column/2;
-    else y+=cuda_column/2;
-  }
-  data[index]=!spt->isInside(x,y);
-})
 #endif

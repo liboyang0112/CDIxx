@@ -2,6 +2,7 @@
 #define __COMMON_H__
 #include "format.h"
 #include "stdlib.h"
+#include "imageFile.h"
 
 // Declare the variables
 
@@ -10,7 +11,7 @@ extern "C" {
 #endif
 void writeComplexImage(const char* name, void* data, int row, int column);
 void writeFloatImage(const char* name, void* data, int row, int col);
-Real *readImage_c(const char* name, int *row, int *col, void* funcptr);
+Real *readImage_c(const char* name, struct imageFile *fdata, void* funcptr);
 int writePng(const char* png_file_name, void* pix , int width, int height, int bit_depth, char colored);
 int put_formula(const char* formula, int x, int y, int width, void* data, char iscolor, char rgb[3]);
 void plotPng(const char* label, Real* data, char* cache, int rows, int cols, char iscolor);
