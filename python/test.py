@@ -4,63 +4,71 @@ import numpy as np
 #from mUNet import mUNet
 from UNet import UNet
 from unetDataLoader import unetDataLoader as ul
-from torch import utils, device, tensor, nn
+from torch import device, tensor
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-from libimageIO_cython import writeFloat,readImage,writePng
+from libimageIO_cython import writeFloat,readImage
 from matplotlib import colors
 from torch.nn import functional as F
+from torchvision.transforms import CenterCrop
 
 #array = tensor([float(1)]).to(device('cuda:0'))
-#net = mUNet(array,channels=1).cuda()
-net = UNet(channels=1).cuda()
+#net = mUNet(array,channels = 1).cuda()
+net = UNet(channels = 1).cuda()
 #data = ul("./traindb", 1, 256,256, 1, 256,256,device('cuda:0'))
 ModelSave = 'model_4_2'
-net.load_state_dict(torch.load(ModelSave+'/Unet.pt'))
+net.load_state_dict(torch.load(ModelSave + '/Unet.pt'))
 mp = 'turbo'
 
 trainsz = 256
-image = readImage('floatimage.bin')
-x0 = (trainsz-image.shape[0])>>1
-y0 = (trainsz-image.shape[1])>>1
+image = readImage('broad_pattern.bin')
+x0 = (trainsz - image.shape[0]) >> 1
+y0 = (trainsz - image.shape[1]) >> 1
 
 image = tensor(np.asarray(image))
-image = F.pad(image,(x0,x0,y0,y0),"constant",0)
+if x0 > 0:
+    image = F.pad(image,(x0,x0,y0,y0),"constant",0)
+elif x0 < 0:
+    crp = CenterCrop(trainsz)
+    image = crp(image)
+
 image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
+imgnp = image.cpu()[0][0].numpy()
+writeFloat("cropped.bin",imgnp)
 net.eval()
-out=net(image)
-imgnp=out.cpu()[0][0].detach().numpy()
+out = net(image)
+imgnp = out.cpu()[0][0].detach().numpy()
 writeFloat("pattern.bin",imgnp)
-fig = plt.figure('solved', figsize=[3,3])
+fig = plt.figure('solved', figsize = [3,3])
 subfig = fig.add_subplot(1,1,1)
-subfig.imshow(imgnp, norm=colors.LogNorm(), cmap=mp);
+subfig.imshow(imgnp, norm = colors.LogNorm(), cmap = mp)
 fig.savefig("exp.png")
 
 data = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
-dataloader = DataLoader(data, batch_size=4, shuffle=True,num_workers=0,drop_last=True)
-saveidx = 0;
+dataloader = DataLoader(data, batch_size = 4, shuffle = True,num_workers = 0,drop_last = True)
+saveidx = 0
 for idx in range(0,10):
-    img,label=data[idx]
-    img=torch.unsqueeze(img,dim=0)
+    img,label = data[idx]
+    img = torch.unsqueeze(img,dim = 0)
     net.eval()
-    datanp=img.cpu()[0][0].detach().numpy()
+    datanp = img.cpu()[0][0].detach().numpy()
     #plt.gray()
-    imgnp=net(img).cpu()[0][0].detach().numpy()
-    labnp=label.cpu()[0].numpy()
-    fig = plt.figure('testSample{}'.format(idx), figsize=[11,4])
+    imgnp = net(img).cpu()[0][0].detach().numpy()
+    labnp = label.cpu()[0].numpy()
+    fig = plt.figure('testSample{}'.format(idx), figsize = [11,4])
     subfig = fig.add_subplot(1,3,3)
-    subfig.imshow(imgnp, norm=colors.LogNorm(), cmap=mp);
-    subfig.set_title("monochromatized pattern");
+    subfig.imshow(imgnp, norm = colors.LogNorm(), cmap = mp)
+    subfig.set_title("monochromatized pattern")
     subfig = fig.add_subplot(1,3,2)
-    subfig.imshow(datanp, norm=colors.LogNorm(), cmap=mp);
-    subfig.set_title("broad band pattern");
+    subfig.imshow(datanp, norm = colors.LogNorm(), cmap = mp)
+    subfig.set_title("broad band pattern")
     subfig = fig.add_subplot(1,3,1)
-    subfig.imshow(labnp, norm=colors.LogNorm(), cmap = mp);
-    subfig.set_title("monochromatic pattern");
+    subfig.imshow(labnp, norm = colors.LogNorm(), cmap = mp)
+    subfig.set_title("monochromatic pattern")
     fig.savefig("trainsample%d.png"%idx)
-    #plt.imsave('test.png', np.log2(imgnp)/16+1, vmin=0,vmax=1)
-    #plt.imsave('test_data.png', np.log2(datanp)/16+1, vmin=0,vmax=1)
-    #plt.imsave('test_lab.png', np.log2(labnp)/16+1,vmin=0,vmax=1)
+    #plt.imsave('test.png', np.log2(imgnp)/16+1, vmin = 0,vmax = 1)
+    #plt.imsave('test_data.png', np.log2(datanp)/16+1, vmin = 0,vmax = 1)
+    #plt.imsave('test_lab.png', np.log2(labnp)/16+1,vmin = 0,vmax = 1)
     if idx == saveidx:
         writeFloat("test.bin",imgnp)
         writeFloat("test_data.bin",datanp)
