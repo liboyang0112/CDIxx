@@ -165,7 +165,6 @@ target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cu_lib cdi_cu_lib)
 target_link_libraries(testFISTA_run FISTA_cu_lib cdi_cu_lib)
 target_link_libraries(readHj_run monoChromo_cu_lib)
 target_link_libraries(simLineSpectrumImaging_run cdi_cu_lib monoChromo_cu_lib)
-target_link_libraries(cdi_dev_run cdi_cu_lib)
 
 find_package(VTK COMPONENTS 
   jsoncpp

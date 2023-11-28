@@ -54,9 +54,9 @@ cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   cuda1Idx();
   int rindex = cuda_row-index-1;
   int bias = index-cuda_row/2;
-  Real sigma = 20;
+  Real sigma = 50;
   Real midf = 0;
-  Real chirp = 1e-4;
+  Real chirp = 3e-4;
   Real CEP = M_PI;
   Real phase = 2*M_PI*midf*index + CEP + 2*M_PI*chirp*(index-500)*(index-500);
   Real envolope = (exp(-sq(bias-50)/(2*sq(sigma)))+exp(-sq(bias+50)/(2*sq(sigma))));
@@ -185,7 +185,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   resize_cuda_image(nspect,1);
   initGate(gate);
   cudaMemcpy(E, gate, nspect*sizeof(complexFormat), cudaMemcpyDeviceToDevice);
-  int niter = 100;
+  int niter = 1000;
   getMod2((Real*)Eprime, gate);
   Real maxgate = findMax((Real*)Eprime, nspect);
   myCuDMalloc(int, devstates, nspect);
@@ -256,10 +256,10 @@ void saveWave(const char* fname, complexFormat* ccE, int n){
 int main(int argc, char** argv )
 {
   init_cuda_image();  //always needed
-  int ndelay = 10;
+  int ndelay = 5;
   myDMalloc(Real, delays, ndelay);
   int nspect = 1000;
-  int nfulldelay = 2000;
+  int nfulldelay = 1000;
   myCuDMalloc(Real, d_fulldelays, nfulldelay);
   myCuDMalloc(Real, d_delays, ndelay);
   myCuDMalloc(complexFormat, d_cE, nspect);
@@ -298,7 +298,7 @@ int main(int argc, char** argv )
   //srand(time(NULL));
   srand(8);
   for(int i = 0; i < ndelay; i++){
-    delays[i] = i*nfulldelay/ndelay - nfulldelay/2 + 2.*rand()/RAND_MAX;
+    delays[i] = i*nfulldelay/ndelay - nfulldelay/2;
   }
   cudaMemcpy(d_delays, delays, ndelay*sizeof(Real), cudaMemcpyHostToDevice);
   resize_cuda_image(ndelay,nspect);
