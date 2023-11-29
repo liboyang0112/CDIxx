@@ -34,13 +34,10 @@ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
   return exp(-r2/2/pow(sigma,2));
 }
 
-Real gaussian_norm(Real x, Real y, Real sigma);
 cuFunc(applySupport,(Real* image, Real* support),(image,support),{
   cuda1Idx();
   if(support[index] > vars->threshold) image[index] = 0;
 })
-
-
 cuFuncc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(cuComplex* object, cuComplex* probe, cuComplex* U, int shiftx, int shifty, int objrow, int objcol, cuComplex* window),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,shiftx,shifty,objrow,objcol,(cuComplex*)window),{
   cudaIdx();
   cuComplex tmp;

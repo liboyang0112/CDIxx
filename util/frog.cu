@@ -19,6 +19,15 @@ Real* simTrace(int ndelay, int nspect){
   return traces;
 }
 
+void saveWave(const char* fname, complexFormat* ccE, int n){
+  std::ofstream file1(fname, std::ios::out);
+  for(int i = 0; i < n; i++){
+    auto dat = ((complex<float>*)ccE)[i];
+    file1<<i << " " << dat.real() << " " << dat.imag() << " " << abs(dat) << " " << arg(dat)<<std::endl;
+  }
+  file1.close();
+}
+
 cuFuncc(dgenTrace, (Real* gate, Real* E, complexFormat* fulltrace, Real* delay),(Real* gate, Real* E, cuComplex* fulltrace, Real* delay), (gate, E, (cuComplex*)fulltrace,delay), {
   cudaIdx();
   int tidx = y-delay[x];
@@ -56,7 +65,7 @@ cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   int bias = index-cuda_row/2;
   Real sigma = 50;
   Real midf = 0;
-  Real chirp = 3e-4;
+  Real chirp = 2e-4;
   Real CEP = M_PI;
   Real phase = 2*M_PI*midf*index + CEP + 2*M_PI*chirp*(index-500)*(index-500);
   Real envolope = (exp(-sq(bias-50)/(2*sq(sigma)))+exp(-sq(bias+50)/(2*sq(sigma))));
@@ -124,7 +133,7 @@ cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, R
   }
   cuComplex tmp = gate[tidx];
   tmp.y = -tmp.y;
-  //alpha /= (sqSum(tmp.x,tmp.y)+1e-2);
+  alpha /= sqrt(sqSum(tmp.x,tmp.y)+1e-1);
   tmp = cuCmulf(tmp,trace[index]);
   E[index].x += alpha*tmp.x;
   E[index].y += alpha*tmp.y;
@@ -179,17 +188,16 @@ cuFuncc(stepMove, (complexFormat* Eprime, complexFormat* E, Real gamma),(cuCompl
 void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int singleplan){
   int ndelay = cuda_imgsz.x;
   int nspect = cuda_imgsz.y;
+  myDMalloc(complexFormat, ccE, nspect);
   complexFormat* gate = (complexFormat*) memMngr.borrowSame(E);
   complexFormat* Eprime = (complexFormat*) memMngr.borrowSame(E);
   complexFormat* traceprime = (complexFormat*) memMngr.borrowSame(E);
   resize_cuda_image(nspect,1);
   initGate(gate);
-  cudaMemcpy(E, gate, nspect*sizeof(complexFormat), cudaMemcpyDeviceToDevice);
-  int niter = 1000;
-  getMod2((Real*)Eprime, gate);
-  Real maxgate = findMax((Real*)Eprime, nspect);
+  myMemcpyD2D(E, gate, nspect*sizeof(complexFormat));
+  int niter = 100;
   void* devstates = newRand(nspect);
-  Real step = 1;
+  Real step = 0.9;
   resize_cuda_image(nspect,1);
   initRand(devstates, time(NULL));
   vector<int> sf(ndelay);
@@ -204,7 +212,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       applyNorm(traceprime, 1./sqrt(nspect));
       myIFFTM(singleplan, traceprime, traceprime);
       add(traceprime, trace, -1);
-      updateE(E, gate, traceprime, delays, sfd, step/maxgate);
+      updateE(E, gate, traceprime, delays, sfd, step);
       myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
     }
     if(spectrum){
@@ -213,8 +221,6 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       applyNorm(Eprime, 1./sqrt(nspect));
       myIFFTM(singleplan, Eprime, E);
     }
-    getMod2((Real*)Eprime, gate);
-    maxgate = findMax((Real*)Eprime, nspect)+1e-2;
     myFFTM(singleplan, E, Eprime);
     removeHighFreq(Eprime);
     if(i %20 == 0) {
@@ -225,6 +231,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       myIFFTM(singleplan, Eprime, E);
     }
     applyNorm(E, 1./nspect);
+    myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
   }
   resize_cuda_image(ndelay,nspect);
   dgencTrace(gate, E, trace, delays);
@@ -245,18 +252,10 @@ void genTrace(Real* E, complexFormat* fulltrace, Real* delays){
   applyNorm(fulltrace, 1./sqrt(cuda_imgsz.y));
 }
 
-void saveWave(const char* fname, complexFormat* ccE, int n){
-  std::ofstream file1(fname, std::ios::out);
-  for(int i = 0; i < n; i++){
-    auto dat = ((complex<float>*)ccE)[i];
-    file1<<i << " " << dat.real() << " " << dat.imag() << " " << abs(dat) << " " << arg(dat)<<std::endl;
-  }
-  file1.close();
-}
 int main(int argc, char** argv )
 {
   init_cuda_image();  //always needed
-  int ndelay = 5;
+  int ndelay = 200;
   myDMalloc(Real, delays, ndelay);
   int nspect = 1000;
   int nfulldelay = 1000;
@@ -295,12 +294,11 @@ int main(int argc, char** argv )
   convertFOy(d_fulltraces);
   plt.plotComplex(d_fulltraces, MOD2, 0, 1, "trace_truth", 1, 0, 1);
   //select delay, reconstruct E;
-  //srand(time(NULL));
-  srand(8);
+  srand(time(NULL));
   for(int i = 0; i < ndelay; i++){
     delays[i] = i*nfulldelay/ndelay - nfulldelay/2;
   }
-  cudaMemcpy(d_delays, delays, ndelay*sizeof(Real), cudaMemcpyHostToDevice);
+  myMemcpyH2D(d_delays, delays, ndelay*sizeof(Real));
   resize_cuda_image(ndelay,nspect);
   plt.init(ndelay,nspect);
   init_fft(nspect,1,ndelay);
@@ -308,12 +306,12 @@ int main(int argc, char** argv )
   getMod2(d_traceIntensity, d_traces);
   convertFOy(d_traces);
   plt.plotComplex(d_traces, MOD2, 0, 1, "trace_sampled", 1, 0, 1);
-  cudaMemset(d_cE, 0, nspect*sizeof(complexFormat));
-  cudaMemset(d_traces, 0, nspect*ndelay*sizeof(complexFormat));
-  //solveE(d_cE, d_traceIntensity, 0, d_traces, d_delays, singleplan);
-  solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, d_delays, singleplan);
+  clearCuMem(d_cE,  nspect*sizeof(complexFormat));
+  clearCuMem(d_traces,  nspect*ndelay*sizeof(complexFormat));
+  solveE(d_cE, d_traceIntensity, 0, d_traces, d_delays, singleplan);
+  //solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, d_delays, singleplan);
   plt.plotComplex(d_traces, MOD2, 0, 1, "trace_recon", 1, 0, 1);
-  cudaMemcpy(ccE, d_cE, sizeof(complexFormat)*nspect, cudaMemcpyDeviceToHost);
+  myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
   saveWave("output.txt", ccE, nspect);
   myFFTM(singleplan, d_cE, d_spect);
   resize_cuda_image(nspect,1);
