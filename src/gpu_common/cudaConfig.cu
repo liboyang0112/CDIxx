@@ -2,7 +2,6 @@
 #include "cudaDefs.h"
 #include "imgio.h"
 #include <curand_kernel.h>
-#include <iostream>
 cudaVars* cudaVar = 0;
 cudaVars* cudaVarLocal = 0;
 dim3 numBlocks;
