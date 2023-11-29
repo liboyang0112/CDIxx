@@ -1,71 +1,10 @@
 #include "holo.h"
 #include "imgio.h"
-#include "cudaDefs.h"
-#include <curand_kernel.h>
 #include "cuPlotter.h"
 #include "cub_wrap.h"
 #include "cudaConfig.h"
+#include <math.h>
 
-cuFuncc(applySupportBarHalf,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-  cudaIdx();
-  int hr = cuda_row>>1;
-  int hc = cuda_column>>1;
-  if(x > hr) x -= hr;
-  else x += hr;
-  if(y > hc) y -= hc;
-  else y += hc;
-  if(spt[index] > vars->threshold || x + y > cuda_row)
-    img[index].x = img[index].y = 0;
-})
-
-
-cuFuncc(applySupportBar_Flip,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-  cuda1Idx();
-  if(spt[index] > vars->threshold){
-    img[index].x *= -0.3;
-    img[index].y *= -0.3;
-  }
-})
-
-cuFuncc(applySupport,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-  cuda1Idx();
-  if(spt[index] < vars->threshold)
-    img[index].x = img[index].y = 0;
-})
-
-cuFuncc(dillate, (complexFormat* data, Real* support, int wid, int hit), (cuComplex* data, Real* support, int wid, int hit), ((cuComplex*)data,support,wid,hit),{
-  cudaIdx();
-  if(abs(data[index].x) < 0.5 && abs(data[index].y) < 0.5) return;
-  int idxp = 0;
-  for(int xp = 0; xp < cuda_row; xp++)
-  for(int yp = 0; yp < cuda_column; yp++)
-  {
-    if(abs(xp - x) <= wid && abs(yp-y) <= hit) support[idxp] = 0;
-    if(abs(x - xp) > cuda_row/2 || abs(y-yp)>cuda_column/2) support[idxp] = 0;
-    idxp++;
-  }
-})
-
-cuFuncc(applyModCorr, (complexFormat* obj, complexFormat* refer, Real* xcorrelation),(cuComplex* obj ,cuComplex* refer, Real* xcorrelation),((cuComplex*)obj,(cuComplex*)refer,xcorrelation),{
-  cuda1Idx();
-  cuComplex objtmp = obj[index];
-  cuComplex reftmp = refer[index];
-  if(reftmp.x == 0 && reftmp.y == 0) return;
-  Real fact = xcorrelation[index]/2 - reftmp.x*objtmp.x - reftmp.y*objtmp.y;
-  fact /= reftmp.x*reftmp.x + reftmp.y*reftmp.y;
-  obj[index].x = objtmp.x + fact*reftmp.x;
-  obj[index].y = objtmp.y + fact*reftmp.y;
-})
-
-cuFuncc(devideStar, (complexFormat* obj, complexFormat* refer, complexFormat* xcorrelation),(cuComplex* obj ,cuComplex* refer, cuComplex* xcorrelation),((cuComplex*)obj,(cuComplex*)refer,(cuComplex*)xcorrelation),{
-  cuda1Idx();
-  cuComplex xctmp = xcorrelation[index];
-  cuComplex reftmp = refer[index];
-  Real fact = max(sqSum(reftmp.x,reftmp.y),1e-4);
-  xctmp = cuCmulf(xctmp, reftmp);
-  obj[index].x = xctmp.x / fact;
-  obj[index].y = xctmp.y / fact;
-})
 
 holo::holo(const char* configfile) : CDI(configfile){}
 void holo::allocateMem_holo(){
@@ -115,7 +54,7 @@ void holo::initXCorrelation(){
   cir.endy=column/2+objcol;
   decltype(cir) *cuda_spt;
   cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
-  cudaMemcpy(cuda_spt, &cir, sizeof(cir), cudaMemcpyHostToDevice);
+  myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   createMask( xcorrelation_support, cuda_spt, 1);
   
   applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
@@ -124,7 +63,7 @@ void holo::initXCorrelation(){
   plt.plotComplex(patternWave_holo, REAL, 1, exposurepupil, "xcorrspt", 1, 0, 1);
   getReal( xcorrelation, (complexFormat*)patternWave_holo);
 
-  cudaMemset(support_holo, 0, memMngr.getSize(support_holo));
+  clearCuMem(support_holo,  memMngr.getSize(support_holo));
   plt.plotComplex(objectWave, MOD2, 0, 1, "object_ref", 0, 0, 0);
   linearConst( support_holo, support_holo, 0, 1);
   dillate( (float _Complex*)objectWave, support_holo, row/oversampling-objrow-12, column/oversampling-objcol-18);
@@ -148,9 +87,9 @@ void holo::simulate(){
     getMod2( patternData_holo, (complexFormat*)patternWave_holo);
     plt.plotComplex(objectWave_holo, MOD2, 0, 1, "holoIntensity");
     plt.plotComplex(objectWave_holo, PHASE, 0, 1, "holoPhase");
-    cudaMemset(objectWave_holo, 0, sizeof(complexFormat)*row*column);
-    cudaMemset(patternWave_holo, 0, sizeof(complexFormat)*row*column);
-    if(simCCDbit) applyPoissonNoise_WO( patternData_holo, noiseLevel, (curandStateMRG32k3a*)devstates, 1./exposurepupil);
+    clearCuMem(objectWave_holo,  sizeof(complexFormat)*row*column);
+    clearCuMem(patternWave_holo,  sizeof(complexFormat)*row*column);
+    if(simCCDbit) applyPoissonNoise_WO( patternData_holo, noiseLevel, devstates, 1./exposurepupil);
     plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPattern");
     plt.plotFloat(patternData_holo, MOD, 1, exposurepupil, "holoPatternlogsim",1);
   }else{
@@ -159,7 +98,7 @@ void holo::simulate(){
   }
   if(!runSim || simCCDbit) {
     Real* intensity = readImage(pupil.Pattern, row, column);
-    cudaMemcpy(patternData_holo, intensity, memMngr.getSize(patternData_holo), cudaMemcpyHostToDevice);
+    myMemcpyH2D(patternData_holo, intensity, memMngr.getSize(patternData_holo));
     ccmemMngr.returnCache(intensity);
     applyNorm( patternData_holo, 1./exposurepupil);
     cudaConvertFO( patternData_holo);
@@ -187,7 +126,7 @@ void holo::iterate(){
   const size_t sz = row*column*sizeof(Real);
   Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
   Real* cuda_objMod = (Real*) memMngr.borrowCache(sz);
-  cudaMemset(patternWave_obj, 0, sz*2);
+  clearCuMem(patternWave_obj,  sz*2);
   AlgoParser algo(algorithm);
   int ialgo;
   for(int i = 0;; i++){
@@ -196,8 +135,7 @@ void holo::iterate(){
     if(ialgo == shrinkWrap){
       getMod2( cuda_objMod, (complexFormat*)objectWave_holo);
       applyGaussConv(cuda_objMod, support_holo, d_gaussianKernel, gaussianSigma);
-      cudaVarLocal->threshold = findMax(support_holo,row*column)*shrinkThreshold;
-      cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
+      setThreshold(findMax(support_holo,row*column)*shrinkThreshold);
       if(gaussianSigma>1.5) {
         gaussianSigma*=0.99;
       }
@@ -222,7 +160,7 @@ void holo::iterate(){
     myFFT((complexFormat*)objectWave_holo, (complexFormat*)patternWave_obj);
     applyNorm( (complexFormat*)patternWave_obj, 1./sqrt(row*column));
   }
-  bitMap( support_holo, support_holo, cudaVarLocal->threshold);
+  bitMap( support_holo, support_holo);
   plt.plotFloat(support_holo, MOD, 0, 1, "support", 0);
   memMngr.returnCache(d_gaussianKernel);
   plt.plotComplex(objectWave_holo, MOD2, 0, 1, "object");

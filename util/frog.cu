@@ -188,7 +188,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   int niter = 1000;
   getMod2((Real*)Eprime, gate);
   Real maxgate = findMax((Real*)Eprime, nspect);
-  myCuDMalloc(int, devstates, nspect);
+  void* devstates = newRand(nspect);
   Real step = 1;
   resize_cuda_image(nspect,1);
   initRand(devstates, time(NULL));

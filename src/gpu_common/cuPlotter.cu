@@ -10,32 +10,30 @@ void cuPlotter::freeCuda(){
 }
 __device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, bool islog){
   Real target = 0;
-  if(m==REAL) {
-    target = data.x*decay;
-    if(islog){
-      if(target!=0){
-        Real ab = fabs(target);
-        Real logv = log2f(ab)/log2f(vars->rcolor)+1;
-        if(logv < 0) target = 0;
-        else target = target*logv/(2*ab);
+  switch(m){
+    case IMAG: target = data.y*decay; break;
+    case MOD: target = cuCabsf(data)*decay; break;
+    case MOD2: target = (data.x*data.x+data.y*data.y)*decay; break;
+    case PHASE: target = atan2(data.y,data.x)/2/M_PI+0.5; break;
+    case PHASERAD: target = atan2(data.y,data.x); break;
+    case REAL:{
+      target = data.x*decay;
+      if(islog){
+        if(target!=0){
+          Real ab = fabs(target);
+          Real logv = log2f(ab)/log2f(vars->rcolor)+1;
+          if(logv < 0) target = 0;
+          else target = target*logv/(2*ab);
+        }
       }
+      return (target+0.5)*vars->rcolor;
     }
-    return (target+0.5)*vars->rcolor;
+    default: ;
   }
-  if(m==IMAG) target = data.y*decay;
-  if(m==MOD) target = cuCabsf(data)*decay;
-  if(m==MOD2) target = (data.x*data.x+data.y*data.y)*decay;
-  if(m==PHASE){
-    target = atan2(data.y,data.x)/2/M_PI+0.5;
+  if(target!=0){
+    if(islog) target = log2f(target)/log2f(vars->rcolor)+1;
+    target*=vars->rcolor;
   }
-  if(m==PHASERAD){
-    target = atan2(data.y,data.x);
-  }
-  if(islog){
-    if(target!=0)
-      target = log2f(target)/log2f(vars->rcolor)+1;
-  }
-  target*=vars->rcolor;
   return target;
 }
 __device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool islog){
@@ -53,12 +51,11 @@ __device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool is
     return (ret+0.5)*vars->rcolor;
   }
   if(m==MOD2) ret = data*data*decay;
-  if(m==MOD) ret = fabs(data)*decay;
-  if(islog){
-    if(ret!=0)
-      ret = log2f(ret)/log2f(vars->rcolor)+1;
+  else if(m==MOD) ret = fabs(data)*decay;
+  if(ret!=0){
+    if(islog) ret = log2f(ret)/log2f(vars->rcolor)+1;
+    ret*=vars->rcolor;
   }
-  ret*=vars->rcolor;
   return ret;
 }
 
@@ -76,15 +73,10 @@ __global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cud
   if(isFlip){
     targetx = cuda_row-x-1;
   }
-  T data = ((T*)cudaData)[index];
-  Real target = cugetVal(vars,m,data,decay,islog);
+  Real target = cugetVal(vars,m, ((T*)cudaData)[index],decay,islog);
   if(target < 0) target = 0;
-  if(target>=vars->rcolor) {
+  else if(target>=vars->rcolor) {
     target=vars->rcolor-1;
-  }
-  if(target!=target) {
- //   printf("ERROR: target is NAN\n");
- //   exit(0);
   }
   cache[targetx*cuda_column+targety] = floor(target);
 }

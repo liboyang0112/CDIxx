@@ -30,4 +30,3 @@ class CDI : public experimentConfig{
     void* phaseRetrieve();
     void saveState();
 };
-void applySupport(void *gkp1, void *gkprime, Algorithm algo, Real *spt, int iter = 0, Real fresnelFactor = 0);

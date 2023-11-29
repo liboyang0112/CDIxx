@@ -9,7 +9,7 @@ class mnistData{
   int rowraw;
   int colraw;
   Real* output;
-	public:
+  public:
   mnistData(const char* dir);
   Real* read();
   void setIndex(int idx) {idat = idx;}
@@ -17,12 +17,12 @@ class mnistData{
 };
 
 class cuMnist : public mnistData{
-  void *cuOut, *cuRaw, *cuRefine;
+  void *cuRaw, *cuRefine;
   int rowrf;
   int colrf;
+  int refinement;
   int row;
   int col;
-  int refinement;
   int nmerge;
   int handleraw;
   int handle;

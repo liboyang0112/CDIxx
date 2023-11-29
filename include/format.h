@@ -12,6 +12,7 @@ typedef uchar pixeltype;
 #endif
 
 const int rcolor=65535;
+enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, cnt};
 
 #define Real float
 #define REALIDX FLOAT

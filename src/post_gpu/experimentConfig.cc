@@ -1,54 +1,24 @@
 #include "experimentConfig.h"
-#include "cudaDefs.h"
 #include "cudaConfig.h"
+#include <math.h>
 
-// pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
-cuFuncc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda),((cuComplex*)amp,r_d_lambda,d_r_lambda),{
-  cudaIdx()
-  Real phase = (sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-  cuComplex p = {cos(phase),sin(phase)};
-  amp[index] = cuCmulf(amp[index], p);
-})
-
-cuFuncc(multiplyPatternPhaseOblique_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),((cuComplex*)amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
-  cudaIdx()
-  Real phase = (sq((x-(cuda_row>>1)*costheta))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-  cuComplex p = {cos(phase),sin(phase)};
-  amp[index] = cuCmulf(amp[index], p);
-})
-
-cuFuncc(multiplyFresnelPhase_Device,(complexFormat* amp, Real phaseFactor),(cuComplex* amp, Real phaseFactor),((cuComplex*)amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
-  cudaIdx()
-  Real phase = phaseFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
-  cuComplex p = {cos(phase),sin(phase)};
-  if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
-})
-
-cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor, Real costheta_r),(cuComplex* amp, Real phaseFactor, Real costheta_r),((cuComplex*)amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
-  cudaIdx()
-  Real phase = phaseFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
-  cuComplex p = {cos(phase),sin(phase)};
-  if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
-})
-
-void opticalPropagate(void* field, Real lambda, Real d, Real imagesize){
-  multiplyFresnelPhase_Device((complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/(cuda_imgsz.x*cuda_imgsz.y)));
+void opticalPropagate(void* field, Real lambda, Real d, Real imagesize, int n){
+  multiplyFresnelPhase_Device((complexFormat*)field, M_PI/lambda/d*(imagesize*imagesize/n));
   cudaConvertFO((complexFormat*)field);
   myFFT((complexFormat*)field, (complexFormat*)field);
-  applyNorm((complexFormat*)field, 1./sqrt(cuda_imgsz.x*cuda_imgsz.y));
+  applyNorm((complexFormat*)field, 1./sqrt(n));
   cudaConvertFO((complexFormat*)field);
   multiplyPatternPhase_Device((complexFormat*)field, M_PI*lambda*d/(imagesize*imagesize), 2*d*M_PI/lambda - M_PI/2);
 }
 
-void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambda, Real z_over_lambda){
+void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambda, Real z_over_lambda, int n){
   myFFT((complexFormat*)input, (complexFormat*)field);
-  applyNorm((complexFormat*)field, 1./(cuda_imgsz.x*cuda_imgsz.y));
+  applyNorm((complexFormat*)field, 1./n);
   cudaConvertFO((complexFormat*)field);
   multiplyPropagatePhase((complexFormat*)field, 2*M_PI*z_over_lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
   cudaConvertFO((complexFormat*)field);
   myIFFT((complexFormat*)field, (complexFormat*)field);
 }
-
 
 void experimentConfig::createBeamStop(){
   C_circle cir;
@@ -57,13 +27,13 @@ void experimentConfig::createBeamStop(){
   cir.r=beamStopSize;
   decltype(cir) *cuda_spt;
   cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
-  cudaMemcpy(cuda_spt, &cir, sizeof(cir), cudaMemcpyHostToDevice);
+  myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
   createMask(beamstop, cuda_spt,1);
   memMngr.returnCache(cuda_spt);
 }
 void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforward){
-  angularSpectrumPropagate(datain, dataout, beamspotsize*oversampling/lambda, (isforward?d:-d)/lambda);
+  angularSpectrumPropagate(datain, dataout, beamspotsize*oversampling/lambda, (isforward?d:-d)/lambda, row*column);
 }
 void experimentConfig::propagate(void* datain, void* dataout, bool isforward){
   if(isforward) myFFT((complexFormat*)datain, (complexFormat*)dataout);

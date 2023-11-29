@@ -8,6 +8,7 @@ using namespace std;
 #define subParsers (*(std::vector<AlgoParser*>*) subParsersp)
 #define count (*(std::vector<int>*) countp)
 #define algoList (*(std::vector<int>*) algoListp)
+#include "format.h"
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
@@ -80,6 +81,7 @@ void readConfig::print(){
 }
 
 AlgoParser::AlgoParser(const char* f){
+  nAlgo = cnt;
   subParsersp=new std::vector<AlgoParser*>();
   countp=new std::vector<int>();
   algoListp=new std::vector<int>();

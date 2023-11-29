@@ -9,14 +9,14 @@ class cuPlotter
   int rows;
   int cols;
   Real phaseMax = 2*3.141592657;
-  void *cv_cache = 0;
-  void *cv_data = 0; //cv_data = cv_cache->data
   pixeltype *cuCache_data = 0; //cv format
+  void *cv_data = 0; //cv_data = cv_cache->data
+  void *cv_cache = 0;
+  void *cv_complex_data = 0; //cv_data = cv_cache->data
                                //
   void *cv_float_data = 0; //cv_data = cv_cache->data
   Real *cuCache_float_data = 0; //cv format
 
-  void *cv_complex_data = 0; //cv_data = cv_cache->data
   
   void *videoWriterVec[100];
   int nvid = 0;

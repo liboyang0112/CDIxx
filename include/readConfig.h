@@ -12,7 +12,6 @@
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
-enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, cnt};
 
 struct CDIfiles{
   const char* Pattern;
@@ -57,7 +56,7 @@ public:
   void* subParsersp;
   void* countp;
   void* algoListp;
-  int nAlgo = cnt;
+  int nAlgo;
   int currentAlgo;
   int currentCount;
   AlgoParser(const char* formula);

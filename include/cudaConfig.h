@@ -17,6 +17,9 @@ void myMemcpyD2H(void*, void*, size_t sz);
 void resize_cuda_image(int row, int col);
 void init_cuda_image(int rcolor=0, Real scale=0);
 void* newRand(size_t sz);
+void clearCuMem(void*, size_t);
+void setThreshold(Real);
+void gpuerr();
 
 class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);
@@ -38,8 +41,8 @@ void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
 void add(Real* store, Real* a, Real* b, Real c = 1);
 void addRemoveOE(Real* src, Real* sub, Real mult);
-void bitMap(Real* store, Real* data, Real threshold = 0.1);
-void bitMap(Real* store, complexFormat* data, Real threshold = 0.1);
+void bitMap(Real* store, Real* data, Real threshold = 0);
+void bitMap(Real* store, complexFormat* data, Real threshold = 0);
 void applyThreshold(Real* store, Real* input, Real threshold = 0.5);
 void extendToComplex(Real* a, complexFormat* b);
 void applyNorm(complexFormat* data, Real factor);
@@ -95,14 +98,45 @@ void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
-template<typename T>
-void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
 void applyMaskBar(complexFormat* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, complexFormat* mask, Real threshold = 0.5);
 void applyMask(complexFormat* data, Real* mask, Real threshold = 0.5);
 void applyMask(Real* data, Real* mask, Real threshold = 0.5);
+void paste(Real* out, Real* in, int rowin, int colin, int posx, int posy);
+void multiplyPatternPhase_Device(complexFormat* amp, Real r_d_lambda, Real d_r_lambda);
+void multiplyPatternPhaseOblique_Device(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta);
+void multiplyFresnelPhase_Device(complexFormat* amp, Real phaseFactor);
+void multiplyFresnelPhaseOblique_Device(complexFormat* amp, Real phaseFactor, Real costheta_r);
+void takeMod2Diff(complexFormat* a, Real* b, Real *output, Real *bs);
+void takeMod2Sum(complexFormat* a, Real* b);
+void applySupportOblique(complexFormat *gkp1, complexFormat *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1);
+void applySupport(void *gkp1, void *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0);
 
+
+void partialx (Real* b, Real* p);
+void partialy (Real* b, Real* p);
+void diffMax (Real* p, Real* q);
+void calcLpq (Real* out, Real* p, Real* q);
+
+void updateMomentum(complexFormat* force, complexFormat* mom, Real dx);
+void overExposureZeroGrad (complexFormat* deltab, complexFormat* b, int noiseLevel);
+void multiplyPixelWeight (complexFormat* img, Real* weights);
+void multiplyReal_inner(complexFormat* a, complexFormat* b, Real* c, int d);
+void assignRef_d (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n);
+void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n);
+void saveRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm);
+void saveRef_Real (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm);
+
+void applySupportBarHalf(complexFormat* img, Real* spt);
+void applySupportBar_Flip(complexFormat* img, Real* spt);
+void applySupport(complexFormat* img, Real* spt);
+void dillate (complexFormat* data, Real* support, int wid, int hit);
+void applyModCorr (complexFormat* obj, complexFormat* refer, Real* xcorrelation);
+void devideStar (complexFormat* obj, complexFormat* refer, complexFormat* xcorrelation);
+
+template<typename T>
+void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
 template<typename T>
 void refine(T* src, T* dest, int refinement);
 template<typename T>

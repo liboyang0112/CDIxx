@@ -221,8 +221,8 @@ class ptycho : public experimentConfig{
       plt.init(row_tmp,column_tmp);
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilIntensity", 0);
       init_fft(row_tmp,column_tmp);
-      opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling); //granularity changes
-      //angularSpectrumPropagate(pupilobjectWave, pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda); //granularity is the same
+      opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling, row_tmp*column_tmp); //granularity changes
+      //angularSpectrumPropagate(pupilobjectWave, pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda, row_tmp*column_tmp); //granularity is the same
       plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilPattern", 0);
       resize_cuda_image(row,column);
       init_fft(row,column);
