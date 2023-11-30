@@ -176,23 +176,25 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   resize_cuda_image(nspect,1);
   initE(E);
   myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
-  int niter = 500;
-  double step = 0.6;
+  int niter = 300;
+  double step = spectrum?10:3.;
   vector<int> sf(ndelay);
   for(int i = 0; i < ndelay; i++) sf[i] = i;
   std::mt19937 mtrnd( std::random_device {} () );
   Real gamma = 1e-3;
   for(int i = 0; i < niter; i++){
     shuffle(sf.begin(),sf.end(), mtrnd);
-    double randv = double(rand())/RAND_MAX;
     int k = 0;
     for(int j = 0; j < nfulldelay; j++){
+      double randv = double(rand())/RAND_MAX;
       bool measured = 0;
       int thisdelay = fulldelays[j];
       if(thisdelay == int(delays[k])){
         thisdelay = delays[sf[k]];
         k++;
         measured = 1;
+      }else{
+        if(spectrum) continue;
       }
       getMod2((Real*)Eprime, E);
       Real maxv = findMax((Real*)Eprime, nspect);
@@ -202,7 +204,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       else applySoftThreshold(traceprime, gamma);
       myIFFTM(singleplan, traceprime, traceprime);
       add(traceprime, trace, -1);
-      updateGE(E, gate, traceprime, thisdelay, (step)/maxv);
+      updateGE(E, gate, traceprime, thisdelay, (step*randv)/maxv);
       average(E,gate,0.5);
       if(spectrum){
         myFFTM(singleplan, E, Eprime);
@@ -246,7 +248,7 @@ void genTrace(Real* E, complexFormat* fulltrace, Real* delays){
 int main(int argc, char** argv )
 {
   init_cuda_image();  //always needed
-  int ndelay = 5;
+  int ndelay = 13;
   myDMalloc(Real, delays, ndelay);
   int nspect = 128;
   int nfulldelay = 128;
@@ -298,8 +300,8 @@ int main(int argc, char** argv )
   plt.plotComplex(d_traces, MOD2, 0, 1, "trace_sampled", 1, 0, 1);
   clearCuMem(d_cE,  nspect*sizeof(complexFormat));
   clearCuMem(d_traces,  nspect*ndelay*sizeof(complexFormat));
-  //solveE(d_cE, d_traceIntensity, 0, d_traces, delays, nfulldelay, fulldelays, singleplan);
-  solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, delays, nfulldelay, fulldelays, singleplan);
+  solveE(d_cE, d_traceIntensity, 0, d_traces, delays, nfulldelay, fulldelays, singleplan);
+  //solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, delays, nfulldelay, fulldelays, singleplan);
   myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
   saveWave("output.txt", ccE, nspect);
   myFFTM(singleplan, d_cE, d_spect);
