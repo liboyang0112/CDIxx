@@ -38,9 +38,9 @@ cuFuncc(dgenTrace, (Real* gate, Real* E, complexFormat* fulltrace, Real* delay),
   fulltrace[index].y = 0;
 })
 
-cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat* trace, Real* delay, int i),(cuComplex* gate, cuComplex* E, cuComplex* trace, Real* delay, int i), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)trace,delay, i), {
+cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay),(cuComplex* gate, cuComplex* E, cuComplex* trace, Real delay), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)trace,delay), {
   cuda1Idx();
-  int tidx = index-delay[i];
+  int tidx = index-delay;
   if(tidx >= cuda_row || tidx < 0) {
     trace[index].x = 0;
     trace[index].y = 0;
@@ -61,7 +61,6 @@ cuFuncc(dgencTrace, (complexFormat* gate, complexFormat* E, complexFormat* fullt
 
 cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   cuda1Idx();
-  int rindex = cuda_row-index-1;
   int bias = index-cuda_row/2;
   Real sigma = 5;
   Real midf = 0;
@@ -69,8 +68,8 @@ cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   Real CEP = M_PI;
   Real phase = 2*M_PI*midf*index + CEP + 2*M_PI*chirp*bias*bias;
   Real envolope = (exp(-sq(bias-10)/(2*sq(sigma)))+0.5*exp(-sq(bias+10)/(2*sq(sigma))));
-  E[rindex].x = envolope*cos(phase);
-  E[rindex].y = envolope*sin(phase);
+  E[index].x = envolope*cos(phase);
+  E[index].y = envolope*sin(phase);
 })
 
 cuFunc(genE,(Real* E),(E),{
@@ -85,7 +84,7 @@ cuFunc(genE,(Real* E),(E),{
 
 cuFunc(setDelay,(Real* delay),(delay),{
   cuda1Idx();
-  delay[index] = Real(index)-cuda_row/2;
+  delay[index] = index-cuda_row/2;
 })
 
 cuFuncc(convertFOy, (complexFormat* data),(cuComplex* data), ((cuComplex*)data), {
@@ -96,29 +95,36 @@ cuFuncc(convertFOy, (complexFormat* data),(cuComplex* data), ((cuComplex*)data),
   data[index] = data[index+cuda_column/2];
   data[index+cuda_column/2] = tmp;
 })
-cuFuncc(updateGE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real* delays, int i, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real* delays, int i, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delays,i, alpha), {
+cuFuncc(applySoftThreshold, (complexFormat* data, Real thres),(cuComplex* data, Real thres), ((cuComplex*)data, thres), {
   cuda1Idx();
-  int tidx = index - delays[i];
+  Real mod = cuCabsf(data[index]);
+  if(mod > thres){
+    mod = (1-thres/cuCabsf(data[index]))/cuda_row;
+    data[index].x *= mod;
+    data[index].y *= mod;
+  }else data[index].x = data[index].y = 0;
+})
+cuFuncc(updateGE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real delay, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delay, alpha), {
+  cuda1Idx();
+  int tidx = index - delay;
   if(tidx >= cuda_row || tidx < 0) return;
   cuComplex tmp = E[index];
   tmp.y = -tmp.y;
-  Real a1 = alpha ;// (sqSum(tmp.x, tmp.y)+1e-1);
   tmp = cuCmulf(tmp,trace[index]);
-  gate[tidx].x += a1*tmp.x;
-  gate[tidx].y += a1*tmp.y;
+  gate[tidx].x += alpha*tmp.x;
+  gate[tidx].y += alpha*tmp.y;
 
   tmp = gate[tidx];
   tmp.y = -tmp.y;
-  //a1 = alpha / (sqSum(tmp.x, tmp.y)+1e-1);
   tmp = cuCmulf(tmp,trace[index]);
 
-  E[index].x += a1*tmp.x;
-  E[index].y += a1*tmp.y;
+  E[index].x += alpha*tmp.x;
+  E[index].y += alpha*tmp.y;
 
 })
-cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real* delays, int i, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real* delays, int i, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delays,i, alpha), {
+cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real delay, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delay, alpha), {
   cuda1Idx();
-  int tidx = index - delays[i];
+  int tidx = index - delay;
   if(tidx >= cuda_row || tidx < 0) return;
   cuComplex tmp = gate[tidx];
   tmp.y = -tmp.y;
@@ -129,7 +135,7 @@ cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, R
 
 cuFuncc(initE, (complexFormat* gate),(cuComplex* gate), ((cuComplex*)gate), {
   cuda1Idx();
-  int window = 100;
+  int window = 32;
   if(index > cuda_row/2-window && index < cuda_row/2+window){
     gate[index].x = 1;
   }else gate[index].x = 0;
@@ -160,72 +166,69 @@ cuFuncc(average, (complexFormat* Eprime, complexFormat* E, Real gamma),(cuComple
   Eprime[index].y = E[index].y = (Eprime[index].y+E[index].y)/2;
 })
 
-cuFuncc(stepMove, (complexFormat* Eprime, complexFormat* E, Real gamma),(cuComplex* Eprime, cuComplex* E, Real gamma),((cuComplex*)Eprime, (cuComplex*)E, gamma),{
-  cuda1Idx();
-  Real diff = Eprime[index].x - E[index].x;
-  if(diff > gamma) diff = gamma;
-  else if(diff < -gamma) diff = -gamma;
-  Eprime[index].x -= diff;
-  diff = Eprime[index].y - E[index].y;
-  if(diff > gamma) diff = gamma;
-  else if(diff < -gamma) diff = -gamma;
-  Eprime[index].y -= diff;
-})
-
-
-void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int singleplan){
+void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int nfulldelay, Real* fulldelays, int singleplan){
   int ndelay = cuda_imgsz.x;
   int nspect = cuda_imgsz.y;
   myDMalloc(complexFormat, ccE, nspect);
-  complexFormat* gate = (complexFormat*) memMngr.borrowSame(E);
-  complexFormat* Eprime = (complexFormat*) memMngr.borrowSame(E);
-  complexFormat* traceprime = (complexFormat*) memMngr.borrowSame(E);
+  complexFormat* gate = trace+nspect;
+  complexFormat* Eprime = gate+nspect;
+  complexFormat* traceprime = Eprime+nspect;
   resize_cuda_image(nspect,1);
   initE(E);
-  //myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
-  int niter = 50;
-  double step = 0.4;
-  resize_cuda_image(nspect,1);
+  myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
+  int niter = 500;
+  double step = 0.6;
   vector<int> sf(ndelay);
-  iota(sf.begin(), sf.end(), 1);
+  for(int i = 0; i < ndelay; i++) sf[i] = i;
   std::mt19937 mtrnd( std::random_device {} () );
+  Real gamma = 1e-3;
   for(int i = 0; i < niter; i++){
     shuffle(sf.begin(),sf.end(), mtrnd);
     double randv = double(rand())/RAND_MAX;
-    for(int j = 0; j < ndelay; j++){
-      int sfd = sf[j];
+    int k = 0;
+    for(int j = 0; j < nfulldelay; j++){
+      bool measured = 0;
+      int thisdelay = fulldelays[j];
+      if(thisdelay == int(delays[k])){
+        thisdelay = delays[sf[k]];
+        k++;
+        measured = 1;
+      }
       getMod2((Real*)Eprime, E);
       Real maxv = findMax((Real*)Eprime, nspect);
-      myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
-      complexFormat* tracep = trace + sfd*nspect;
-      dgencTraceSingle(gate, E, tracep, delays, sfd);
-      myFFTM(singleplan, tracep, traceprime);
-      applyModAbs(traceprime, traceIntensity+sfd*nspect);
+      dgencTraceSingle(gate, E, trace, thisdelay);
+      myFFTM(singleplan, trace, traceprime);
+      if(measured) applyModAbs(traceprime, traceIntensity+sf[k-1]*nspect);
+      else applySoftThreshold(traceprime, gamma);
       myIFFTM(singleplan, traceprime, traceprime);
-      add(traceprime, tracep, -1);
-      updateGE(E, gate, traceprime, delays, sfd, (step*randv+0.1)/maxv);
-      average(E,gate, 0.5);
+      add(traceprime, trace, -1);
+      updateGE(E, gate, traceprime, thisdelay, (step)/maxv);
+      average(E,gate,0.5);
+      if(spectrum){
+        myFFTM(singleplan, E, Eprime);
+        applyModAbs(Eprime, spectrum);
+        applyNorm(Eprime, 1./sqrt(nspect));
+        myIFFTM(singleplan, Eprime, E);
+        myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
+      }
     }
     myFFTM(singleplan, E, Eprime);
     if(spectrum){
       applyModAbs(Eprime, spectrum);
-      applyNorm(Eprime, sqrt(nspect));
+      applyNorm(Eprime, 1./sqrt(nspect));
     }else{
       removeHighFreq(Eprime);
+      applyNorm(Eprime, 1./nspect);
     }
-    if(i %5 == 0) {
+    if(i %2 == 0) {
       myIFFTM(singleplan, Eprime, Eprime);
       Real mid = complex<float>(findMiddle(Eprime,nspect)).real();
       shiftmid(Eprime, E, mid*nspect);
     }else{
       myIFFTM(singleplan, Eprime, E);
     }
-    applyNorm(E, 1./nspect);
+    myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
   }
-  resize_cuda_image(ndelay,nspect);
-  myFFT(trace, trace);
-  applyNorm(trace, 1./sqrt(nspect));
-  convertFOy(trace);
 }
 
 void genTrace(complexFormat* E, complexFormat* fulltrace, Real* delays){
@@ -243,11 +246,12 @@ void genTrace(Real* E, complexFormat* fulltrace, Real* delays){
 int main(int argc, char** argv )
 {
   init_cuda_image();  //always needed
-  int ndelay = 40;
+  int ndelay = 5;
   myDMalloc(Real, delays, ndelay);
   int nspect = 128;
   int nfulldelay = 128;
   myCuDMalloc(Real, d_fulldelays, nfulldelay);
+  myDMalloc(Real, fulldelays, nfulldelay);
   myCuDMalloc(Real, d_delays, ndelay);
   myCuDMalloc(complexFormat, d_cE, nspect);
   myCuDMalloc(complexFormat, d_spect, nspect);
@@ -255,10 +259,7 @@ int main(int argc, char** argv )
   myCuDMalloc(complexFormat, d_fulltraces, nspect*nfulldelay);
   myCuDMalloc(Real, d_traceIntensity, nspect*ndelay);
   myCuDMalloc(complexFormat, d_traces, nspect*ndelay);
-  //Generate E, simulate trace
   resize_cuda_image(nspect,1);
-  //myCuDMalloc(Real, d_E, nspect);
-  //genE(d_E);
   genEComplex(d_cE);
   myDMalloc(complexFormat, ccE, nspect);
   myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
@@ -274,17 +275,17 @@ int main(int argc, char** argv )
   saveWave("inputSpect.txt", ccE, nspect);
   resize_cuda_image(nfulldelay,1);
   setDelay(d_fulldelays);
+  myMemcpyD2H(fulldelays, d_fulldelays, nfulldelay*sizeof(Real));
   init_fft(nspect,1,nfulldelay);
   resize_cuda_image(nfulldelay,nspect);
   plt.init(nfulldelay,nspect);
-  //genTrace(d_E, d_fulltraces, d_fulldelays);
   genTrace(d_cE, d_fulltraces, d_fulldelays);
   convertFOy(d_fulltraces);
   plt.plotComplex(d_fulltraces, MOD2, 0, 1, "trace_truth", 1, 0, 1);
   //select delay, reconstruct E;
   srand(time(NULL));
   for(int i = 0; i < ndelay; i++){
-    delays[i] = i*nfulldelay/ndelay - nfulldelay/2;// + rand()%10;
+    delays[i] = i*(nfulldelay-1)/(ndelay-1) - nfulldelay/2;// + rand()%10;
   }
   myMemcpyH2D(d_delays, delays, ndelay*sizeof(Real));
   resize_cuda_image(ndelay,nspect);
@@ -297,9 +298,8 @@ int main(int argc, char** argv )
   plt.plotComplex(d_traces, MOD2, 0, 1, "trace_sampled", 1, 0, 1);
   clearCuMem(d_cE,  nspect*sizeof(complexFormat));
   clearCuMem(d_traces,  nspect*ndelay*sizeof(complexFormat));
-  solveE(d_cE, d_traceIntensity, 0, d_traces, d_delays, singleplan);
-  //solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, d_delays, singleplan);
-  plt.plotComplex(d_traces, MOD2, 0, 1, "trace_recon", 1, 0, 1);
+  //solveE(d_cE, d_traceIntensity, 0, d_traces, delays, nfulldelay, fulldelays, singleplan);
+  solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, delays, nfulldelay, fulldelays, singleplan);
   myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
   saveWave("output.txt", ccE, nspect);
   myFFTM(singleplan, d_cE, d_spect);
