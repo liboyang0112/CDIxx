@@ -255,7 +255,7 @@ class ptycho : public experimentConfig{
       crop((complexFormat*)objectWave, cropped, row_O, column_O);
       plt.plotComplex(cropped, MOD2, 0, 0.7, "ptycho_afterIter");
       //plt.plotPhase(cropped, PHASERAD, 0, 1, "ptycho_afterIterphase");
-      plt.plotComplex(objectWave, PHASE, 0, 1, "ptycho_afterIterphase");
+      plt.plotComplex(cropped, PHASE, 0, 1, "ptycho_afterIterphase");
     }
     void readPattern(){
       Real* pattern = readImage((string(common.Pattern)+"0_0.png").c_str(), row, column);
