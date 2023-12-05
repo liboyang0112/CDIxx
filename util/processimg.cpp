@@ -1,6 +1,5 @@
 #include <complex>
 #include <stdio.h>
-//#include <time.h>
 #include <stdio.h>
 #include "imgio.h"
 #include "cudaConfig.h"
@@ -68,8 +67,8 @@ int main(int argc, char** argv )
     mid += std::complex<Real>(std::stof(argv[7])/col - std::stof(argv[6])/row*1.0i);
   }
   int step = nmerge*4;
-  int outrow = (row-int(abs(mid.real())*row)*2)/step*step;
-  int outcol = (col-int(abs(mid.imag())*col)*2)/step*step;
+  int outrow = (row-int(std::abs(mid.real())*row)*2)/step*step;
+  int outcol = (col-int(std::abs(mid.imag())*col)*2)/step*step;
   //int outrow = row/step*step;
   //int outcol = col/step*step;
   outrow = outcol = std::min(outrow,outcol);

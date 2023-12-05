@@ -8,7 +8,6 @@ class cuPlotter
 {
   int rows;
   int cols;
-  Real phaseMax = 2*3.141592657;
   pixeltype *cuCache_data = 0; //cv format
   void *cv_data = 0; //cv_data = cv_cache->data
   void *cv_cache = 0;
@@ -38,7 +37,6 @@ class cuPlotter
   void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);
   void* processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void* processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
-  void* processPhaseData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool isFlip = 0);
   void plot(const char* label, bool islog = 0);
   ~cuPlotter();
 };

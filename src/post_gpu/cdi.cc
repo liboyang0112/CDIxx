@@ -281,8 +281,7 @@ void* CDI::phaseRetrieve(){
   //cudaConvertFO( cuda_diff);
   //plt.plotFloat(cuda_diff, MOD, 1, exposure, "smoothed_pattern",1);
   AlgoParser algo(algorithm);
-  int size = floor(gaussianSigma*6);
-  size = ((size>>1)<<1)+1;
+  int size = int(floor(gaussianSigma*6)) | 1;
   Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
   applyNorm(cuda_gkp1, 1./sqrt(row*column));
   for(int iter = 0; ; iter++){

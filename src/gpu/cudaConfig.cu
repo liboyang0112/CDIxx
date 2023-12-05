@@ -28,13 +28,12 @@ void resize_cuda_image(int rows, int cols){
   cuda_imgsz.x = rows;
   cuda_imgsz.y = cols;
   numBlocks.x=(rows*cols-1)/threadsPerBlock.x+1;
-  //numBlocks.y=(cols-1)/threadsPerBlock.x+1;
 }
 void init_cuda_image(int rcolor, Real scale){
   const int sz = sizeof(cudaVars);
   if(!cudaVar){
     cudaVar = (cudaVars*) memMngr.borrowCache(sz);
-    cudaVarLocal = (cudaVars*) malloc(sz);
+    myMalloc(cudaVars, cudaVarLocal, 1);
     cudaVarLocal->threshold = 0.5;
     cudaVarLocal->beta_HIO = 1;
     if(scale==scale) cudaVarLocal->scale = scale;
@@ -48,8 +47,7 @@ void init_cuda_image(int rcolor, Real scale){
   cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
 };
 void setThreshold(Real val){
-  cudaVarLocal->threshold = val;
-  cudaMemcpy(cudaVar, cudaVarLocal, sizeof(cudaVars),cudaMemcpyHostToDevice);
+  cudaMemcpy(&cudaVar->threshold, &val, sizeof(cudaVarLocal->threshold),cudaMemcpyHostToDevice);
 }
 void* newRand(size_t sz){
   return memMngr.borrowCache(sz * sizeof(curandStateMRG32k3a));
@@ -571,7 +569,7 @@ cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComple
     if(rat > 0) rat = sqrt(rat);
     else rat = 0;
     if(mod==0) {
-    Real randphase = state?curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI:0;
+    Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
     source[index].x = rat*cos(randphase);
     source[index].y = rat*sin(randphase);
     return;
@@ -590,7 +588,7 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     if(rat > 0) rat = sqrt(rat);
     else rat = 0;
     if(mod==0) {
-    Real randphase = state?curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI:0;
+    Real randphase = state?curand_uniform((curandStateMRG32k3a*)state+index)*2*M_PI:0;
     source[index].x = rat*cos(randphase);
     source[index].x = rat*sin(randphase);
     return;
@@ -668,7 +666,7 @@ cuFuncc(applyRandomPhase,(complexFormat* wave, Real* beamstop, void* state),(cuC
     }
     else{
     Real mod = cuCabsf(wave[index]);
-    Real randphase = curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI;
+    Real randphase = curand_uniform((curandStateMRG32k3a*)state+index)*2*M_PI;
     tmp.x = mod*cos(randphase);
     tmp.y = mod*sin(randphase);
     }
@@ -1157,6 +1155,12 @@ cuFunc(zeroEdge,(Real* a, int n),(a,n),{
   cudaIdx()
   if(x<n || x>=cuda_row-n || y < n || y >= cuda_column-n)
     a[index] = 0;
+})
+cuFuncc(zeroEdgey,(complexFormat* a, int n),(cuComplex* a, int n),((cuComplex*)a,n),{
+  cuda1Idx()
+  int y = index%cuda_column;
+  if(y < n || y >= cuda_column-n)
+    a[index] = cuComplex();
 })
 
 cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx, int shifty),(src, dest, row, col, shiftx, shifty),{

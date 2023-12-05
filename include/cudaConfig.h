@@ -98,6 +98,9 @@ void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
 void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
+void zeroEdgey(complexFormat* a, int n);
+void zeroEdge(Real* a, int n);
+void zeroEdge(complexFormat* a, int n);
 void applyMaskBar(complexFormat* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, complexFormat* mask, Real threshold = 0.5);
@@ -143,8 +146,6 @@ template<typename T>
 void pad(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0);
 template <typename T1, typename T2>
 void assignVal(T1* out, T2* input);
-template<typename T>
-void zeroEdge(T* a, int n);
 template<typename T>
 void cudaConvertFO(T* data, T* out = 0);
 template<typename T>

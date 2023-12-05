@@ -1,10 +1,7 @@
 #include "cuPlotter.h"
 #include "memManager.h"
 #include "videoWriter.h"
-#include "imageFile.h"
-#include <map>
 #include <string>
-#include <png.h>
 #include <stdio.h>
 #include "imgio.h"
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x

@@ -1,7 +1,7 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 #include "format.h"
-#include "stdlib.h"
+#include <stddef.h>
 #include "imageFile.h"
 
 // Declare the variables

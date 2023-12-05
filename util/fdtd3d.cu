@@ -391,7 +391,7 @@ cuFunc(getYZSlice,(Real* slice, Real* data, Real* data2, Real* data3, int nx, in
   //slice[index] = data2[idx]*data2[idx];
 })
 int main(){
-  int nsteps = 100;
+  int nsteps = 1000;
   const int nx = 200;
   const int ny = 200;
   const int nz = 200;

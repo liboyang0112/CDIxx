@@ -1,6 +1,5 @@
 #include "cuPlotter.h"
 #include "cdi.h"
-#include <gtk/gtk.h>
 extern "C"{
 #include "gui/dataViewer.h"
 }

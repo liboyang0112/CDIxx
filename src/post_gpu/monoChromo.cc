@@ -14,7 +14,7 @@
 using namespace std;
 
 
-int nearestEven(Real x){
+int inline nearestEven(Real x){
   return round(x/2)*2;
 }
 
@@ -228,7 +228,7 @@ void monoChromo::reconRefs(void* d_patternSum){
   Real kfactor = 0;
   Real stepsize = 1;
   plt.plotFloat(d_patternSum, MOD, 0, 1, "target_pattern", 1, 0, 1);
-  for(int niter = 0; niter < 2200; niter++){
+  for(int niter = 0; niter < 200; niter++){
     generateMWLRefPattern(patternRecon);
     myMemcpyD2D(residual, d_patternSum, sz);
     addRemoveOE(residual, (Real*)patternRecon, -1);

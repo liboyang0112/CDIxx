@@ -1,7 +1,6 @@
 #include "cuPlotter.h"
 #include "cudaDefs.h"
 #include "cudaConfig.h"
-#include <cassert>
 cuPlotter plt;
 
 void cuPlotter::freeCuda(){
@@ -80,29 +79,6 @@ __global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cud
   }
   cache[targetx*cuda_column+targety] = floor(target);
 }
-__global__ void getPhase(cudaVars* vars, int cuda_row, int cuda_column, void* cudaData, Real* cache, mode m, bool isFrequency=0, Real decay = 1, bool isFlip = 0){
-  cudaIdx()
-  int halfrow = cuda_row>>1;
-  int halfcol = cuda_column>>1;
-  int targetx = x;
-  int targety = y;
-  if(isFrequency) {
-    targetx = x<halfrow?x+halfrow:(x-halfrow);
-    targety = y<halfcol?y+halfcol:(y-halfcol);
-  }
-  if(isFlip){
-    targetx = cuda_row-x;
-  }
-  cache[targetx*cuda_column+targety] =cugetVal(vars, m,((cuComplex*)cudaData)[index],decay,0);
-}
-
-void* cuPlotter::processPhaseData(void* cudaData, const mode m, bool isFrequency, Real decay, bool isFlip){
-  if(!cuCache_float_data) cuCache_float_data = (Real*) memMngr.borrowCache(rows*cols*sizeof(Real));
-  getPhase<<<numBlocks,threadsPerBlock>>>(cudaVar, rows, cols, cudaData, (Real*)cuCache_float_data, m, isFrequency, decay, isFlip);
-  cudaMemcpy(cv_float_data, cuCache_float_data,rows*cols*sizeof(Real), cudaMemcpyDeviceToHost); 
-  return cv_float_data;
-};
-
 void cuPlotter::saveFloatData(void* cudaData){
   cudaMemcpy(cv_float_data, cudaData, rows*cols*sizeof(Real), cudaMemcpyDeviceToHost); 
 };

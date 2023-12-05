@@ -1,8 +1,8 @@
-#include <cstdio>
+#include <stdio.h>
 #include "memManager.h"
 #include <map>
 #include <vector>
-#include <cstdlib>
+#include <stdlib.h>
 #include <string.h>
 
 ccMemManager ccmemMngr;

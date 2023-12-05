@@ -33,9 +33,8 @@ int main(int argc, char* argv[]){
     mwl.assignRef(objectWave);
     mwl.generateMWLRefPattern(pattern);
     extendToComplex(pattern,cpattern);
-    cudaConvertFO(cpattern);
     myFFT(cpattern, cpattern);
-    plt.plotComplex(cpattern, PHASE, 1, 1, "mergedac", 0, 0, 0);
+    plt.plotComplex(cpattern, MOD, 1, 30, "mergedac", 0, 0, 0);
     applyNorm(pattern, cfg.exposure);
     mwl.reconRefs(pattern);
     plt.plotFloat(pattern, MOD, 0, 1, "pattern", 1, 0, 1);
