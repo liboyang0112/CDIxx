@@ -12,6 +12,12 @@ int2 cuda_imgsz = {0,0};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
 cuMemManager memMngr;
+int getCudaRows(){
+  return cuda_imgsz.x;
+}
+int getCudaCols(){
+  return cuda_imgsz.y;
+}
 void myMemcpyH2D(void* d, void* s, size_t sz){
   cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice);
 }

@@ -20,7 +20,7 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     fread(fdata, sizeof(struct imageFile), 1, fin);
     row = fdata->rows;
     col = fdata->cols;
-    size_t datasz = row*col*typeSizes[fdata->type];
+    size_t datasz = row*col*typeSizes[(int)fdata->type];
     ret = (Real*) cmalloc(datasz);
     fread(ret, datasz, 1, fin);
     if(fdata->type != REALIDX && fdata->type != COMPLEXIDX){  //only save floats with bin;
@@ -89,13 +89,13 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
         NULL, NULL, NULL);
-  
+
     if (png_ptr == NULL){
       fprintf(stderr, "pngpixel: out of memory allocating png_struct\n");
       abort();
     }
     png_infop info_ptr = png_create_info_struct(png_ptr);
-  
+
     if (info_ptr == NULL){
       fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
       abort();
@@ -182,49 +182,49 @@ int writePng(const char* png_file_name, void* data , int height, int width, int 
   unsigned char* pixels = (unsigned char*) data;
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
   png_set_compression_level(png_ptr,1);
-	if(png_ptr == NULL)
-	{
-		printf("ERROR:png_create_write_struct/n");
-		return 0;
-	}
-	png_infop info_ptr = png_create_info_struct(png_ptr);
-	if(info_ptr == NULL)
-	{
-		printf("ERROR:png_create_info_struct/n");
-		png_destroy_write_struct(&png_ptr, NULL);
-		return 0;
-	}
-	FILE *png_file = fopen(png_file_name, "wb");
-	if (!png_file)
-	{
-		return -1;
-	}
-	png_init_io(png_ptr, png_file);
-	png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, colored?PNG_COLOR_TYPE_RGB:PNG_COLOR_TYPE_GRAY,
-		PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+  if(png_ptr == NULL)
+  {
+    printf("ERROR:png_create_write_struct/n");
+    return 0;
+  }
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  if(info_ptr == NULL)
+  {
+    printf("ERROR:png_create_info_struct/n");
+    png_destroy_write_struct(&png_ptr, NULL);
+    return 0;
+  }
+  FILE *png_file = fopen(png_file_name, "wb");
+  if (!png_file)
+  {
+    return -1;
+  }
+  png_init_io(png_ptr, png_file);
+  png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, colored?PNG_COLOR_TYPE_RGB:PNG_COLOR_TYPE_GRAY,
+      PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
   if(colored){
     palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH * sizeof(png_color));
-	  png_set_PLTE(png_ptr, info_ptr, palette, PNG_MAX_PALETTE_LENGTH);
+    png_set_PLTE(png_ptr, info_ptr, palette, PNG_MAX_PALETTE_LENGTH);
   }
-	png_write_info(png_ptr, info_ptr);
+  png_write_info(png_ptr, info_ptr);
   if (bit_depth == 16)
     png_set_swap(png_ptr);
-	png_set_packing(png_ptr);
-	png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height*sizeof(png_bytep));
-	for (int i = 0; i < height; ++i)
-	{
-		rows[i] = (png_bytep)(pixels + i * png_get_rowbytes(png_ptr, info_ptr));
-	}
-
-	png_write_image(png_ptr, rows);
-	free(rows);
-	png_write_end(png_ptr, info_ptr);
-  if(colored){
-	  png_free(png_ptr, palette);
+  png_set_packing(png_ptr);
+  png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height*sizeof(png_bytep));
+  for (int i = 0; i < height; ++i)
+  {
+    rows[i] = (png_bytep)(pixels + i * png_get_rowbytes(png_ptr, info_ptr));
   }
-	png_destroy_write_struct(&png_ptr, &info_ptr);
-	fclose(png_file);
-	return 0;
+
+  png_write_image(png_ptr, rows);
+  free(rows);
+  png_write_end(png_ptr, info_ptr);
+  if(colored){
+    png_free(png_ptr, palette);
+  }
+  png_destroy_write_struct(&png_ptr, &info_ptr);
+  fclose(png_file);
+  return 0;
 }
 int put_formula(const char* formula, int x, int y, int width, void* data, char iscolor, char rgb[3]){
   char cmd[1000] = "texFormula.sh \"";
@@ -282,23 +282,23 @@ const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*
     {-397.815, 7.43316, -0.0210902},
     {-513.745, 8.50106, -0.0235486}
   },{
-     {18.3699, 2.98435, -0.00590619},
-     {25.5339, 2.60115, -0.000838337},
-     {-65.9885, 5.48243, -0.023616},
-     {-90.9164, 5.82642, -0.024485},
-     {-47.1592, 5.39126, -0.0237502},
-     {-65.915, 5.26759, -0.0222375},
-     {1648.81, -12.6094, 0.0243797},
-     {1160.21, -8.10854, 0.014018}
+    {18.3699, 2.98435, -0.00590619},
+    {25.5339, 2.60115, -0.000838337},
+    {-65.9885, 5.48243, -0.023616},
+    {-90.9164, 5.82642, -0.024485},
+    {-47.1592, 5.39126, -0.0237502},
+    {-65.915, 5.26759, -0.0222375},
+    {1648.81, -12.6094, 0.0243797},
+    {1160.21, -8.10854, 0.014018}
   },{
-     {59.4351, 7.57781, -0.0720408},
-     {29.4288, 9.18296, -0.0932682},
-     {391.685, -2.3166, -0.0016649},
-     {770.071, -8.98098, 0.0266769},
-     {606.475, -7.75046, 0.0270971},
-     {-638.138, 8.68843, -0.0270811},
-     {1017.44, -8.76258, 0.0189386},
-     {625.18, -5.14916, 0.0106199}
+    {59.4351, 7.57781, -0.0720408},
+    {29.4288, 9.18296, -0.0932682},
+    {391.685, -2.3166, -0.0016649},
+    {770.071, -8.98098, 0.0266769},
+    {606.475, -7.75046, 0.0270971},
+    {-638.138, 8.68843, -0.0270811},
+    {1017.44, -8.76258, 0.0189386},
+    {625.18, -5.14916, 0.0106199}
   }
 };
 

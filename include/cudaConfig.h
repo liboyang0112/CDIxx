@@ -11,6 +11,8 @@
 #define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
 #define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
 #include "memManager.h"
+int getCudaRows();
+int getCudaCols();
 void myMemcpyH2D(void*, void*, size_t sz);
 void myMemcpyD2D(void*, void*, size_t sz);
 void myMemcpyD2H(void*, void*, size_t sz);

@@ -30,3 +30,9 @@ class CDI : public experimentConfig{
     void* phaseRetrieve();
     void saveState();
 };
+void applyESWSupport(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length);
+void initESW(complexFormat* ESW, Real* mod, complexFormat* amp);
+void applyESWMod(complexFormat* ESW, Real* mod, complexFormat* amp, int noiseLevel);
+void calcESW(complexFormat* sample, complexFormat* ISW);
+void calcO(complexFormat* ESW, complexFormat* ISW);
+void applyAutoCorrelationMod(complexFormat* source,complexFormat* target, Real *bs = 0);
