@@ -44,7 +44,7 @@ int main(int argc, char** argv )
     resize_cuda_image(rowi, coli);  //tell cuda to process the image of this size
     crop(d_propagatedwave, d_crop, row, col,mid.real(),mid.imag());
     //crop(d_propagatedwave, d_crop, row, col);
-    plt.plotComplex(d_crop, MOD2, 0, 0.3, "test", 0, 0, 1);  //save the mod square to a png file
+    plt.plotComplex(d_crop, MOD2, 0, 0.3, "test", 0, 0, 1, ("i="+to_string(i)).c_str());
   }
   plt.saveVideo(handle);
 }

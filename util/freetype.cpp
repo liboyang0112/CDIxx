@@ -13,7 +13,7 @@ int main( int argc, char**  argv )
   myDMalloc(uint16_t, data, rows*cols);
   memset(data, 0, rows*cols*sizeof(uint16_t));
   unsigned char val[3] = {0xff, 0xff, 0xff};
-  putText("wss", 0, 0, rows, cols, data, 0, val);
+  putText("wss", 0, rows, rows, cols, data, 0, val);
   writePng("test.png", data, rows, cols, 16, 0);
   return 0;
 }

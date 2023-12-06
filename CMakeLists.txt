@@ -38,6 +38,7 @@ add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} NVHPC::CUFFT)
 set_target_properties( ${libname} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
+target_link_libraries(FGA_cc monoChromo_cc)
 target_link_libraries(freetype_c freetype imgio_c)
 target_link_libraries(cdilmdb_c lmdb z)
 target_link_libraries(videoWriter_cc avformat avutil avcodec)
@@ -64,6 +65,7 @@ foreach( sourcefile ${APP_SOURCES} )
 endforeach( sourcefile ${APP_SOURCES} )
 target_link_libraries(unetDataLoader_cython cdilmdb_c)
 target_link_libraries(imageIO_cython imgio_c)
+target_link_libraries(readHj_cython FGA_cc)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
 foreach( sourcefile ${APP_SOURCES} )
@@ -105,7 +107,6 @@ target_link_libraries(fftDemo_run cudaLibcommon_cu)
 target_link_libraries(processimg_run cudaLibcommon_cu)
 target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(testFISTA_run cdi_cc)
-target_link_libraries(readHj_run monoChromo_cc cnpy_cc)
 target_link_libraries(simLineSpectrumImaging_run cdi_cc monoChromo_cc material_cc)
 
 find_package(VTK COMPONENTS 

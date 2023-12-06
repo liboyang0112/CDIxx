@@ -1,47 +1,22 @@
-#include"cnpy.h"
 #include"cudaConfig.h"
-#include"format.h"
+#include"FGA.h"
 #include"cuPlotter.h"
-#include"imgio.h"
-#include<complex>
-#include<cstdlib>
-#include<iostream>
-#include<random>
-#include<chrono>
-#include<map>
-#include<string>
 #include<fstream>
 #include"monoChromo.h"
 #include"cub_wrap.h"
 
-int main(int argc, const char* argv[])
+int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* data)
 {
-    cnpy::npz_t my_npz = cnpy::npz_load("Example_whitelight_experiment.npz"); //arrays are saved in double
-    cnpy::NpyArray b = my_npz["B"];
-    cnpy::NpyArray spectra = my_npz["spect_I"];
-    cnpy::NpyArray lambdas = my_npz["spect_lambda"];
-    printf("numpy word size= %ld, double=%ld\n", b.word_size, sizeof(double));
-    int row = b.shape[0];
-    int col = b.shape[1];
-    int nlambda = lambdas.shape[0];
-    double* spectrad = spectra.data<double>();
-    double* lambdasd = lambdas.data<double>();
-    for(int i = 1; i < nlambda; i++)
-      lambdasd[i] /= lambdasd[0];
-    lambdasd[0] = 1;
     printf("image size = (%d, %d), spectra size = %d\n", row, col, nlambda);
-
     Real* realb = (Real*)memMngr.borrowCache(sizeof(Real)*row*col);
-    double* doubleb = (double*)memMngr.useOnsite(sizeof(double)*row*col);
-    myMemcpyH2D(doubleb, b.data<double>(), sizeof(double)*row*col);
+    myMemcpyH2D(realb, data, sizeof(Real)*row*col);
     init_cuda_image();
     resize_cuda_image(row, col);
-    assignVal(realb, doubleb);
     applyNorm(realb, 1./findMax(realb));
     monoChromo mwl;
     mwl.jump = 10;
     mwl.skip = 5;
-    mwl.init(row, col, lambdasd, spectrad, nlambda);
+    mwl.init(row, col, lambdas, spectra, nlambda);
     plt.init(row, col);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
@@ -62,6 +37,5 @@ int main(int argc, const char* argv[])
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
     mwl.writeSpectra("spectra_new.txt");
-
     return 0;
 }

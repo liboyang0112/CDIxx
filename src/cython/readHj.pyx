@@ -1,0 +1,13 @@
+import ctypes
+cimport numpy as np
+import numpy as np
+from libc.stdlib cimport malloc, free
+from numpy import log2
+
+cdef extern from "FGA.h":
+  int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, float* data);
+
+np.import_array()
+
+def runFGA(dataArray, lambdas, spectra):
+    return FGA(dataArray.shape[0], dataArray.shape[1], lambdas.shape[0], <double*>np.PyArray_BYTES(lambdas), <double*>np.PyArray_BYTES(spectra), <float*>np.PyArray_BYTES(dataArray.astype(np.float32)));
