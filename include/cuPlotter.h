@@ -33,11 +33,11 @@ class cuPlotter
   void saveComplex(void* cudaData, const char* label= "default");  //call saveData
   void saveFloatData(void* cudaData);
   void saveComplexData(void* cudaData);
-  void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);  //call processData
-  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0);
+  void plotComplex(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0, const char* caption = 0);  //call processData
+  void plotFloat(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay=1, const char* label= "default",bool islog = 0, bool isFlip = 0, bool isColor = 0, const char* caption = 0);
   void* processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void* processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
-  void plot(const char* label, bool islog = 0);
+  void plot(const char* label, bool islog = 0, const char* caption = 0);
   ~cuPlotter();
 };
 extern cuPlotter plt;

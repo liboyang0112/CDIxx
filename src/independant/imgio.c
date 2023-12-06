@@ -259,7 +259,7 @@ int put_formula(const char* formula, int x, int y, int width, void* data, char i
         if(iscolor){
           for(int ic = 0; ic < 3; ic++) ((unsigned char*)data)[3*(i*(width+x)+j+y)+ic] = rgb[ic];
         }else{
-          ((unsigned char*)data)[i*(width+x)+j+y] = rgb[0];
+          ((pixeltype*)data)[i*(width+x)+j+y] = rgb[0];
         }
       }
     }

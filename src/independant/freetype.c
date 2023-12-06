@@ -1,9 +1,3 @@
-/* example1.c                                                      */
-/*                                                                 */
-/* This small program shows how to print a rotated string with the */
-/* FreeType 2 library.                                             */
-
-
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -11,52 +5,55 @@
 #include "freetype.h"
 #include "imgio.h"
 #include <stdint.h>
-
-/* 这里修改 原来是680 480 太大 */
-
-
-/* origin is the upper left corner */
-uint16_t image[HEIGHT][WIDTH];
-
-
-/* Replace this function with something useful. */
-
-  void
-draw_bitmap( FT_Bitmap* bitmap, FT_Int x, FT_Int y)
+#include <math.h>
+const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf";
+static FT_Library    library;
+static FT_Face       face;
+int putText(const char* text, int initx, int inity, int rows, int cols, void* data, char iscolor, void* rgb)
 {
-  FT_Int  i, j, p, q;
-  FT_Int  x_max = x + bitmap->width;
-  FT_Int  y_max = y + bitmap->rows;
 
+  FT_Error      error;
 
-  /* for simplicity, we assume that `bitmap->pixel_mode' */
-  /* is `FT_PIXEL_MODE_GRAY' (i.e., not a bitmap font)   */
+  int num_chars = strlen( text );
+  double angle = ( 00.0 / 360 ) * 3.14159 * 2;      /* use 25 degrees     */
 
-  for ( i = x, p = 0; i < x_max; i++, p++ )
+  error = FT_Init_FreeType( &library );              /* initialize library */
+  error = FT_New_Face( library, fontfile, 0, &face );/* create face object */
+  FT_Set_Char_Size(face, 0, 10*64, 0,200 );                /* set character size */
+
+  FT_GlyphSlot  slot = face->glyph;
+  FT_Matrix     matrix;                 /* transformation matrix */
+  matrix.xx = (FT_Fixed)( cos( angle ) * 0x10000L );
+  matrix.xy = (FT_Fixed)(-sin( angle ) * 0x10000L );
+  matrix.yx = (FT_Fixed)( sin( angle ) * 0x10000L );
+  matrix.yy = (FT_Fixed)( cos( angle ) * 0x10000L );
+  FT_Vector pen = {initx,inity};                    /* untransformed origin  */
+
+  for (int n = 0; n < num_chars; n++ )
   {
-    for ( j = y, q = 0; j < y_max; j++, q++ )
+    FT_Set_Transform( face, &matrix, &pen );  //rotate + translation
+    FT_Load_Char( face, text[n], FT_LOAD_RENDER );
+    int y = inity-slot->bitmap_top;
+    int x = slot->bitmap_left;
+    for (int q = 0; q < slot->bitmap.rows; q++ )
     {
-      if ( i < 0 || j < 0 || i >= WIDTH || j >= HEIGHT )
-        continue;
-
-      image[j][i] |= bitmap->buffer[q * bitmap->width + p];
+      for (int p = 0; p < slot->bitmap.width; p++ )
+      {
+        if (p+x < 0 || q+y < 0 || p+x >= rows || q+y >= cols )
+          continue;
+        if(slot->bitmap.buffer[q * slot->bitmap.width + p] > 128){
+          if(iscolor){
+            for(int ic = 0; ic < 3; ic++) ((unsigned char*)data)[3*(rows*(q+y)+p+x)+ic] = ((unsigned char*)rgb)[ic];
+          }else{
+            ((pixeltype*)data)[rows*(q+y)+p+x] = *(pixeltype*)rgb;
+          }   
+        }
+      }
     }
+    pen.x += slot->advance.x;
+    pen.y += slot->advance.y;
   }
-  writePng("freetypetest_s.png", bitmap->buffer, bitmap->rows, bitmap->width, 8, 0);
+  FT_Done_Face    ( face );
+  FT_Done_FreeType( library );
+  return 0;
 }
-
-
-void show_image( void )
-{
-  int  i, j;
-
-
-  for ( i = 0; i < HEIGHT; i++ )
-  {
-    for ( j = 0; j < WIDTH; j++ )
-      image[j][i]  *= 255;
-  }
-  writePng("freetypetest.png", image, HEIGHT, WIDTH, 16, 0);
-}
-
-

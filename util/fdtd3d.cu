@@ -488,13 +488,13 @@ int main(){
       getYZSlice(slice, Ex, Ey, Ez , nx, ny, nz, 150);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);
       plt.toVideo = ezvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("E_z, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1, ("Ez,t="+to_string(i)).c_str());
       getXYSlice(slice, Hx , nx, ny, 100);
       plt.toVideo = hxvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("H_x, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1,("Hx,t="+to_string(i)).c_str());
       getXYSlice(slice, Hy , nx, ny, 100);
       plt.toVideo = hyvid;
-      plt.plotFloat(slice, REAL, 0, 1, ("H_y, t="+to_string(i)).c_str(),0,0,1);
+      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1,("Hy,t="+to_string(i)).c_str());
     }
   }
   plt.saveVideo(ezvid);

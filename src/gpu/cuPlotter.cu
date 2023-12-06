@@ -1,12 +1,11 @@
 #include "cuPlotter.h"
 #include "cudaDefs.h"
 #include "cudaConfig.h"
-cuPlotter plt;
-
 void cuPlotter::freeCuda(){
   if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
   if(cuCache_float_data) { memMngr.returnCache(cuCache_float_data); cuCache_float_data = 0;}
 }
+
 __device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, bool islog){
   Real target = 0;
   switch(m){

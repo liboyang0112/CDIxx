@@ -4,6 +4,10 @@
 #include <string>
 #include <stdio.h>
 #include "imgio.h"
+#include <stdint.h>
+extern "C" {
+#include "freetype.h"
+}
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {
     {48.628736, 1.26493952, 0.0179480064},
@@ -34,7 +38,7 @@ const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*
      {625.18, -5.14916, 0.0106199}
   }
 };
-
+cuPlotter plt;
 void getTurboColor(Real x, int bit_depth, char* store){
   //convert to 8 bit;
   x = x / (1<<(bit_depth-8));
@@ -92,13 +96,13 @@ void cuPlotter::init(int rows_, int cols_){
   cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
   freeCuda();
 }
-void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
+void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
-  plot(label, isColor);
+  plot(label, isColor, caption);
 }
-void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor){
+void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
-  plot(label, isColor);
+  plot(label, isColor, caption);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
   if(!cv_complex_data){
@@ -121,21 +125,25 @@ void* cuPlotter::cvtTurbo(void* icache){
   }
   return cv_cache;
 }
-void cuPlotter::plot(const char* label, bool iscolor){
+void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
   if(iscolor){
     cvtTurbo();
+    char color[3] = {-1,0,0};
+    if(caption) putText(caption, 0, rows-1, rows, cols, cv_cache, 1, color);
     if(toVideo>=0) {
-      //char color[3] = {0,0,-1};
       //put_formula(label, 0,0,cols, cv_cache, 1, color);
       flushVideo(videoWriterVec[toVideo], cv_cache);
       return;
     }
     else
       writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
-  }else
-    writePng(fname.c_str(), cv_data, rows, cols, 16, 0);
+  }else{
+    pixeltype color = -1;
+    if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);
+    writePng(fname.c_str(), cv_data, rows, cols, Bits, 0);
+  }
   printf("written to file %s\n", fname.c_str());
 }
 cuPlotter::~cuPlotter(){
