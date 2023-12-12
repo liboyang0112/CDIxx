@@ -48,6 +48,15 @@ struct CustomSumReal
 };
 CustomSumReal sumreal_op;
 
+struct CustomSumComplex
+{
+  __device__ __forceinline__
+    cuComplex operator()(const cuComplex &a, const cuComplex &b) const {
+      return {a.x+b.x,a.y+b.y};
+    }
+};
+CustomSumComplex sumcomplex_op;
+
 #define operatorStruct(name, type, expression...)\
 struct Struct##name\
 {\
@@ -68,6 +77,7 @@ store(findMax);
 store(findMax_int);
 store(findMin_int);
 store(findSum);
+store(findSumComplex);
 store(findMod2Max);
 store(findSumReal);
 
@@ -84,6 +94,7 @@ void initCub(){
   initStore(findSum);
   initStore(findMod2Max);
   initStore(findSumReal);
+  initStore(findSumComplex);
 }
 Real findMax(Real* d_in, int num)
 {
@@ -117,6 +128,14 @@ Real findSumReal(complexFormat* d_in, int num)
   tmp.x = 0;
   FUNC(cuComplex, sumreal_op, tmp, store_findSumReal);
   return output.x;
+}
+
+complexFormat findSum(complexFormat* d_in, int num, bool debug)
+{
+  cuComplex tmp;
+  tmp.x = tmp.y = 0;
+  FUNC(cuComplex, sumcomplex_op, tmp, store_findSumComplex);
+  return {output.x, output.y};
 }
 
 Real findSum(Real* d_in, int num, bool debug=false)

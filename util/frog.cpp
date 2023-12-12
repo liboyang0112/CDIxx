@@ -1,6 +1,6 @@
 #include "cudaConfig.h" //cuda related
 #include "cuPlotter.h" //plt
-#include <complex>
+#include <complex.h>
 #include "cub_wrap.h"
 #include "frog.h"
 #include <fstream>
@@ -12,8 +12,7 @@ using namespace std;
 void saveWave(const char* fname, complexFormat* ccE, int n){
   std::ofstream file1(fname, std::ios::out);
   for(int i = 0; i < n; i++){
-    auto dat = ((complex<float>*)ccE)[i];
-    file1<<i << " " << dat.real() << " " << dat.imag() << " " << abs(dat) << " " << arg(dat)<<std::endl;
+    file1<<i << " " << creal(ccE[i]) << " " << cimag(ccE[i]) << " " << cabs(ccE[i]) << " " << carg(ccE[i])<<std::endl;
   }
   file1.close();
 }
@@ -64,7 +63,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
     }
     if(i %10 == 0) {
       myIFFTM(singleplan, Eprime, Eprime);
-      Real mid = complex<float>(findMiddle(Eprime,nspect)).real();
+      Real mid = creal(findMiddle(Eprime,nspect));
       shiftmid(Eprime, E, mid*nspect);
     }else{
       myIFFTM(singleplan, Eprime, E);

@@ -89,6 +89,8 @@ void multiply(complexFormat* source, complexFormat* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
 void multiply(Real* store, Real* source, Real* target);
+void multiply(complexFormat* src, Real* target);
+void multiplyConj(complexFormat* src, complexFormat* target);
 void stretch(Real* src, Real* dest, Real rat, int prec);
 void convertFOPhase(complexFormat* data);
 void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
@@ -129,9 +131,10 @@ void overExposureZeroGrad (complexFormat* deltab, complexFormat* b, int noiseLev
 void multiplyPixelWeight (complexFormat* img, Real* weights);
 void multiplyReal_inner(complexFormat* a, complexFormat* b, Real* c, int d);
 void assignRef_d (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n);
-void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n);
-void saveRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm);
-void saveRef_Real (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm);
+void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0);
+void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a);
+void saveRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, Real norm);
+void saveRef_Real (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm);
 
 void applySupportBarHalf(complexFormat* img, Real* spt);
 void applySupportBar_Flip(complexFormat* img, Real* spt);

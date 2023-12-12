@@ -3,7 +3,7 @@
 #include "cub_wrap.h"
 #include "readConfig.h"
 #include "imgio.h"
-#include "monoChromo.h"
+#include "spectImaging.h"
 #include "cuPlotter.h"
 
 int main(int argc, char* argv[]){
@@ -13,7 +13,7 @@ int main(int argc, char* argv[]){
   const int nlambda = 5;
   double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
   double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
-  monoChromo mwl;
+  spectImaging mwl;
   int objrow = 256, objcol=256;
   int row = 512, col = 512;
   Real* d_intensity = 0, *d_phase = 0;

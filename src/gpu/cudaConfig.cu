@@ -7,7 +7,7 @@ cudaVars* cudaVarLocal = 0;
 dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
-cufftHandle *plan, *planR2C;
+cufftHandle *plan = 0, *planR2C = 0;
 int2 cuda_imgsz = {0,0};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
@@ -75,6 +75,7 @@ __device__ __host__ bool C_circle::isInside(int x, int y){
   return false;
 }
 void init_fft(int rows, int cols, int batch){
+  printf("init fft: %d %d, old dim=%d, %d\n", rows, cols, rows_fft, cols_fft);
   if(rows!=rows_fft||cols!=cols_fft||batch_fft!=batch){
     if(!plan){
       plan = new cufftHandle();
@@ -93,6 +94,7 @@ void init_fft(int rows, int cols, int batch){
     }
     cols_fft = cols;
     rows_fft = rows;
+    batch_fft = batch;
   }
 }
 void createPlan(int* handle, int row, int col){
@@ -320,6 +322,18 @@ cuFuncc(multiply,(complexFormat* src, complexFormat* target),(cuComplex* src, cu
     cuda1Idx()
     src[index] = cuCmulf(src[index], target[index]);
     })
+
+cuFuncc(multiplyConj,(complexFormat* src, complexFormat* target),(cuComplex* src, cuComplex* target),((cuComplex*)src,(cuComplex*)target),{
+    cuda1Idx()
+    src[index] = cuCmulf(src[index], cuConjf(target[index]));
+    })
+
+cuFuncc(multiply,(complexFormat* src, Real* target),(cuComplex* src, Real* target),((cuComplex*)src,target),{
+    cuda1Idx()
+    src[index].x = src[index].x*target[index];
+    src[index].y = src[index].y*target[index];
+    })
+
 cuFuncc(forcePositive,(complexFormat* a),(cuComplex* a),((cuComplex*)a),{
     cuda1Idx()
     if(a[index].x<0) a[index].x=0;
@@ -419,7 +433,7 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
   if(intensityFile) {
     Real* intensity = readImage(intensityFile, objrow, objcol);
     sz = objrow*objcol*sizeof(Real);
-    d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
+    if(!d_intensity) d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
     cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
     ccmemMngr.returnCache(intensity);
   }
@@ -431,7 +445,7 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
       objrow = tmprow;
       objcol = tmpcol;
     }
-    d_phase = (Real*)memMngr.borrowCache(sz);
+    if(!d_phase) d_phase = (Real*)memMngr.borrowCache(sz);
     size_t tmpsz = tmprow*tmpcol*sizeof(Real);
     if(tmpsz!=sz){
       Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
@@ -1017,29 +1031,34 @@ cuFuncc(assignRef_d, (complexFormat* wavefront, uint32_t* mmap, complexFormat* r
   if(index >= n) return;
   rf[index] = wavefront[mmap[index]];
 })
-cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int n),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, n),{
+cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0),{
   cuda1Idx()
-  if(index >= n) return;
   int idx = mmap[index];
-  int x = idx/cuda_column + (row-cuda_row)/2;
-  int y = idx%cuda_column + (col-cuda_column)/2;
+  int x = idx/col0 + (row-row0)/2;
+  int y = idx%col0 + (col-col0)/2;
   amp[x*col+y] = rf[index];
 })
-cuFuncc(saveRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int n, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, n, norm),{
+cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, *((cuComplex*)&a)),{
   cuda1Idx()
-  if(index >= n) return;
   int idx = mmap[index];
-  int x = idx/cuda_column + (row-cuda_row)/2;
-  int y = idx%cuda_column + (col-cuda_column)/2;
+  int x = idx/col0 + (row-row0)/2;
+  int y = idx%col0 + (col-col0)/2;
+  amp[x*col+y] = cuCmulf(rf[index],a);
+})
+cuFuncc(saveRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, norm),{
+  cuda1Idx()
+  int idx = mmap[index];
+  int x = idx/col0 + (row-row0)/2;
+  int y = idx%col0 + (col-col0)/2;
   rf[index].x = amp[x*col+y].x*norm;
   rf[index].y = amp[x*col+y].y*norm;
 })
-cuFuncc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int n, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int n, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, n, norm),{
+cuFuncc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, n, norm),{
   cuda1Idx()
   if(index >= n) return;
   int idx = mmap[index];
-  int x = idx/cuda_column + (row-cuda_row)/2;
-  int y = idx%cuda_column + (col-cuda_column)/2;
+  int x = idx/col0 + (row-cuda_row)/2;
+  int y = idx%col0 + (col-col0)/2;
   rf[index].x = amp[x*col+y].x*norm;
   rf[index].y = 0;
 })
