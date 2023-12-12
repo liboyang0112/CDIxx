@@ -45,7 +45,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
   myCuDMalloc(complexFormat, img0, row*column);
   myCuDMalloc(complexFormat, d_amp, rows[nlambda-1]*cols[nlambda-1]);
   myCuDMalloc(complexFormat, d_obj, row*column);
-  Real step_size = 0.4*nlambda;
+  Real step_size = 0.4*nlambda*60;
   for(int i = 0; i < niter; i++){
     myMemcpyD2D(d_pattern, pattern, row*column*sizeof(Real));
     for(int j = 0; j < nlambda; j++){
@@ -63,6 +63,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
     }
     int N = sqrt(row*column);
     for(int j = 0; j < nlambda; j++){
+      //if(spectra[j] < 3e-2) continue;
       int thisrow = rows[j];
       int thiscol = cols[j];
       int M = sqrt(thisrow*thiscol);
@@ -70,7 +71,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
       resize_cuda_image(pixCount, 1);
 
       expandRef(d_support, d_obj, (uint32_t*)d_supportMap, row, column, row, column);
-      expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, 0);
+      expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, cspectrum[j]);
 
       resize_cuda_image(thisrow, thiscol);
       pad(d_ref, d_amp, row, column);

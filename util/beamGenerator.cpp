@@ -18,7 +18,7 @@ uint16_t inline setStripMask(int x, int y){
 };
 uint16_t inline setHole(int x, int y){
   Real r = sqrt(sqSum(x-128, y-256));
-  if(r < 10) return maxpix;
+  if(r < 5) return maxpix;
   return 0;
 };
 int main(int argc, char** argv )

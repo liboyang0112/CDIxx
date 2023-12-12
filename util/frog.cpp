@@ -88,6 +88,7 @@ int main(int argc, char** argv )
   int nspect = 128;
   int nspectm=58;
   int nfulldelay = 128;
+  int noiseLevel = 20;
   //declare and allocate variables
   myDMalloc(Real, delays, ndelay);
   myCuDMalloc(Real, d_fulldelays, nfulldelay);
@@ -130,11 +131,14 @@ int main(int argc, char** argv )
   }
   myMemcpyH2D(d_delays, delays, ndelay*sizeof(Real));
   resize_cuda_image(ndelay,nspect);
+  void* state = newRand(ndelay*nspect);
+  initRand(state, time(NULL));
   plt.init(ndelay,nspect);
   init_fft(nspect,1,ndelay);
   genTrace(d_cE, d_traces, d_delays, nspectm);
   getMod2(d_traceIntensity, d_traces);
   applyNorm(d_traceIntensity, 1./nspect);
+  ccdRecord(d_traceIntensity, d_traceIntensity, noiseLevel, state, 1);
   convertFOy(d_traces);
   plt.plotComplex(d_traces, MOD2, 0, 1, "trace_sampled", 1, 0, 1);
   //Reconstruct electric field

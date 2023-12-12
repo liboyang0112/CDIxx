@@ -5,7 +5,9 @@
 #include "imgio.h"
 #include "spectPhase.h"
 #include "cuPlotter.h"
+#include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 int main(int argc, char* argv[]){
   init_cuda_image();
@@ -21,7 +23,7 @@ int main(int argc, char* argv[]){
   spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 20.*i/row;
-    spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
+    spectra[i] = exp(-pow((i*2./nlambda-1)/0.5,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
 #else
   const int nlambda = 5;
@@ -43,10 +45,13 @@ int main(int argc, char* argv[]){
   createWaveFront( d_intensity, d_phase, (complexFormat*)d_support, row, col);
   mwl.init(row, col, nlambda, lambdas, spectra);
   mwl.initRefSupport(refer, d_support);  //mask file, full image size, 
+  void* randstate = newRand(row*col);
   if(cfg.runSim){
     mwl.generateMWL(d_pattern, &mat, 100);
+    initRand(randstate, time(NULL));
+    ccdRecord(d_pattern, d_pattern, cfg.noiseLevel, randstate, cfg.exposure);
     plt.plotFloat(d_pattern, MOD, 1, 1, "merged", 1, 0, 1);
-    mwl.solvecSpectrum((Real*)d_pattern, 60);
+    mwl.solvecSpectrum((Real*)d_pattern, 80);
   }
   return 0;
 }

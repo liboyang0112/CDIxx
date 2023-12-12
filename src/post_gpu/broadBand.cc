@@ -45,7 +45,6 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
     cols[i] = nearestEven(column*lambdas_[i]);
     createPlan(locplan+i, rows[i], cols[i]);
   }
-  calcPixelWeights();
 }
 void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;
