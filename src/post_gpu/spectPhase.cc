@@ -45,7 +45,8 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
   myCuDMalloc(complexFormat, img0, row*column);
   myCuDMalloc(complexFormat, d_amp, rows[nlambda-1]*cols[nlambda-1]);
   myCuDMalloc(complexFormat, d_obj, row*column);
-  Real step_size = 0.4*nlambda*60;
+  Real step_size = 0.5;
+  myDMalloc(complexFormat, cspectrum_step, nlambda);
   for(int i = 0; i < niter; i++){
     myMemcpyD2D(d_pattern, pattern, row*column*sizeof(Real));
     for(int j = 0; j < nlambda; j++){
@@ -88,7 +89,18 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
       multiplyConj(img0, d_obj);
       multiply(img0, d_pattern);
       complexFormat step = findSum(img0);
-      cspectrum[j] += step*step_size*spectra[j];
+      cspectrum_step[j] = step;
+    }
+    multiply(d_pattern, d_pattern, d_pattern);
+    Real residual = findSum(d_pattern, row*column);
+    Real k = 0;
+    for(int j = 0; j < nlambda; j++){
+      k += (sq(creal(cspectrum_step[j])) + sq(cimag(cspectrum_step[j])))*spectra[j];
+    }
+    k = residual/k;
+    printf("residual = %f, k = %f\n", residual, k);
+    for(int j = 0; j < nlambda; j++){
+      cspectrum[j] += k*step_size*cspectrum_step[j];
     }
   }
   std::ofstream file1("spectrum.txt", std::ios::out);
@@ -125,6 +137,10 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
     getMod2(single_pattern, img0);
     add((Real*)d_pattern, single_pattern, spectra[j]);
   }
+  Real m = findMax((Real*)d_pattern, row*column);
+  printf("max = %f\n",m);
+  applyNorm((Real*)d_pattern, 1./m);
+  for(int i = 0; i < nlambda; i++) spectra[i] *= 1./m;
   file1.close();
   myCuFree(single_pattern);
   myCuFree(img0);

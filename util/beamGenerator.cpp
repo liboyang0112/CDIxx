@@ -3,7 +3,7 @@
 #include <math.h>
 #include "memManager.h"
 #include "imgio.h"
-const uint16_t maxpix = 65535;
+const uint16_t maxpix = 0xffff;
 uint16_t inline setHoloRef(int x, int y){
   if(x <= 4 || y <= 4) return maxpix;
   else return 0;
@@ -18,12 +18,11 @@ uint16_t inline setStripMask(int x, int y){
 };
 uint16_t inline setHole(int x, int y){
   Real r = sqrt(sqSum(x-128, y-256));
-  if(r < 5) return maxpix;
+  if(r < 15) return maxpix;
   return 0;
 };
 int main(int argc, char** argv )
 {
-  const char* filename = "mask.png";
   int rows = 512, cols = 512, idx = 0;
   myDMalloc(uint16_t, image, rows*cols);
   for(int i = 0; i < rows; i++){
@@ -32,5 +31,5 @@ int main(int argc, char** argv )
       idx++;
     }
   }
-  writePng(filename, image, rows, cols, 16, 0);
+  writePng("mask.png", image, rows, cols, 16, 0);
 }

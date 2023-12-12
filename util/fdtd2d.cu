@@ -160,7 +160,7 @@ int main(){
     //dHx = (Real*)memMngr.borrowCleanCache(ny*sizeof(Real));
   }
   bool saveField = 0;
-  int sourcePos = 100+nx*10;
+  int sourcePos = 290+nx*100;
   resize_cuda_image(ny,nx);
   plt.init(ny,nx);
   init_cuda_image();

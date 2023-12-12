@@ -72,6 +72,15 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   }
 }
 
+void genTrace(complexFormat* E, complexFormat* gate, complexFormat* fulltrace, Real* delays, int nspectm = 0){
+  dgencTrace(gate, E, fulltrace,delays);
+  myFFT(fulltrace, fulltrace);
+  applyNorm(fulltrace, 1./sqrt(getCudaCols()));
+  convertFOy(fulltrace);
+  if(nspectm) zeroEdgey(fulltrace, nspectm);
+  convertFOy(fulltrace);
+}
+
 void genTrace(complexFormat* E, complexFormat* fulltrace, Real* delays, int nspectm = 0){
   dgencTrace(E, E, fulltrace,delays);
   myFFT(fulltrace, fulltrace);

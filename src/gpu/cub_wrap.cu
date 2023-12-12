@@ -175,7 +175,7 @@ complexFormat findMiddle(complexFormat* d_in, int num){
   complexFormat mid;
   mid = findSum(tmp, num)/norm;
   multiplyy(d_in,tmp);
-  mid += findSum(tmp, num)/norm*1.0iF;
+  mid += findSum(tmp, num)/norm*1.0i;
   memMngr.returnCache(tmp);
   return mid;
 };
