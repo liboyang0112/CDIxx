@@ -1,7 +1,5 @@
 #include "tvFilter.h"
-#include "memManager.h"
 #include "cudaConfig.h"
-#include "cuPlotter.h"
 #include <math.h>
 #define swap(x, y) \
   auto x##swapTMPVariable = x;\

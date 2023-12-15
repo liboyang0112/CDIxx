@@ -97,8 +97,9 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
     for(int j = 0; j < nlambda; j++){
       k += (sq(creal(cspectrum_step[j])) + sq(cimag(cspectrum_step[j])))*spectra[j];
     }
-    k = residual/k;
-    printf("residual = %f, k = %f\n", residual, k);
+    printf("residual = %f, sum = %f, ", residual, k);
+    k = residual/(k+1e-3);
+    printf("k = %f\n", k);
     for(int j = 0; j < nlambda; j++){
       cspectrum[j] += k*step_size*cspectrum_step[j];
     }

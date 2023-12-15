@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdint.h>
 #include <math.h>
 #include "memManager.h"
@@ -17,8 +16,8 @@ uint16_t inline setStripMask(int x, int y){
   else return 0;
 };
 uint16_t inline setHole(int x, int y){
-  Real r = sqrt(sqSum(x-128, y-256));
-  if(r < 15) return maxpix;
+  Real r = sqrt(sqSum(x-128, y-128));
+  if(r < 3) return maxpix;
   return 0;
 };
 int main(int argc, char** argv )

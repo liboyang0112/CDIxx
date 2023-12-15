@@ -17,12 +17,12 @@ int main(int argc, char* argv[]){
   double* lambdas, *spectra;
   int row = 512, col = 512;
 #if 1
-  int lambdarange = 4;
-  int nlambda = row*(lambdarange-1)/20;
+  Real lambdarange = 1.4;
+  int nlambda = row*(lambdarange-1)/2;
   lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
-    lambdas[i] = 1 + 20.*i/row;
+    lambdas[i] = 1 + 2.*i/row;
     spectra[i] = exp(-pow((i*2./nlambda-1)/0.3,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
 #else

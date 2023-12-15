@@ -1,24 +1,25 @@
 cmake_minimum_required(VERSION 3.22)
 project(CDIxx LANGUAGES CXX C)
-set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes
+set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 
-set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `sudo apt install llvm-15`
-set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `sudo apt install llvm-15`
-set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `sudo apt install llvm-15`
+set(CMAKE_CXX_COMPILER "clang++-17") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_C_COMPILER "clang-17") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 
 enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
 find_package ( CUDAToolkit ) #You have this if you installed CUDA, needed for cufft library
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
 
-find_package(PkgConfig REQUIRED) #package finder, always equipped in linux system, if not, install it by `sudo apt install pkg-config`
+find_package(PkgConfig REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 
-#GTK, a GUI library, always equipped in linux system, if not, install it by `sudo apt install libgtk-4-dev
+#GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
 pkg_check_modules(GTK REQUIRED gtk4)
 include_directories (${GTK_INCLUDE_DIRS})
-#freetype, a font library, always equipped in linux system, if not, install it by `sudo apt install libfreetype-dev`
+#freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
 pkg_check_modules(freetype2 REQUIRED freetype2)
 include_directories (${FREETYPE_INCLUDE_DIRS})
-#GSL is needed for some interpolation algorithm, install it by `sudo apt install libgsl-dev`
+#GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
@@ -28,16 +29,8 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 include_directories ("${PROJECT_SOURCE_DIR}/include")
-include_directories (/usr/include/python3.11) #we use python 3.11, change to the one you are using (3.12 is not supported by cython so use older versions)
+include_directories (/usr/include/python3.11)
 link_directories(${PROJECT_SOURCE_DIR}/lib)
-
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*c ${PROJECT_SOURCE_DIR}/src/post_gpu/*c ${PROJECT_SOURCE_DIR}/src/independant/*c)
-foreach( sourcefile ${APP_SOURCES})
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".c" "_c" libname ${libname} )
-  string( REPLACE ".cc" "_cc" libname ${libname} )
-  add_library( ${libname} SHARED ${sourcefile})
-endforeach( sourcefile ${APP_SOURCES} )
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas=-O3 --diag-suppress 20040")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
@@ -45,6 +38,48 @@ set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} CUDA::cufft)
 set_target_properties( ${libname} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c ${PROJECT_SOURCE_DIR}/src/independant/*c)
+foreach( sourcefile ${APP_SOURCES})
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".c" "_c" libname ${libname} )
+  string( REPLACE ".cc" "_cc" libname ${libname} )
+  add_library( ${libname} SHARED ${sourcefile})
+endforeach( sourcefile ${APP_SOURCES} )
+
+file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
+foreach( sourcefile ${APP_SOURCES} )
+  message(${sourcefile})
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".pyx" ".c" cfile ${libname} )
+  string( REPLACE ".pyx" "_cython" libname ${libname} )
+  add_custom_command(OUTPUT ${cfile} COMMAND cython -3 ${sourcefile} --module-name=lib${libname} -o ${cfile} MAIN_DEPENDENCY ${sourcefile})
+  add_library(${libname} SHARED ${cfile})
+  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
+endforeach( sourcefile ${APP_SOURCES} )
+
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
+foreach( sourcefile ${APP_SOURCES} )
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".cu" "_cu" exename ${libname} )
+  add_executable( ${exename} ${sourcefile})
+  set_property(TARGET ${exename}
+    PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+endforeach( sourcefile ${APP_SOURCES} )
+
+set(resourcefile ${PROJECT_SOURCE_DIR}/src/gui/resource.xml)
+file(GLOB UIFILE ${PROJECT_SOURCE_DIR}/src/gui/*.ui)
+add_custom_command(OUTPUT resource.c COMMAND glib-compile-resources ${resourcefile} --target=resource.c  --sourcedir=${PROJECT_SOURCE_DIR}/src/gui --generate-source MAIN_DEPENDENCY ${resourcefile} DEPENDS ${UIFILE})
+file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/gui/*c )
+add_library(gui SHARED ${APP_SOURCES} resource.c)
+target_link_libraries(gui ${GTK_LIBRARIES})
+
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )
+foreach( sourcefile ${APP_SOURCES} )
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".cpp" "_run" exename ${libname} )
+  add_executable( ${exename} ${sourcefile})
+endforeach( sourcefile ${APP_SOURCES} )
 
 target_link_libraries(broadBand_cc gsl memManager_cc cuPlotter_cc cudaLibcommon_cu)
 target_link_libraries(spectImaging_cc broadBand_cc)
@@ -64,51 +99,19 @@ target_link_libraries(imgio_cc imgio_c)
 target_link_libraries(cdi_cc experimentConfig_cc mnistData_cc FISTA_cc)
 target_link_libraries(holo_cc cdi_cc)
 
-file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
-foreach( sourcefile ${APP_SOURCES} )
-  message(${sourcefile})
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".pyx" ".c" cfile ${libname} )
-  string( REPLACE ".pyx" "_cython" libname ${libname} )
-  add_custom_command(OUTPUT ${cfile} COMMAND cython -3 ${sourcefile} --module-name=lib${libname} -o ${cfile} MAIN_DEPENDENCY ${sourcefile})
-  add_library(${libname} SHARED ${cfile})
-  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
-endforeach( sourcefile ${APP_SOURCES} )
 target_link_libraries(unetDataLoader_cython cdilmdb_c)
 target_link_libraries(imageIO_cython imgio_c)
 target_link_libraries(readHj_cython FGA_cc)
 
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
-foreach( sourcefile ${APP_SOURCES} )
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".cu" "_cu" exename ${libname} )
-  add_executable( ${exename} ${sourcefile})
-  set_property(TARGET ${exename}
-    PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-endforeach( sourcefile ${APP_SOURCES} )
-
 target_link_libraries(fdtd3d_cu cudaLibcommon_cu)
 target_link_libraries(fdtd2d_cu cudaLibcommon_cu)
 
-set(resourcefile ${PROJECT_SOURCE_DIR}/src/gui/resource.xml)
-file(GLOB UIFILE ${PROJECT_SOURCE_DIR}/src/gui/*.ui)
-add_custom_command(OUTPUT resource.c COMMAND glib-compile-resources ${resourcefile} --target=resource.c  --sourcedir=${PROJECT_SOURCE_DIR}/src/gui --generate-source MAIN_DEPENDENCY ${resourcefile} DEPENDS ${UIFILE})
-file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/gui/*c )
-add_library(gui SHARED ${APP_SOURCES} resource.c)
-target_link_libraries(gui ${GTK_LIBRARIES})
-
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )
-foreach( sourcefile ${APP_SOURCES} )
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".cpp" "_run" exename ${libname} )
-  add_executable( ${exename} ${sourcefile})
-endforeach( sourcefile ${APP_SOURCES} )
-link_directories(${GTK_LIBRARY_DIRS})
 target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
 target_link_libraries(cdi_run cdi_cc)
 target_link_libraries(ptycho_run experimentConfig_cc)
 target_link_libraries(frog_run cudaLibcommon_cu)
 target_link_libraries(beamGenerator_run memManager_cc imgio_cc)
+link_directories(${GTK_LIBRARY_DIRS})
 target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
 target_link_libraries(testLMDB_run cdilmdb_c)
 target_link_libraries(testfitter_run orthFitter_cc)
@@ -121,6 +124,7 @@ target_link_libraries(testFISTA_run cdi_cc)
 target_link_libraries(simLineSpectrumImaging_run cdi_cc spectImaging_cc material_cc)
 target_link_libraries(spectphase_run readConfig_cc spectPhase_cc material_cc)
 
+#install it by `apt install libvtk9-dev`
 find_package(VTK COMPONENTS 
   jsoncpp
   CommonColor

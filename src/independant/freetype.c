@@ -8,7 +8,7 @@
 #include <math.h>
 const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
 static FT_Library    library;
-static FT_Face       face;
+static FT_Face       face = 0;
 int putText(const char* text, int initx, int inity, int rows, int cols, void* data, char iscolor, void* rgb)
 {
 

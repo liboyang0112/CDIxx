@@ -1,0 +1,7 @@
+#include "separateCode/cdi.cu"
+#include "separateCode/cub_wrap.cu"
+#include "separateCode/cudaConfig.cu"
+#include "separateCode/cuPlotter.cu"
+#include "separateCode/frog.cu"
+#include "separateCode/orthFitter.cu"
+#include "separateCode/ptycho.cu"

@@ -1,15 +1,11 @@
-#include <complex>
-#include <cassert>
 #include <stdio.h>
-#include <time.h>
-#include <random>
 #include <unistd.h>
 #include <stdio.h>
 #include "imgio.h"
-#include <ctime>
 #include "cudaConfig.h"
 #include "cuPlotter.h"
 #include "cdi.h"
+#include <bits/stdc++.h>
 using namespace std;
 int main(int argc, char** argv )
 {

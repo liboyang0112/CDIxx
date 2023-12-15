@@ -136,7 +136,7 @@ int main(int argc, char** argv )
   plt.plotComplex(d_fulltraces, MOD2, 0, 1, "trace_truth", 1, 0, 1);
   //downsampling, calculate downsampled trace and plot.
   for(int i = 0; i < ndelay; i++){
-    delays[i] = i*(nfulldelay-1)/(ndelay-1) - nfulldelay/2;
+    delays[i] = i*Real(nfulldelay-1)/(ndelay-1) - Real(nfulldelay)/2;
   }
   myMemcpyH2D(d_delays, delays, ndelay*sizeof(Real));
   resize_cuda_image(ndelay,nspect);

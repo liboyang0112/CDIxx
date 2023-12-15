@@ -1,4 +1,3 @@
-#include "imgio.h"
 #include "imageFile.h"
 #include <stdio.h>
 

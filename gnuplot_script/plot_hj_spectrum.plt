@@ -6,11 +6,11 @@ file = "spectrum_solved.txt"
 #file = "spectra.txt"
 set xrange [500:1000]
 
-stats file_raw
+stats file_raw nooutput
 ratioraw = 1. / STATS_mean_y
 max = 1.2*STATS_max_y/STATS_mean_y
 
-stats file
+stats file nooutput 
 ratio = 1. / STATS_mean_y
 if(max < 1.2*STATS_max_y/STATS_mean_y) max = 1.2*STATS_max_y/STATS_mean_y
 #set title "Spectrum"

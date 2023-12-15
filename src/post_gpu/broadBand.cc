@@ -40,11 +40,14 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
   locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  fstream file("spectrum_raw.txt", ios::out);
   for(int i = 0; i < nlambda; i++){
     rows[i] = nearestEven(row*lambdas_[i]);
     cols[i] = nearestEven(column*lambdas_[i]);
     createPlan(locplan+i, rows[i], cols[i]);
+    file << lambdas_[i] << " " << spectra_[i]*nlambda << endl;
   }
+  file.close();
 }
 void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;

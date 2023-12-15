@@ -4,7 +4,6 @@
 #include <string>
 #include <stdio.h>
 #include "imgio.h"
-#include <stdint.h>
 extern "C" {
 #include "freetype.h"
 }
