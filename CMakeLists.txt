@@ -21,8 +21,8 @@ pkg_check_modules(freetype2 REQUIRED freetype2)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
