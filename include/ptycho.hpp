@@ -1,4 +1,4 @@
-#include "format.h"
+#include "format.hpp"
 void applySupport(Real* image, Real* support);
 void multiplyProbe(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0);
 void getWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window);

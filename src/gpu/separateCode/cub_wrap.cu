@@ -1,5 +1,5 @@
-#include "cudaDefs.h"
-#include "cudaConfig.h"
+#include "cudaDefs.hpp"
+#include "cudaConfig.hpp"
 #include <cub/device/device_reduce.cuh>
 #include <iostream>
 #define FUNC(T,OP,INIT,STORE)\

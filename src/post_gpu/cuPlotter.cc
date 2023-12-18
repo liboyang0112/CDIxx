@@ -1,11 +1,11 @@
-#include "cuPlotter.h"
-#include "memManager.h"
-#include "videoWriter.h"
+#include "cuPlotter.hpp"
+#include "memManager.hpp"
+#include "videoWriter.hpp"
 #include <string>
 #include <stdio.h>
-#include "imgio.h"
+#include "imgio.hpp"
 extern "C" {
-#include "freetype.h"
+#include "freetype.hpp"
 }
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {

@@ -1,10 +1,10 @@
-#include "string.h"
-#include "orthFitter.h"
-#include "memManager.h"
+#include <string.h>
+#include "orthFitter.hpp"
+#include "memManager.hpp"
 #ifdef useLapack
-#include "lapacke.h"
+#include "lapacke.hpp"
 #else
-#include "matrixInverse.h"
+#include "matrixInverse.hpp"
 #endif
 #include <math.h>
 #include <stdio.h>

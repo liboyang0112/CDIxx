@@ -1,7 +1,7 @@
-#include "cuPlotter.h"
-#include "cdi.h"
+#include "cuPlotter.hpp"
+#include "cdi.hpp"
 extern "C"{
-#include "gui/dataViewer.h"
+#include "gui/dataViewer.hpp"
 }
 int main(int argc, char** argv )
 {

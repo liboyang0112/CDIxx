@@ -2,15 +2,15 @@
 #include <chrono>
 #include <fstream>
 #include <vector>
-#include "cudaConfig.h"
-#include "cuPlotter.h"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
 #include <string.h>
-#include "mnistData.h"
-#include "imgio.h"
-#include "monoChromo.h"
-#include "cdi.h"
-#include "cdilmdb.h"
-#include "cub_wrap.h"
+#include "mnistData.hpp"
+#include "imgio.hpp"
+#include "monoChromo.hpp"
+#include "cdi.hpp"
+#include "cdilmdb.hpp"
+#include "cub_wrap.hpp"
 #include <gsl/gsl_spline.h>
 using namespace std;
 

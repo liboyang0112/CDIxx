@@ -1,9 +1,9 @@
-#include"cudaConfig.h"
-#include"FGA.h"
-#include"cuPlotter.h"
+#include"cudaConfig.hpp"
+#include"FGA.hpp"
+#include"cuPlotter.hpp"
 #include<fstream>
-#include"monoChromo.h"
-#include"cub_wrap.h"
+#include"monoChromo.hpp"
+#include"cub_wrap.hpp"
 
 int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* data)
 {

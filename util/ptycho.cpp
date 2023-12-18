@@ -3,12 +3,12 @@
 #include <random>
 #include <chrono>
 #include <fstream>
-#include "imgio.h"
-#include "cudaConfig.h"
-#include "experimentConfig.h"
-#include "cuPlotter.h"
-#include "cub_wrap.h"
-#include "ptycho.h"
+#include "imgio.hpp"
+#include "cudaConfig.hpp"
+#include "experimentConfig.hpp"
+#include "cuPlotter.hpp"
+#include "cub_wrap.hpp"
+#include "ptycho.hpp"
 
 
 using namespace std;

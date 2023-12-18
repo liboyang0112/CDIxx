@@ -1,5 +1,5 @@
-#include "tvFilter.h"
-#include "cudaConfig.h"
+#include "tvFilter.hpp"
+#include "cudaConfig.hpp"
 #include <math.h>
 #define swap(x, y) \
   auto x##swapTMPVariable = x;\

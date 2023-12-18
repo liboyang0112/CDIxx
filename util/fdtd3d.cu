@@ -1,9 +1,9 @@
 #include <fstream>
 #include <cstring>
 #include <math.h>
-#include "cudaDefs.h"
-#include "cudaConfig.h"
-#include "cuPlotter.h"
+#include "cudaDefs.hpp"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
 #define n_PML 10
 #define k_PML 0.0035
 #define secondOrder

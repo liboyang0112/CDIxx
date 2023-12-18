@@ -1,7 +1,7 @@
 #ifndef __CUDADEFS_H__
 #define __CUDADEFS_H__
 #include <cufft.h>
-#include "format.h"
+#include "format.hpp"
 #include <stdio.h>
 #define cuComplex float2
 #define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args

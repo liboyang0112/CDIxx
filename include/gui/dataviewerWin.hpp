@@ -2,7 +2,7 @@
 #define __DATAVIEWERWIN_H
 
 #include <gtk/gtk.h>
-#include "dataViewer.h"
+#include "dataViewer.hpp"
 
 #define DATAVIEWER_WINDOW_TYPE (dataviewer_window_get_type ())
 G_DECLARE_FINAL_TYPE (DataviewerWindow, dataviewer_window, DATAVIEWER, WINDOW, GtkApplicationWindow)

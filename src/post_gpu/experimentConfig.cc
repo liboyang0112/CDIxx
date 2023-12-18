@@ -1,5 +1,5 @@
-#include "experimentConfig.h"
-#include "cudaConfig.h"
+#include "experimentConfig.hpp"
+#include "cudaConfig.hpp"
 #include <math.h>
 
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize, int n){

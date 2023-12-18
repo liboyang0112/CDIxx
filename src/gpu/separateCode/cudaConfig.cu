@@ -1,6 +1,6 @@
-#include "cudaConfig.h"
-#include "cudaDefs.h"
-#include "imgio.h"
+#include "cudaConfig.hpp"
+#include "cudaDefs.hpp"
+#include "imgio.hpp"
 #include <curand_kernel.h>
 cudaVars* cudaVar = 0;
 cudaVars* cudaVarLocal = 0;

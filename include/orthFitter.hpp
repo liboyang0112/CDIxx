@@ -1,4 +1,4 @@
-#include "format.h"
+#include "format.hpp"
 //#define useLapack
 void runIter_cu(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix);
 void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void (deleteCache)(void*), bool renorm = 1, void* param = 0);

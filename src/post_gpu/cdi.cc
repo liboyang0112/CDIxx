@@ -1,22 +1,20 @@
 #include <cassert>
 #include <stdio.h>
 #include <time.h>
-#include <random>
 #include <chrono>
 #include <stdio.h>
-#include "imgio.h"
-#include "imageFile.h"
+#include "imgio.hpp"
+#include "imageFile.hpp"
 #include <ctime>
-#include "cudaConfig.h"
-#include "experimentConfig.h"
-#include "mnistData.h"
-#include "tvFilter.h"
-#include "cuPlotter.h"
-#include "cub_wrap.h"
-#include "cdi.h"
+#include "cudaConfig.hpp"
+#include "experimentConfig.hpp"
+#include "mnistData.hpp"
+#include "tvFilter.hpp"
+#include "cuPlotter.hpp"
+#include "cub_wrap.hpp"
+#include "cdi.hpp"
 #include <complex.h>
 using namespace std;
-
 //#define Bits 16
 
 CDI::CDI(const char* configfile):experimentConfig(configfile){

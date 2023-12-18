@@ -1,4 +1,4 @@
-#include "material.h"
+#include "material.hpp"
 #include <math.h>
 double ToyMaterial::getRefractiveIndex(double lambda){
   return 1+0.06*sin(5*M_PI*lambda);

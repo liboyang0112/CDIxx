@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <math.h>
-#include "memManager.h"
-#include "imgio.h"
+#include "memManager.hpp"
+#include "imgio.hpp"
 const uint16_t maxpix = 0xffff;
 uint16_t inline setHoloRef(int x, int y){
   if(x <= 4 || y <= 4) return maxpix;

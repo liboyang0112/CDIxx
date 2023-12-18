@@ -1,4 +1,4 @@
-#include "cdi.h"
+#include "cdi.hpp"
 class holo : public CDI{
   public:
     holo(const char* configfile);

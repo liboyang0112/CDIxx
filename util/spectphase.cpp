@@ -1,10 +1,10 @@
-#include "cudaConfig.h"
-#include "material.h"
-#include "cub_wrap.h"
-#include "readConfig.h"
-#include "imgio.h"
-#include "spectPhase.h"
-#include "cuPlotter.h"
+#include "cudaConfig.hpp"
+#include "material.hpp"
+#include "cub_wrap.hpp"
+#include "readConfig.hpp"
+#include "imgio.hpp"
+#include "spectPhase.hpp"
+#include "cuPlotter.hpp"
 #include <stdio.h>
 #include <math.h>
 #include <time.h>

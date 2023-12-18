@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdio.h>
-#include "imgio.h"
-#include "cudaConfig.h"
-#include "cuPlotter.h"
-#include "cdi.h"
+#include "imgio.hpp"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
+#include "cdi.hpp"
 #include <bits/stdc++.h>
 using namespace std;
 int main(int argc, char** argv )

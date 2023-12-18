@@ -4,11 +4,11 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 from numpy import log2
 
-cdef extern from "imageFile.h":
+cdef extern from "imageFile.hpp":
     struct imageFile:
         int rows;
         int cols;
-cdef extern from "imgio.h":
+cdef extern from "imgio.hpp":
     void writeComplexImage(const char* name, void* data, int row, int column);
     void writeFloatImage(const char* name, void* data, int row, int col);
     float *readImage_c(const char* name, imageFile* f, void* funcptr);

@@ -1,6 +1,6 @@
-#include "imgio.h"  //readImage
-#include "cudaConfig.h" //cuda related
-#include "cuPlotter.h" //plt
+#include "imgio.hpp"  //readImage
+#include "cudaConfig.hpp" //cuda related
+#include "cuPlotter.hpp" //plt
 
 
 int main(int argc, char** argv )

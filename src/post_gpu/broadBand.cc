@@ -1,6 +1,6 @@
-#include "broadBand.h"
-#include "cudaConfig.h"
-#include "cuPlotter.h"
+#include "broadBand.hpp"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
 #include <fstream>
 #include <gsl/gsl_spline.h>
 #include <math.h>

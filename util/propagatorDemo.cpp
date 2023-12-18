@@ -1,7 +1,7 @@
-#include "imgio.h"  //readImage
-#include "cudaConfig.h" //cuda related
-#include "cuPlotter.h" //plt
-#include "cub_wrap.h"
+#include "imgio.hpp"  //readImage
+#include "cudaConfig.hpp" //cuda related
+#include "cuPlotter.hpp" //plt
+#include "cub_wrap.hpp"
 #include <complex>
 using namespace std;
 

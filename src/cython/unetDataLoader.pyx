@@ -1,7 +1,7 @@
 cimport numpy as np
 import os
 
-cdef extern from "cdilmdb.h":
+cdef extern from "cdilmdb.hpp":
     int initLMDB(int* handle, const char*)
     void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 

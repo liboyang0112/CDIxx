@@ -3,7 +3,7 @@
 #include <time.h>
 #include <sys/stat.h> 
 #include <memory.h>
-#include "lmdb.h"
+#include <lmdb.h>
 #include <zlib.h>
 
 #define E(expr) CHECK((rc = (expr)) == MDB_SUCCESS, #expr)

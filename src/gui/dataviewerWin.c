@@ -1,7 +1,7 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
-#include "gui/dataviewerWin.h"
-#include "gui/cairoPainter.h"
+#include "gui/dataviewerWin.hpp"
+#include "gui/cairoPainter.hpp"
 
 struct _DataviewerWindow{
   GtkApplicationWindow parent;

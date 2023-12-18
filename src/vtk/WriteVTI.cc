@@ -3,7 +3,7 @@
 #include <vtkPiecewiseFunction.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkVolume.h>
-#include "vtkGPUVolumeRayCastMapper.h"
+#include <vtkGPUVolumeRayCastMapper.h>
 #include <vtkXMLImageDataWriter.h>
 #include <vtkXMLImageDataReader.h>
 #include <vtkImageData.h>
@@ -12,7 +12,7 @@
 #include <vtkRenderWindow.h>
 #include <vtkNamedColors.h>
 #include <vtkAutoInit.h>
-#include "format.h"
+#include "format.hpp"
 VTK_MODULE_INIT(vtkRenderingOpenGL2);
 VTK_MODULE_INIT(vtkInteractionStyle);
 VTK_MODULE_INIT(vtkRenderingVolumeOpenGL2)

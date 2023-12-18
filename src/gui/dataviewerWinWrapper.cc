@@ -1,10 +1,10 @@
 extern "C"{
-#include "gui/dataviewerWinWrapper.h"
+#include "gui/dataviewerWinWrapper.hpp"
 }
 #include <stdio.h>
-#include "cuPlotter.h"
-#include "cudaConfig.h"
-#include "imageFile.h"
+#include "cuPlotter.hpp"
+#include "cudaConfig.hpp"
+#include "imageFile.hpp"
 void* to_gpu(void* ptr, struct imageFile *f){
   size_t sz = f->rows*f->cols*typeSizes[f->type];
   init_cuda_image();

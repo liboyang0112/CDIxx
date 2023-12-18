@@ -1,6 +1,6 @@
 #ifndef __MNISTDATA_H__
 #define __MNISTDATA_H__
-#include "format.h"
+#include "format.hpp"
 
 class mnistData{
   void* dataset;

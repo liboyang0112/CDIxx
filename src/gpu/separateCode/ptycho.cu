@@ -1,4 +1,4 @@
-#include "cudaDefs.h"
+#include "cudaDefs.hpp"
 #include <curand_kernel.h>
 
 #define ALPHA 0.5

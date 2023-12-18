@@ -1,6 +1,6 @@
 #ifndef __CUDACONFIG_H__
 #define __CUDACONFIG_H__
-#include "format.h"
+#include "format.hpp"
 #include<stddef.h>
 #include<stdint.h>
 #define FFTformat CUFFT_C2C
@@ -10,7 +10,7 @@
 #define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
 #define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
 #define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
-#include "memManager.h"
+#include "memManager.hpp"
 int getCudaRows();
 int getCudaCols();
 void myMemcpyH2D(void*, void*, size_t sz);

@@ -1,13 +1,13 @@
-#include "orthFitter.h"
-#include "cudaConfig.h"
-#include "cub_wrap.h"
-#include "cuPlotter.h"
-#include "tvFilter.h"
+#include "orthFitter.hpp"
+#include "cudaConfig.hpp"
+#include "cub_wrap.hpp"
+#include "cuPlotter.hpp"
+#include "tvFilter.hpp"
 #include <fstream>
 #include <iostream>
 #include <math.h>
 #include <string.h>
-#include "monoChromo.h"
+#include "monoChromo.hpp"
 
 using namespace std;
 

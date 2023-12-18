@@ -1,6 +1,6 @@
 #include <gtk/gtk.h>
-#include "gui/dataViewer.h"
-#include "gui/dataviewerWin.h"
+#include "gui/dataViewer.hpp"
+#include "gui/dataviewerWin.hpp"
 
 struct _DataviewerApp{
   GtkApplication parent;

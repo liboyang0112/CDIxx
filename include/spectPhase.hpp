@@ -1,4 +1,4 @@
-#include "broadBand.h"
+#include "broadBand.hpp"
 class spectPhase: public broadBand{
   int pixCount;
   complexFormat* d_ref;  //full image

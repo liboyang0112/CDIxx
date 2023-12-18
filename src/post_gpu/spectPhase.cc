@@ -1,9 +1,9 @@
-#include "cudaConfig.h"
-#include "spectPhase.h"
-#include "cub_wrap.h"
+#include "cudaConfig.hpp"
+#include "spectPhase.hpp"
+#include "cub_wrap.hpp"
 #include <complex.h>
-#include "material.h"
-#include "cuPlotter.h"
+#include "material.hpp"
+#include "cuPlotter.hpp"
 #include <fstream>
 void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportinput){  //mask file, full image size, 
   myMalloc(complexFormat, cspectrum, nlambda);

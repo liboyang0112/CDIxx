@@ -1,8 +1,8 @@
-#include "holo.h"
-#include "imgio.h"
-#include "cuPlotter.h"
-#include "cub_wrap.h"
-#include "cudaConfig.h"
+#include "holo.hpp"
+#include "imgio.hpp"
+#include "cuPlotter.hpp"
+#include "cub_wrap.hpp"
+#include "cudaConfig.hpp"
 #include <math.h>
 
 

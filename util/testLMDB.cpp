@@ -1,4 +1,4 @@
-#include "cdilmdb.h"
+#include "cdilmdb.hpp"
 #include <stdio.h>
 #include <math.h>
 const int N = 256*256;

@@ -1,7 +1,7 @@
 #ifndef __CUPLOTTER_H__
 #define __CUPLOTTER_H__
 
-#include "format.h"
+#include "format.hpp"
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 
 class cuPlotter

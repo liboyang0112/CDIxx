@@ -4,7 +4,7 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 from numpy import log2
 
-cdef extern from "FGA.h":
+cdef extern from "FGA.hpp":
   int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, float* data);
 
 np.import_array()

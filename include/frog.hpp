@@ -1,4 +1,4 @@
-#include "format.h"
+#include "format.hpp"
 void dgencTraceSingle (complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay);
 void dgencTrace (complexFormat* gate, complexFormat* E, complexFormat* fulltrace, Real* delay);
 void genEComplex(complexFormat* E);

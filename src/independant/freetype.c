@@ -2,8 +2,8 @@
 #include <string.h>
 #include <math.h>
 #include <freetype/freetype.h>
-#include "freetype.h"
-#include "imgio.h"
+#include "freetype.hpp"
+#include "imgio.hpp"
 #include <stdint.h>
 #include <math.h>
 const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";

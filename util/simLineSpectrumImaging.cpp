@@ -1,10 +1,10 @@
-#include "cudaConfig.h"
-#include "material.h"
-#include "cub_wrap.h"
-#include "readConfig.h"
-#include "imgio.h"
-#include "spectImaging.h"
-#include "cuPlotter.h"
+#include "cudaConfig.hpp"
+#include "material.hpp"
+#include "cub_wrap.hpp"
+#include "readConfig.hpp"
+#include "imgio.hpp"
+#include "spectImaging.hpp"
+#include "cuPlotter.hpp"
 
 int main(int argc, char* argv[]){
   ToyMaterial mat;

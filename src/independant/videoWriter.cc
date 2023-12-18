@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "memManager.h"
+#include "memManager.hpp"
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/opt.h>

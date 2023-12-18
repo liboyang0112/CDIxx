@@ -1,11 +1,11 @@
 extern "C" {
-  #include "freetype.h"
+  #include "freetype.hpp"
   #include <freetype/freetype.h>
 }
 #include <math.h>
-#include "imgio.h"
+#include "imgio.hpp"
 #include <stdint.h>
-#include "memManager.h"
+#include "memManager.hpp"
 int main( int argc, char**  argv )
 {
   int rows = 150;

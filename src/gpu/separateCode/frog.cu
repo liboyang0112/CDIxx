@@ -1,7 +1,7 @@
-#include "cudaConfig.h" //cuda related
-#include "cudaDefs.h"
+#include "cudaConfig.hpp" //cuda related
+#include "cudaDefs.hpp"
 #include <curand_kernel.h>
-#include "frog.h"
+#include "frog.hpp"
 
 cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay),(cuComplex* gate, cuComplex* E, cuComplex* trace, Real delay), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)trace,delay), {
   cuda1Idx();

@@ -1,5 +1,5 @@
-#include "imgio.h"
-#include "imageFile.h"
+#include "imgio.hpp"
+#include "imageFile.hpp"
 #include <tiffio.h>
 #include <png.h>
 #include <stdlib.h>

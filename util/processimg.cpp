@@ -1,10 +1,10 @@
 #include <complex>
 #include <stdio.h>
 #include <stdio.h>
-#include "imgio.h"
-#include "cudaConfig.h"
-#include "cuPlotter.h"
-#include "cub_wrap.h"
+#include "imgio.hpp"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
+#include "cub_wrap.hpp"
 
 int main(int argc, char** argv )
 {

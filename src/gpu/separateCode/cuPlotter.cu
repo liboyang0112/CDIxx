@@ -1,6 +1,6 @@
-#include "cuPlotter.h"
-#include "cudaDefs.h"
-#include "cudaConfig.h"
+#include "cuPlotter.hpp"
+#include "cudaDefs.hpp"
+#include "cudaConfig.hpp"
 void cuPlotter::freeCuda(){
   if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
   if(cuCache_float_data) { memMngr.returnCache(cuCache_float_data); cuCache_float_data = 0;}

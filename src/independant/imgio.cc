@@ -1,5 +1,5 @@
-#include "imgio.h"
-#include "memManager.h"
+#include "imgio.hpp"
+#include "memManager.hpp"
 void* ccmalloc(size_t sz){
   return ccmemMngr.borrowCache(sz);
 }

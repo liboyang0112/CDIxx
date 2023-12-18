@@ -1,10 +1,10 @@
 #include <fstream>
 #include <cstring>
 #include <math.h>
-#include "cudaConfig.h"
-#include "cudaDefs.h"
-#include "memManager.h"
-#include "cuPlotter.h"
+#include "cudaConfig.hpp"
+#include "cudaDefs.hpp"
+#include "memManager.hpp"
+#include "cuPlotter.hpp"
 #define k_PML 1./20
 #define n_PML 15
 using namespace std;

@@ -1,6 +1,6 @@
-#include "gui/cairoPainter.h"
-#include "gui/dataviewerWinWrapper.h"
-#include "imgio.h"
+#include "gui/cairoPainter.hpp"
+#include "gui/dataviewerWinWrapper.hpp"
+#include "imgio.hpp"
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 struct _CairoPainter{
   GtkBox parent;

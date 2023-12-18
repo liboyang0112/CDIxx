@@ -1,9 +1,9 @@
-#include "mnistData.h"
-#include "cudaConfig.h"
+#include "mnistData.hpp"
+#include "cudaConfig.hpp"
 #include <iostream>
 #include <string>
-#include "memManager.h"
-#include "mnistData.h"
+#include "memManager.hpp"
+#include "mnistData.hpp"
 #include <fstream>
 using namespace std;
 int ReverseInt(int i)

@@ -1,6 +1,6 @@
-#include "cudaDefs.h"
-#include "cudaConfig.h"
-#include "orthFitter.h"
+#include "cudaDefs.hpp"
+#include "cudaConfig.hpp"
+#include "orthFitter.hpp"
 
 __global__ void calcLambdas(int rows, double* lambdas, double step_lambda, double* matrix, double* bi, bool debug = 0){
   int y = blockIdx.x * blockDim.x + threadIdx.x;

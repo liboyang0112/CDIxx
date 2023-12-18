@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include "cuPlotter.h"
-#include "tvFilter.h"
-#include "cdi.h"
+#include "cuPlotter.hpp"
+#include "tvFilter.hpp"
+#include "cdi.hpp"
 
 int main(int argc, char** argv )
 {

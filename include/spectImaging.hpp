@@ -1,4 +1,4 @@
-#include "broadBand.h"
+#include "broadBand.hpp"
 class spectImaging : public broadBand{
   public:
     void **refs=0;  //reference data, for each wavelength

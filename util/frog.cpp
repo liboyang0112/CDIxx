@@ -1,8 +1,8 @@
-#include "cudaConfig.h" //cuda related
-#include "cuPlotter.h" //plt
+#include "cudaConfig.hpp" //cuda related
+#include "cuPlotter.hpp" //plt
 #include <complex.h>
-#include "cub_wrap.h"
-#include "frog.h"
+#include "cub_wrap.hpp"
+#include "frog.hpp"
 #include <fstream>
 #include <vector>
 #include <random>

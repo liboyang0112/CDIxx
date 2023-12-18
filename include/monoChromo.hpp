@@ -1,5 +1,5 @@
-#include "format.h"
-#include "broadBand.h"
+#include "format.hpp"
+#include "broadBand.hpp"
 class monoChromo : public broadBand{
   public:
     void **gs=0;  //sample, for each wavelength

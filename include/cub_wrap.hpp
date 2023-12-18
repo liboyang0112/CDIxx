@@ -1,4 +1,4 @@
-#include "format.h"
+#include "format.hpp"
 Real findSum(Real* d_in, int num = 0, bool debug=false);
 complexFormat findSum(complexFormat* d_in, int num = 0, bool debug=false);
 Real findMax(Real* d_in, int num = 0);

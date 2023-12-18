@@ -1,4 +1,4 @@
-#include "experimentConfig.h"
+#include "experimentConfig.hpp"
 #include <string>
 
 class CDI : public experimentConfig{

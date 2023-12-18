@@ -1,4 +1,4 @@
-#include "readConfig.h"
+#include "readConfig.hpp"
 #include  <memory>
 #include <vector>
 #include <string>
@@ -8,7 +8,7 @@ using namespace std;
 #define subParsers (*(std::vector<AlgoParser*>*) subParsersp)
 #define count (*(std::vector<int>*) countp)
 #define algoList (*(std::vector<int>*) algoListp)
-#include "format.h"
+#include "format.hpp"
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.

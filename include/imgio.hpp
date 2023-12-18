@@ -1,8 +1,8 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
-#include "format.h"
+#include "format.hpp"
 #include <stddef.h>
-#include "imageFile.h"
+#include "imageFile.hpp"
 
 // Declare the variables
 
