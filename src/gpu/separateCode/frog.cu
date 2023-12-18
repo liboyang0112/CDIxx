@@ -1,5 +1,5 @@
 #include "cudaConfig.hpp" //cuda related
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include <curand_kernel.h>
 #include "frog.hpp"
 

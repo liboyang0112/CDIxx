@@ -2,7 +2,6 @@ extern "C" {
   #include "freetype.hpp"
   #include <freetype/freetype.h>
 }
-#include <math.h>
 #include "imgio.hpp"
 #include <stdint.h>
 #include "memManager.hpp"

@@ -1,4 +1,4 @@
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include "orthFitter.hpp"
 

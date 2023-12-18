@@ -1,5 +1,5 @@
 #include "cuPlotter.hpp"
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 void cuPlotter::freeCuda(){
   if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}

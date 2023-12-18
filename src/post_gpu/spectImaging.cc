@@ -1,6 +1,6 @@
 #include "spectImaging.hpp"
 #include "cudaConfig.hpp"
-#include <iostream>
+#include <time.h>
 #include "cub_wrap.hpp"
 #include <math.h>
 #include "cuPlotter.hpp"

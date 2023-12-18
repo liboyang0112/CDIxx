@@ -2,7 +2,6 @@
 #include "material.hpp"
 #include "cub_wrap.hpp"
 #include "readConfig.hpp"
-#include "imgio.hpp"
 #include "spectImaging.hpp"
 #include "cuPlotter.hpp"
 

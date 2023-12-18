@@ -1,7 +1,7 @@
 #include <fstream>
 #include <cstring>
 #include <math.h>
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #define n_PML 10

@@ -1,8 +1,6 @@
 #include <stdio.h>
-#include <time.h>
 #include <random>
 #include <chrono>
-#include <fstream>
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
 #include "experimentConfig.hpp"

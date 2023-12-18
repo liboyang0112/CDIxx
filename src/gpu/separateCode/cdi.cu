@@ -1,4 +1,4 @@
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 
 cuFuncc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* ESWP, Real* length),(cuComplex* ESW, cuComplex* ISW, cuComplex* ESWP, Real* length),((cuComplex*)ESW,(cuComplex*)ISW,(cuComplex*)ESWP,length),{
   cuda1Idx()

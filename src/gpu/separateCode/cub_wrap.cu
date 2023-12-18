@@ -1,4 +1,4 @@
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include <cub/device/device_reduce.cuh>
 #include <iostream>

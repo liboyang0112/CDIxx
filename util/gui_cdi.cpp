@@ -1,4 +1,3 @@
-#include "cuPlotter.hpp"
 #include "cdi.hpp"
 extern "C"{
 #include "gui/dataViewer.hpp"

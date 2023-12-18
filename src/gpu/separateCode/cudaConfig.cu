@@ -1,5 +1,5 @@
 #include "cudaConfig.hpp"
-#include "cudaDefs.hpp"
+#include "cudaDefs_h.cu"
 #include "imgio.hpp"
 #include <curand_kernel.h>
 cudaVars* cudaVar = 0;
