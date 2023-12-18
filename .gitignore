@@ -4,6 +4,7 @@ build
 obj
 images
 .vscode
+.cache
 run
 __pycache__
 html/CDIxx
