@@ -9,5 +9,6 @@ G_DECLARE_FINAL_TYPE (DataviewerWindow, dataviewer_window, DATAVIEWER, WINDOW, G
 
 DataviewerWindow       *dataviewer_window_new          (DataviewerApp *app);
 void                    dataviewer_window_open         (DataviewerWindow *win, GFile* file);
+void gtk_dataviewer_window_save(DataviewerWindow* win);
 
 #endif /* __DATAVIEWERWIN_H */

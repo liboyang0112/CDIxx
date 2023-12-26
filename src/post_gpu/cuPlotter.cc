@@ -120,7 +120,16 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
 void* cuPlotter::cvtTurbo(void* icache){
   char* cache = (char*)(icache?icache:cv_cache);
   for(int i = 0 ; i < rows*cols; i++){
-    getTurboColor(((pixeltype*)cv_data)[i], Bits, cache+i*3);
+    getTurboColor(((pixeltype*)cv_data)[i], Bits, cache);
+    cache+=3;
+  }
+  return cv_cache;
+}
+void* cuPlotter::cvt8bit(void* icache){
+  char* cache = (char*)(icache?icache:cv_cache);
+  for(int i = 0 ; i < rows*cols; i++){
+    *cache = *(cache+1) = *(cache+2) = ((pixeltype*)cv_data)[i] >> (Bits-8);
+    cache+=3;
   }
   return cv_cache;
 }

@@ -3,6 +3,7 @@
 #include "format.hpp"
 #include<stddef.h>
 #include<stdint.h>
+#include <zlib.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
@@ -110,7 +111,8 @@ void applyMaskBar(Real* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, complexFormat* mask, Real threshold = 0.5);
 void applyMask(complexFormat* data, Real* mask, Real threshold = 0.5);
 void applyMask(Real* data, Real* mask, Real threshold = 0.5);
-void paste(Real* out, Real* in, int rowin, int colin, int posx, int posy);
+void paste(Real* out, Real* in, int colout, int posx, int posy, bool replace = 0);
+void paste(complexFormat* out, complexFormat* in, int colout, int posx, int posy, bool replace = 0);
 void multiplyPatternPhase_Device(complexFormat* amp, Real r_d_lambda, Real d_r_lambda);
 void multiplyPatternPhaseOblique_Device(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta);
 void multiplyFresnelPhase_Device(complexFormat* amp, Real phaseFactor);

@@ -788,20 +788,23 @@ cuFuncc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Re
     dest[index].y = src[targetidx].y*norm;
     })
 
-//-------mnistData.cc--------begin
-cuFunc(paste, (Real* out, Real* in, int rowin, int colin, int posx, int posy),(out, in, rowin, colin, posx, posy),{
+cuFunc(paste, (Real* out, Real* in, int colout, int posx, int posy, bool replace),(out, in, colout, posx, posy, replace),{
   cudaIdx();
-  if(x < posx || y < posy) return;
-  if(x >= posx+rowin || y > posy+colin) return;
-  int xin = x - posx;
-  int yin = y - posy;
-  Real data = in[xin*colin+yin];
-  if(data < 0.5) data = 0;
-  else data = 1;
-  out[index] += data;
-  if(out[index] > 1) out[index] = 1;
+  int tidx = (x+posx)*colout + y + posy;
+  Real data = in[index];
+  if(!replace) data += out[tidx];
+  out[tidx] = data>1?1:data;
 })
-//-------mnistData.cc--------end
+cuFuncc(paste, (complexFormat* out, complexFormat* in, int colout, int posx, int posy, bool replace),(cuComplex* out, cuComplex* in, int colout, int posx, int posy, bool replace),((cuComplex*)out, (cuComplex*)in, colout, posx, posy, replace),{
+  cudaIdx();
+  int tidx = (x+posx)*colout + y + posy;
+  cuComplex data = in[index];
+  if(!replace) {
+    data.x += out[tidx].x;
+    data.y += out[tidx].y;
+  }
+  out[tidx] = data;
+})
 //-------experimentConfig.cc-begin
 // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
 cuFuncc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda),((cuComplex*)amp,r_d_lambda,d_r_lambda),{

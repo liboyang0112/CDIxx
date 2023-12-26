@@ -38,6 +38,7 @@ class cuPlotter
   void* processFloatData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void* processComplexData(void* cudaData, const mode m=MOD, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0); //calculate using cuCache_data and copy data to cv_data
   void plot(const char* label, bool islog = 0, const char* caption = 0);
+  void* cvt8bit(void* cache = 0);
   ~cuPlotter();
 };
 extern cuPlotter plt;

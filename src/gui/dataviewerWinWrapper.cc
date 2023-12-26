@@ -14,11 +14,13 @@ void* to_gpu(void* ptr, struct imageFile *f){
   myMemcpyH2D(dptr, ptr, sz);
   return dptr;
 };
-void processFloat(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip){
+void processFloat(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip, char isColor){
   plt.processFloatData(cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
-  plt.cvtTurbo(cache);
+  if(isColor) plt.cvtTurbo(cache);
+  else plt.cvt8bit(cache);
 };
-void processComplex(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip){
+void processComplex(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip, char isColor){
   plt.processComplexData(cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
-  plt.cvtTurbo(cache);
+  if(isColor) plt.cvtTurbo(cache);
+  else plt.cvt8bit(cache);
 };

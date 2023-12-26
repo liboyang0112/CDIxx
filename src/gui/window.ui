@@ -4,5 +4,37 @@
     <property name="title" translatable="yes">Data Viewer</property>
     <property name="default-width">1500</property>
     <property name="default-height">900</property>
+    <child>
+      <object class="GtkBox" id="l1box">
+        <property name="orientation">vertical</property>
+        <property name="halign">GTK_ALIGN_CENTER</property>
+        <property name="valign">GTK_ALIGN_CENTER</property>
+        <child>
+          <object class="GtkBox" id="imgbox">
+            <property name="halign">GTK_ALIGN_CENTER</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="cbox">
+            <property name="halign">GTK_ALIGN_CENTER</property>
+            <child>
+              <object id="rotate" class="GtkButton">
+                <property name="label">Rotate</property>
+              </object>
+            </child>
+            <child>
+              <object id="flip" class="GtkButton">
+                <property name="label">Flip</property>
+              </object>
+            </child>
+            <child>
+              <object id="reset" class="GtkButton">
+                <property name="label">Reset</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
   </template>
 </interface>

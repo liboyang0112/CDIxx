@@ -32,6 +32,7 @@ mnistData::mnistData(const char* dir){
   rowraw = ReverseInt(rowraw);
   colraw = ReverseInt(colraw);
   output = (Real*)ccmemMngr.borrowCache(rowraw*colraw*sizeof(Real));
+  printf("mnist image size: %d x %d\n", rowraw, colraw);
 };
 Real* mnistData::read(){
   size_t sz =  rowraw*colraw*sizeof(char);
@@ -65,16 +66,14 @@ cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir)
 };
 void cuMnist::cuRead(void* out){
   Real val = nmerge;
-  resize_cuda_image(rowrf, colrf);
   init_cuda_image(65536,1);
-  //cudaMemcpy(cuRaw, read(), rowraw*colraw*sizeof(Real), cudaMemcpyHostToDevice);
-  //refine((Real*)cuRaw, (Real*)cuRefine, refinement);
-  auto media = (refinement==1?cuRefine:out);
+  void* media = (refinement==1?cuRefine:out);
   clearCuMem(media,rowrf*colrf*sizeof(Real));
+  resize_cuda_image(rowraw, colraw);
   for(int i = 0; i < val; i++){
     for(int j = 0; j < val; j++){
       myMemcpyH2D(cuRaw, read(), rowraw*colraw*sizeof(Real));
-      paste( (Real*)media, (Real*)cuRaw, rowraw, colraw, rowraw*i*2/3, colraw*j*2/3);
+      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3, colraw*j*2/3);
     }
   }
   if(refinement!=1){

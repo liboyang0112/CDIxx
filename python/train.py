@@ -2,7 +2,7 @@
 import torch
 from os.path import exists
 from os import mkdir
-#from mUNet import mUNet
+#from Deep import Deep
 from UNet import UNet
 from torch import device, tensor, nn
 from unetDataLoader import unetDataLoader as ul
@@ -12,30 +12,33 @@ from libimageIO_cython import writeFloat,readImage,writePng
 import numpy as np
 from torch.nn import functional as F
 from torchvision.transforms import CenterCrop
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
-#writer = SummaryWriter()
-#array = tensor([float(1)]).to(device('cuda:0'))
-#net = mUNet(array,channels = 1).cuda()
-net = UNet(channels = 1).cuda()
-optimizer = torch.optim.Adam(net.parameters(),lr = 0.0001,betas = (0.9, 0.999))
+net = UNet(1,4).cuda()
+#net = Deep(1,7).cuda()
+optimizer = torch.optim.Adam(net.parameters(),lr = 0.01,betas = (0.9, 0.999))
+schedule = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=0.5e-6, eps=1e-8, threshold=1e-4)
 #loss_func = nn.BCELoss()
 #loss_func = nn.L1Loss()
 loss_func = nn.MSELoss()
 trainsz = 256
+bs = 4
 data = ul("./traindb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
 datatest = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
-dataloader = DataLoader(data, batch_size = 4, shuffle = True,num_workers = 0,drop_last = True)
-testloader = DataLoader(datatest, batch_size = 4, shuffle = True,num_workers = 0,drop_last = True)
-EPOCH = 1000
+dataloader = DataLoader(data, batch_size = bs, shuffle = True,num_workers = 0,drop_last = True)
+testloader = DataLoader(datatest, batch_size = bs, shuffle = True,num_workers = 0,drop_last = True)
+EPOCH = 300
 print('load net')
 testIdx = 1
-ModelSave = 'model_4_2'
+ModelSave = 'model_4_2_linear'
 if not exists(ModelSave):
     mkdir(ModelSave)
 if not exists('Log_imgs'):
     mkdir('Log_imgs')
 if exists(ModelSave + '/Unet.pt'):
     net.load_state_dict(torch.load(ModelSave + '/Unet.pt'))
+#net = torch.compile(net)
 print('load success')
 imgval,label = datatest[testIdx]
 cache = np.zeros((label.shape))
@@ -44,65 +47,57 @@ imgtest = torch.unsqueeze(imgval,dim = 0)
 testimg, testlabel = next(iter(testloader))
 train_losses = []
 test_losses = []
+runExp = 0
 
-image = readImage('broad_pattern.bin')
-x0 = (trainsz - image.shape[0]) >> 1
-y0 = (trainsz - image.shape[1]) >> 1
-image = tensor(np.asarray(image))
-if x0 > 0:
-    image = F.pad(image,(x0,x0,y0,y0),"constant",0)
-elif x0 < 0:
-    crp = CenterCrop(trainsz)
-    image = crp(image)
-
-#transform = T.Resize(trainsz)
-#image = tensor(image)
-#image = transform(image)
-#image = np.asarray(image)
-image = image.clone().detach()
-image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
-
-#imagesim = readImage('simfloat.bin')
-#x0 = (trainsz-imagesim.shape[0])>>1
-#y0 = (trainsz-imagesim.shape[1])>>1
-#
-#imagesim = tensor(np.asarray(imagesim))
-#imagesim = torch.nn.functional.pad(imagesim,(x0,x0,y0,y0),"constant",0)
-#imagesim = imagesim.view(1,1,trainsz,trainsz).to(device('cuda:0'))
+if runExp:
+    image = readImage('broad_pattern.bin')
+    x0 = (trainsz - image.shape[0]) >> 1
+    y0 = (trainsz - image.shape[1]) >> 1
+    image = tensor(np.asarray(image))
+    if x0 > 0:
+        image = F.pad(image,(x0,x0,y0,y0),"constant",0)
+    elif x0 < 0:
+        crp = CenterCrop(trainsz)
+        image = crp(image)
+    image = image.clone().detach()
+    image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
+lossfile = open(ModelSave+"/losses.txt", "a",)
+bestloss = 1e10
 for epoch in range(EPOCH):
     print('开始第{}轮'.format(epoch))
-    net.train()
     total_loss = 0
+    avgvalloss = 0
+    net.train()
+    valout = 0
     for i,(img,label) in enumerate(dataloader):
         loss = loss_func(net(img),label)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         #train_losses.append(loss.item())
+        loss = loss.item()
         if i%20 == 0:
-            print("training loss = %f"%(loss.item() * 1e6))
-        total_loss  += loss.item() * 2e3
-        loss = loss_func(net(testimg), testlabel)
+            print("training loss = %f"%(loss / bs * 1e6))
+        total_loss += loss
+        valout = net(testimg)
+        avgvalloss += loss_func(valout, testlabel).item()
         #test_losses.append(loss.item())
-        if i%20 == 0:
-            print("validation loss = %f"%(loss.item() * 1e6))
-    print("total training loss = %f"%total_loss)
-    torch.save(net.state_dict(),ModelSave + '/Unet.pt')
+    print("validation loss = %f"%(avgvalloss * 1e6))
+    print("total training loss = %f"%(total_loss * 1e6))
+    #schedule.step(avgvalloss)
+    #lr = optimizer.state_dict()['param_groups'][0]['lr']
+    #print("lr=%f"%(lr))
+    lossfile.write("%d %e %e\n"%(epoch, total_loss, avgvalloss))
+    #if lr <= 1e-4:
+    #    break
+    if avgvalloss < bestloss:
+        bestloss = avgvalloss
+        torch.save(net.state_dict(),ModelSave + '/Unet.pt')
+    writePng('Log_imgs/segimg_ep{}.png'.format(epoch),valout.cpu()[0][0].detach().numpy(),cache, 1)
     net.eval()
-    out = net(imgtest)
-    writePng('Log_imgs/segimg_ep{}.png'.format(epoch),out.cpu()[0][0].detach().numpy(),cache, 1)
-    out = net(image)
-    imgnp = out.cpu()[0][0].detach().numpy()
-    writeFloat("pattern.bin",imgnp)
-    #out = net(imagesim)
-    #imgnp = out.cpu()[0][0].detach().numpy()
-    #writeFloat("patternsim.bin",fromarray(imgnp))
+    if runExp:
+        out = net(image)
+        imgnp = out.cpu()[0][0].detach().numpy()
+        writeFloat("pattern.bin",imgnp)
     print('第{}轮结束'.format(epoch))
-#plt.title("Training and Validation Loss")
-#plt.plot(test_losses,label = "val")
-#plt.plot(train_losses,label = "train")
-#plt.xlabel("iterations")
-#plt.ylabel("Loss")
-#plt.legend()
-#plt.show()
-
+lossfile.close()

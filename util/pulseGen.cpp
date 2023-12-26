@@ -162,12 +162,17 @@ int main(int argc, char** argv){
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-#elif 0
-  const int nlambda = 5;
-  double lambdas[nlambda] = {1, 11./9, 11./7, 11./5, 11./3};
-  double spectra[nlambda] = {0.1,0.2,0.3,0.3,0.1};
-  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
+  const int nlambda = 5;
+  myMalloc(double, lambdas, nlambda);
+  myMalloc(double, spectra, nlambda);
+  double spectratmp[nlambda] = {0.1,0.2,0.3,0.3,0.1};
+  for(int i = 0; i < nlambda; i++){
+    lambdas[i] = 11./(11-2*i);
+    spectra[i] = spectratmp[i];
+  }
+  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+#elif 0
   Real startlambda = 480;
   Real endlambda = 1000;
   int nlambda;
