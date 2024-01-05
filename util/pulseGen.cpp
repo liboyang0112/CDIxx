@@ -12,6 +12,7 @@
 #include "cdilmdb.hpp"
 #include "cub_wrap.hpp"
 #include <gsl/gsl_spline.h>
+#include <math.h>
 using namespace std;
 
 void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum){
@@ -103,7 +104,7 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 int main(int argc, char** argv){
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
-  bool training = 1;
+  bool training = 0;
   int ntraining = 1000;
   int testingstart = ntraining;
   monoChromo mwl;
@@ -162,7 +163,7 @@ int main(int argc, char** argv){
     spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-#elif 1
+#elif 0
   const int nlambda = 5;
   myMalloc(double, lambdas, nlambda);
   myMalloc(double, spectra, nlambda);
@@ -172,7 +173,7 @@ int main(int argc, char** argv){
     spectra[i] = spectratmp[i];
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-#elif 0
+#elif 1
   Real startlambda = 480;
   Real endlambda = 1000;
   int nlambda;

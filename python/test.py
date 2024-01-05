@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 import torch
+from os.path import exists
+from os import mkdir
 import numpy as np
 #from mUNet import mUNet
 from UNet import UNet
 from unetDataLoader import unetDataLoader as ul
 from torch import device, tensor
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-from libimageIO_cython import writeFloat,readImage
-from matplotlib import colors
+from libimageIO_cython import writeFloat,readImage,writePng
 from torch.nn import functional as F
 from torchvision.transforms import CenterCrop
 
@@ -41,14 +41,10 @@ if runExp:
     out = net(image)
     imgnp = out.cpu()[0][0].detach().numpy()
     writeFloat("pattern.bin",imgnp)
-    fig = plt.figure('solved', figsize = [3,3])
-    subfig = fig.add_subplot(1,1,1)
-    subfig.imshow(imgnp, norm = colors.LogNorm(), cmap = mp)
-    fig.savefig("exp.png")
 
 data = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
 dataloader = DataLoader(data, batch_size = 4, shuffle = True,num_workers = 0,drop_last = True)
-saveidx = 0
+cache = np.zeros((trainsz, trainsz, 3), np.int8())
 for idx in range(0,10):
     img,label = data[idx]
     img = torch.unsqueeze(img,dim = 0)
@@ -57,22 +53,10 @@ for idx in range(0,10):
     #plt.gray()
     imgnp = net(img).cpu()[0][0].detach().numpy()
     labnp = label.cpu()[0].numpy()
-    fig = plt.figure('testSample{}'.format(idx), figsize = [11,4])
-    subfig = fig.add_subplot(1,3,3)
-    subfig.imshow(imgnp, norm = colors.LogNorm(), cmap = mp)
-    subfig.set_title("monochromatized pattern")
-    subfig = fig.add_subplot(1,3,2)
-    subfig.imshow(datanp, norm = colors.LogNorm(), cmap = mp)
-    subfig.set_title("broad band pattern")
-    subfig = fig.add_subplot(1,3,1)
-    subfig.imshow(labnp, norm = colors.LogNorm(), cmap = mp)
-    subfig.set_title("monochromatic pattern")
-    fig.savefig("trainsample%d.png"%idx)
-    #plt.imsave('test.png', np.log2(imgnp)/16+1, vmin = 0,vmax = 1)
-    #plt.imsave('test_data.png', np.log2(datanp)/16+1, vmin = 0,vmax = 1)
-    #plt.imsave('test_lab.png', np.log2(labnp)/16+1,vmin = 0,vmax = 1)
-    if idx == saveidx:
-        writeFloat("test.bin",imgnp)
-        writeFloat("test_data.bin",datanp)
-        writeFloat("test_lab.bin",labnp)
 
+    dirsave = 'test%d'%idx
+    if not exists(dirsave):
+        mkdir(dirsave)
+    writeFloat(dirsave + "/test.bin",imgnp)
+    writeFloat(dirsave + "/test_lab.bin",labnp)
+    writePng(dirsave + "/test_broad", datanp, cache, 1, 1)

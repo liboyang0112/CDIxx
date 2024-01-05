@@ -48,8 +48,8 @@ testimg, testlabel = next(iter(testloader))
 train_losses = []
 test_losses = []
 runExp = 0
-
-if runExp:
+if exists('broad_pattern.bin'):
+    runExp = 1
     image = readImage('broad_pattern.bin')
     x0 = (trainsz - image.shape[0]) >> 1
     y0 = (trainsz - image.shape[1]) >> 1

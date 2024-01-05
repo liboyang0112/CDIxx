@@ -136,22 +136,33 @@ void broadBand::writeSpectra(const char* filename){
   spectrafile.close();
 }
 void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
-  Real *d_pattern = (Real*) memMngr.borrowCache(row*column*sizeof(Real));
-  complexFormat *d_intensity = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
-  complexFormat* d_patternAmp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
-  complexFormat *d_inputWave = (complexFormat*)memMngr.borrowCleanCache(row*column*sizeof(complexFormat));
+  myCuDMalloc(Real, d_pattern, row*column);
+  myCuDMalloc(complexFormat, d_intensity, rows[nlambda-1]*cols[nlambda-1]);
+  myCuDMalloc(complexFormat, d_patternAmp, row*column);
+  myCuDMalloc(complexFormat, d_inputWave, row*column);
   resize_cuda_image(row, column);
-  assignReal( (Real*)d_input, d_inputWave);
+  extendToComplex( (Real*)d_input, d_inputWave);
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
     int thiscol = cols[i];
     resize_cuda_image(thisrow, thiscol);
     pad( d_inputWave, d_intensity, row, column);
+    if(0 && thisrow == rows[0]*2) {
+      plt.init(thisrow, thiscol);
+      plt.plotComplex(d_intensity, MOD, 0, 1, "padded_demo", 0, 0, 0);
+    }
     myFFTM( locplan[i], d_intensity,d_intensity);
     cudaConvertFO(d_intensity);
+    if(0&&thisrow == rows[0]*2) {
+      plt.plotComplex(d_intensity, MOD2, 0, 1./(thisrow*thiscol), "padded_fft_demo", 1, 0, 1);
+    }
     resize_cuda_image(row, column);
     crop(d_intensity,d_patternAmp,thisrow,thiscol);
     applyNorm(d_patternAmp, sqrt(spectra[i]/(thiscol*thisrow)));
+    if(0&&thisrow == rows[0]*2) {
+      plt.init(row, column);
+      plt.plotComplex(d_patternAmp, MOD2, 0, 1./spectra[i], "pattern1_demo", 1, 0, 1);
+    }
     if(i==0) {
       getMod2((Real*)d_patternSum, d_patternAmp);
       if(single!=0) {
@@ -161,7 +172,7 @@ void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
     }else{
       getMod2(d_pattern, d_patternAmp);
       add((Real*)d_patternSum, (Real*)d_pattern, 1);
-      if(single!=0 && i == 1 ) {
+      if(single!=0 && i == 0 ) {
         extendToComplex((Real*)d_pattern, (complexFormat*)single);
         applyNorm((complexFormat*)single, 1./spectra[i]);
       }
