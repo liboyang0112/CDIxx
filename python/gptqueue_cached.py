@@ -23,7 +23,8 @@ server_socket.listen(1)
 
 exitflag = 0
 
-model = GPT4All('/home/boyang/.cache/gpt4all/mistral-7b-instruct-v0.1.Q4_0.gguf')
+#model = GPT4All('/home/boyang/.cache/gpt4all/mistral-7b-instruct-v0.1.Q4_0.gguf')
+model = GPT4All('/home/boyang/softwares/Qwen-7B-Chat/ggml-model-Q4_0.gguf')
 template = new_template()
  
 # 创建一个TCP服务器套接字
