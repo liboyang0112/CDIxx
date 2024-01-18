@@ -56,8 +56,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   resize_cuda_image(row, column);
-  Real lr = 1.;
-  Real beta1 = 0.5;//0.1;
+  Real lr = 2.;
+  Real beta1 = 1;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
   if(restart) {
@@ -214,6 +214,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       //multiplyPixelWeight( deltabprev, pixel_weight);
       if(beta1){
         updateMomentum( deltabprev, momentum, beta1);
+        applyNorm(momentum, 1-0.2*lr);
         if(beta2) {
           adamUpdateV( adamv, deltabprev, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);

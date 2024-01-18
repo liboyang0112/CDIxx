@@ -64,6 +64,7 @@ cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir)
   myCuMalloc(complexFormat, cacheraw, rowrf*colrf);
   myCuMalloc(complexFormat, cache, rowrf*colrf*refinement*refinement);
 };
+/*
 void cuMnist::cuRead(void* out){
   Real val = nmerge;
   init_cuda_image(65536,1);
@@ -87,6 +88,29 @@ void cuMnist::cuRead(void* out){
     applyThreshold((Real*)cache, (Real*)cache, 0.5);
     resize_cuda_image(row, col);
     pad( (Real*)cache, (Real*)out,rowrf*refinement, colrf*refinement);
+  }else{
+    resize_cuda_image(row, col);
+    pad( (Real*)media, (Real*)out,rowrf, colrf);
+  }
+}
+*/
+void cuMnist::cuRead(void* out){
+  Real val = nmerge;
+  resize_cuda_image(rowrf, colrf);
+  init_cuda_image(65536,1);
+  auto media = (refinement==1?cuRefine:out);
+  clearCuMem(media,rowrf*colrf*sizeof(Real));
+  for(int i = 0; i < val; i++){
+    for(int j = 0; j < val; j++){
+      myMemcpyH2D(cuRaw, read(), rowraw*colraw*sizeof(Real));
+      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3, colraw*j*2/3);
+    }
+  }
+  if(refinement!=1){
+    resize_cuda_image(rowrf*refinement, colrf*refinement);
+    refine((Real*)out, (Real*)cuRefine, refinement);
+    resize_cuda_image(row, col);
+    pad( (Real*)cuRefine, (Real*)out,rowrf*refinement, colrf*refinement);
   }else{
     resize_cuda_image(row, col);
     pad( (Real*)media, (Real*)out,rowrf, colrf);

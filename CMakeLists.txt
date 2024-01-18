@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 
-set(CMAKE_CXX_COMPILER "clang++-17") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_C_COMPILER "clang-17") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CXX_COMPILER "clang++-15") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_C_COMPILER "clang-15") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 
@@ -17,7 +17,7 @@ find_package(PkgConfig REQUIRED) #package finder, always equipped in linux syste
 pkg_check_modules(GTK REQUIRED gtk4)
 include_directories (${GTK_INCLUDE_DIRS})
 #freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
-pkg_check_modules(freetype2 REQUIRED freetype2)
+find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
@@ -49,7 +49,6 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
 foreach( sourcefile ${APP_SOURCES} )
-  message(${sourcefile})
   cmake_path(GET sourcefile FILENAME libname)
   string( REPLACE ".pyx" ".c" cfile ${libname} )
   string( REPLACE ".pyx" "_cython" libname ${libname} )
@@ -67,19 +66,30 @@ foreach( sourcefile ${APP_SOURCES} )
     PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endforeach( sourcefile ${APP_SOURCES} )
 
-set(resourcefile ${PROJECT_SOURCE_DIR}/src/gui/resource.xml)
-file(GLOB UIFILE ${PROJECT_SOURCE_DIR}/src/gui/*.ui)
-add_custom_command(OUTPUT resource.c COMMAND glib-compile-resources ${resourcefile} --target=resource.c  --sourcedir=${PROJECT_SOURCE_DIR}/src/gui --generate-source MAIN_DEPENDENCY ${resourcefile} DEPENDS ${UIFILE})
-file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/gui/*c )
-add_library(gui SHARED ${APP_SOURCES} resource.c)
-target_link_libraries(gui ${GTK_LIBRARIES})
-
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )
 foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
   string( REPLACE ".cpp" "_run" exename ${libname} )
   add_executable( ${exename} ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
+
+if(DEFINED GTK_LIBRARIES)
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/gui/*.cpp )
+foreach( sourcefile ${APP_SOURCES} )
+  cmake_path(GET sourcefile FILENAME libname)
+  string( REPLACE ".cpp" "_run" exename ${libname} )
+  add_executable( ${exename} ${sourcefile})
+endforeach( sourcefile ${APP_SOURCES} )
+set(resourcefile ${PROJECT_SOURCE_DIR}/src/gui/resource.xml)
+file(GLOB UIFILE ${PROJECT_SOURCE_DIR}/src/gui/*.ui)
+add_custom_command(OUTPUT resource.c COMMAND glib-compile-resources ${resourcefile} --target=resource.c  --sourcedir=${PROJECT_SOURCE_DIR}/src/gui --generate-source MAIN_DEPENDENCY ${resourcefile} DEPENDS ${UIFILE})
+file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/gui/*c )
+add_library(gui SHARED ${APP_SOURCES} resource.c)
+target_link_libraries(gui ${GTK_LIBRARIES})
+link_directories(${GTK_LIBRARY_DIRS})
+target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
+endif()
+
 
 target_link_libraries(broadBand_cc gsl memManager_cc cuPlotter_cc cudaLibcommon_cu)
 target_link_libraries(spectImaging_cc broadBand_cc)
@@ -111,8 +121,6 @@ target_link_libraries(cdi_run cdi_cc)
 target_link_libraries(ptycho_run experimentConfig_cc)
 target_link_libraries(frog_run cudaLibcommon_cu)
 target_link_libraries(beamGenerator_run memManager_cc imgio_cc)
-link_directories(${GTK_LIBRARY_DIRS})
-target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
 target_link_libraries(testLMDB_run cdilmdb_c)
 target_link_libraries(testfitter_run orthFitter_cc)
 target_link_libraries(holo_run holo_cc)

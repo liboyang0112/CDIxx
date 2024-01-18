@@ -104,17 +104,17 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 int main(int argc, char** argv){
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
-  bool training = 0;
-  int ntraining = 1000;
+  bool training = 1;
+  int ntraining = 1;
   int testingstart = ntraining;
   monoChromo mwl;
   CDI cdi(argv[1]);
   //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
   //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
   int datamerge[] = {1};
-  int datarefine[] ={4};
+  int datarefine[] ={3};
   const int nconfig = 1;
-  int ntesting = 100;
+  int ntesting = 10;
   cuMnist *mnist_dat[nconfig];
   int objrow;
   int objcol;

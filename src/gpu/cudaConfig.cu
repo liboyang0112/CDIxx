@@ -480,7 +480,7 @@ cuFunc(applyPoissonNoise_WO,(Real* wave, Real noiseLevel, void* state, Real scal
 cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, void* state, Real exposure),
     (data,wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*wave[index]*exposure);
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = dataint-noiseLevel;
     });
@@ -488,14 +488,14 @@ cuFuncc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, void* s
     (data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
     cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = dataint-noiseLevel;
     });
 cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exposure),
     (data,wave,noiseLevel,state,exposure),{
     cuda1Idx()
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*wave[index]*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*wave[index]*exposure);
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = Real(dataint-noiseLevel)/vars->rcolor;
     });
@@ -503,7 +503,7 @@ cuFuncc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, void* state
     (data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
     cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = Real(dataint-noiseLevel)/vars->rcolor;
     });
@@ -511,7 +511,7 @@ cuFuncc(ccdRecord, (complexFormat* data, complexFormat* wave, int noiseLevel, vo
     ((cuComplex*)data,(cuComplex*)wave,noiseLevel,state,exposure),{
     cuda1Idx()
     cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel) + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index].x = Real(dataint-noiseLevel)/vars->rcolor;
     data[index].y = 0;
