@@ -13,25 +13,8 @@ int inline nearestEven(Real x){
   return round(x/2)*2;
 }
 
-void broadBand::calcPixelWeights(){
-  int sz = row/2*sizeof(Real);
-  Real* loc_pixel_weight = (Real*) ccmemMngr.borrowCleanCache(sz);
-  for(int lmd = 0; lmd < nlambda; lmd++){
-    Real maxshift =  Real(row*row)/(2*(row+2*lmd*jump));
-    Real spectWeight = spectra[lmd];
-    for(int shift = 0; shift < maxshift; shift++){
-      loc_pixel_weight[shift] += spectWeight;
-    }
-  }
-  for(int shift = 0; shift < row/2; shift++){
-    loc_pixel_weight[shift] = pow(loc_pixel_weight[shift], -0.6);
-  }
-  pixel_weight = (Real*) memMngr.borrowCache(sz);
-  myMemcpyH2D(pixel_weight, loc_pixel_weight, sz);
-}
-
-
 void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_){
+  lambdas = lambdas_;
   nlambda = nlambda_;
   spectra = spectra_;
   row = nrow;
@@ -58,14 +41,47 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   nlambda = (maxlambda-minlambda)/stepsize+1;
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
   locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+(i+(minlambda-1)/stepsize)*2*jump;
     cols[i] = column+(i+(minlambda-1)/stepsize)*2*jump;
+    lambdas[i] = double(rows[i])/row;
     printf("%d: (%d,%d)\n",i, rows[i],cols[i]);
     createPlan(locplan+i, rows[i], cols[i]);
   }
+}
+void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double maxlambda){
+  row = nrow;
+  column = ncol;
+  thisrow = row+2*jump;
+  thiscol = column+2*jump;
+  thisrowp = row-2*jump;
+  thiscolp = column-2*jump;
+  Real factor = Real(thisrowp)/row;
+  nmiddle = 0;
+  myMalloc(int, locplan, 2);
+  if(minlambda > 1) {
+    fprintf(stderr, "ERROR: minimum lambda > 1 detected, please reset it to 1\n");
+  }else if(minlambda < factor){
+    nmiddle = log(minlambda)/log(factor);
+    minlambda = pow(factor, nmiddle);
+    createPlan(locplan+1, thisrowp, thiscolp);
+  }
+  Real factor1 = Real(thisrow)/row;
+  nlambda = log(maxlambda)/log(factor1)+nmiddle;
+  myMalloc(double, lambdas, nlambda);
+  lambdas[nmiddle] = 1;
+  for(int i = nmiddle-1; i >= 0; i--){
+    lambdas[i] = lambdas[i+1]*factor;
+  }
+  for(int i = nmiddle+1; i < nlambda; i++){
+    lambdas[i] = lambdas[i-1]*factor1;
+  }
+  spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
+  createPlan(locplan, thisrow, thiscol);
+  myCuMalloc(complexFormat, cache, thisrow*thiscol);
 }
 Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
   row = nrow;
@@ -75,19 +91,15 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   nlambda = (lambdasi[narray-1]-skiplambda-1)/stepsize+1;
   spectra = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
   ofstream spectrumfile;
-  int sz = narray*sizeof(double);
-  double* spectrumraw = (double*)ccmemMngr.borrowCache(sz);
-  memcpy(spectrumraw, spectrumi, sz);
+  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  for(int i = 0; i < narray; i++){
+    spectrumfile<<lambdasi[i]<<" "<<spectrumi[i]/spectrumi[narray-1]<<std::endl;
+  }
   lambdasi[0] /= (1+skiplambda);
   for(int i = 1; i < narray; i++){
     lambdasi[i] /= (1+skiplambda);
     spectrumi[i] += spectrumi[i-1];
   }
-  spectrumfile.open("spectra_raw.txt", std::ios::out);
-  for(int i = 0; i < narray; i++){
-    spectrumfile<<lambdasi[i]*(1+skiplambda)<<" "<<spectrumraw[i]/spectrumi[narray-1]<<std::endl;
-  }
-  myFree(spectrumraw);
   spectrumfile.close();
   gsl_interp_accel *acc = gsl_interp_accel_alloc ();
   gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, narray);
@@ -97,6 +109,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   for(int i = 0; i < nlambda-1; i++){
     double cumnow = gsl_spline_eval (spline, lambda+stepsize/2, acc);
     spectra[i] = cumnow-cumprev;
+    printf("%f, %f, %f, %f\n", lambda, cumnow, cumprev, spectra[i]);
     cumprev = cumnow;
     lambda+=stepsize;
   }
@@ -111,6 +124,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+i*2*jump;
     cols[i] = column+i*2*jump;
+    lambdas[i] = double(rows[i])/row;
     printf("%d: (%d,%d)=%f\n",i, rows[i],cols[i],spectra[i]/=spectrumi[narray-1]);
     createPlan( locplan+i, rows[i], cols[i]);
   }
@@ -119,19 +133,74 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
     spectrumfile<<1+stepsize*i+skiplambda<<" "<<spectra[i]/narray*nlambda<<std::endl;
   }
   spectrumfile.close();
-  calcPixelWeights();
   return spectrumi[narray-1];
 }
-void broadBand::resetSpectra(){
+Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
+  nmiddle = 0;
+  row = nrow;
+  column = ncol;
+  thisrow = row+2*jump;
+  thiscol = column+2*jump;
+  Real skiplambda = 2./row*skip;
+  Real factor = Real(thisrow)/row;
+  nlambda = log(lambdasi[narray-1]/(skiplambda+1))/log(factor)+1;
+  myMalloc(double, spectra, nlambda);
+  myMalloc(double, lambdas, nlambda);
+  ofstream spectrumfile;
+  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  for(int i = 0; i < narray; i++){
+    spectrumfile<<lambdasi[i]<<" "<<spectrumi[i]/spectrumi[narray-1]<<std::endl;
+  }
+  spectrumfile.close();
+  lambdasi[0] /= (1+skiplambda);
+  for(int i = 1; i < narray; i++){
+    lambdasi[i] /= (1+skiplambda);
+    spectrumi[i] += spectrumi[i-1];
+  }
+  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, narray);
+  gsl_spline_init (spline, lambdasi, spectrumi, narray);
+  Real cumprev = 0;
+  lambdas[0] = 1;
+  for(int i = 0; i < nlambda-1; i++){
+    lambdas[i+1] = lambdas[i]*factor;
+    double cumnow = gsl_spline_eval (spline, lambdas[i]*(1+factor)/2, acc);
+    spectra[i] = cumnow-cumprev;
+    cumprev = cumnow;
+  }
+  spectra[nlambda-1] = spectrumi[narray-1]-cumprev;
+  gsl_spline_free (spline);
+  gsl_interp_accel_free (acc);
+
+  myMalloc(int, locplan, 1);
+  createPlan(locplan, thisrow, thiscol);
+  spectrumfile.open("spectra.txt", std::ios::out);
+  for(int i = 0; i < nlambda; i++){
+    spectra[i]/=spectrumi[narray-1];
+    spectrumfile<<lambdas[i]+skiplambda<<" "<<spectra[i]/narray*nlambda/lambdas[i]<<std::endl;
+  }
+  spectrumfile.close();
+  myCuMalloc(complexFormat, cache, thisrow*thiscol);
+  return spectrumi[narray-1];
+}
+void broadBand_base::resetSpectra(){
   for(int i = 0; i < nlambda; i++){
     spectra[i] = 1./nlambda;
   }
 }
-void broadBand::writeSpectra(const char* filename){
+void broadBand_base::writeSpectra(const char* filename, Real factor){
   std::ofstream spectrafile;
   spectrafile.open(filename,ios::out);
   for(int i = 0; i < nlambda; i++){
-    spectrafile<<Real(rows[i])/rows[0]<<" "<<spectra[i]<<std::endl;
+    spectrafile<<lambdas[i]*factor<<" "<<spectra[i]<<std::endl;
+  }
+  spectrafile.close();
+}
+void broadBand_constRatio::writeSpectra(const char* filename, Real factor){
+  std::ofstream spectrafile;
+  spectrafile.open(filename,ios::out);
+  for(int i = 0; i < nlambda; i++){
+    spectrafile<<lambdas[i]*factor<<" "<<spectra[i]/lambdas[i]<<std::endl;
   }
   spectrafile.close();
 }
@@ -181,4 +250,98 @@ void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
   myCuFree(d_pattern);
   myCuFree(d_intensity);
   myCuFree(d_patternAmp);
+}
+void broadBand_constRatio::applyAT(complexFormat* src, complexFormat* dest, char zoom){
+  if(zoom == 0) {
+    resize_cuda_image(thisrow, thiscol);
+    pad(src, cache, row, column);
+    myFFTM(*locplan,cache,cache);
+    resize_cuda_image(row, column);
+    cropinner(cache, dest, thisrow, thiscol, 1./(thisrow*thiscol));
+  }else{
+    resize_cuda_image(thisrowp, thiscolp);
+    crop(src, cache, thisrow, thiscol);
+    myFFTM(locplan[1],cache,cache);
+    resize_cuda_image(row, column);
+    cropinner(cache, dest, thisrowp, thiscolp, 1./(thisrowp*thiscolp));
+  }
+  myIFFT(dest, dest);
+}
+void broadBand_constRatio::applyA(complexFormat* src, complexFormat* dest, char zoom){
+  myFFT(src, dest);
+  if(zoom == 0) {
+    resize_cuda_image(thisrow, thiscol);
+    padinner(dest, cache, row, column, 1./(thisrow*thiscol));
+    myIFFTM(*locplan,cache,cache);
+    resize_cuda_image(row, column);
+    crop(cache, dest, thisrow, thiscol);
+  }else{
+    resize_cuda_image(thisrowp, thiscolp);
+    cropinner(dest, cache, row, column, 1./(thisrowp*thiscolp));
+    myIFFTM(locplan[1],cache,cache);
+    resize_cuda_image(row, column);
+    pad(cache, dest, thisrowp, thiscolp);
+  }
+}
+char broadBand_constRatio::nextPattern(complexFormat* currentp, complexFormat* nextp, complexFormat* origin, char transpose){
+  if(patternptr >= nlambda-1) return 0;
+  if(patternptr == 0){
+    patternptr = nmiddle+1;
+    if(transpose)
+      applyAT(origin, nextp, 0);
+    else
+      applyA(origin, nextp, 0);
+    return patternptr;
+  }
+  if(patternptr > nmiddle){
+    if(transpose)
+      applyAT(currentp, nextp, 0);
+    else
+      applyA(currentp, nextp, 0);
+    return ++patternptr;
+  }
+  if(patternptr == nmiddle){
+    if(transpose)
+      applyAT(origin, nextp, 1);
+    else
+      applyA(origin, nextp, 1);
+    return --patternptr;
+  }
+  if(transpose)
+    applyAT(currentp, nextp, 1);
+  else
+    applyA(currentp, nextp, 1);
+  return --patternptr;
+}
+char broadBand_constRatio::skipPattern(){
+  if(patternptr >= nlambda-1) return 0;
+  if(patternptr >= nmiddle){
+    patternptr++;
+  }else{
+    if(patternptr == 0){
+      patternptr = nmiddle+1;
+    }else{
+      patternptr--;
+    }
+  }
+  return 1;
+}
+void broadBand_constRatio::generateMWL(void* d_input, void* d_patternSum, void* single){
+  myCuDMalloc(complexFormat, cache, thisrow*thiscol);
+  myCuDMalloc(complexFormat, d_inputWave, row*column);
+  resize_cuda_image(row, column);
+  extendToComplex( (Real*)d_input, d_inputWave);
+  myFFT(d_inputWave, d_inputWave);
+  applyNorm(d_inputWave, 1./sqrt(row*column));
+  cudaConvertFO(d_inputWave);
+  getMod2(d_inputWave, d_inputWave);
+  myMemcpyD2D(single, d_inputWave, row*column*sizeof(complexFormat));
+  getReal((Real*)d_patternSum, d_inputWave, spectra[0]);
+
+  for(int i = 1; i < nlambda; i++){
+    applyA(d_inputWave, d_inputWave);
+    addReal((Real*)d_patternSum, d_inputWave, spectra[i]);
+  }
+  myCuFree(cache);
+  myCuFree(d_inputWave);
 }

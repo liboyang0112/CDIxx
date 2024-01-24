@@ -63,12 +63,14 @@ void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int ke
 void shiftWave(complexFormat* wave, Real shiftx, Real shifty);
 void shiftMiddle(complexFormat* wave);
 void getMod(Real* mod, complexFormat* amp);
-void getReal(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
 void assignReal(Real* mod, complexFormat* amp);
 void assignImag(Real* mod, complexFormat* amp);
-void getMod2(Real* mod, complexFormat* amp);
-void addMod2(Real* mod, complexFormat* amp, Real norm);
+void getMod2(Real* mod2, complexFormat* amp);
+void getMod2(complexFormat* mod2, complexFormat* amp);
+void addMod2(Real* mod2, complexFormat* amp, Real norm = 1);
+void addReal(Real* mod, complexFormat* amp, Real norm = 1);
+void getReal(Real* mod, complexFormat* amp, Real norm = 1);
 void getMod2(Real* mod2, Real* mod);
 void applyPoissonNoise(Real* wave, Real noiseLevel, void *state, Real scale = 0);
 void applyPoissonNoise_WO(Real* wave, Real noiseLevel, void *state, Real scale = 0);

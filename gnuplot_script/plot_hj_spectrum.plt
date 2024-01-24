@@ -1,5 +1,6 @@
 
 #file_raw = "spectrum.txt"
+#file_raw = "spectra_raw.txt"
 file_raw = "spectTccd.txt"
 file = "spectrum_solved.txt"
 #file_raw = "spectra_raw.txt"

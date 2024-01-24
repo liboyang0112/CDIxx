@@ -221,6 +221,7 @@ void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
   inverseMatrixEigen(matrix, n);
   double maxval = 0;
   for(int i = 0; i < n; i++){
+    out[i] = 0;
     double val = 0;
     for(int j = 0; j < n; j++){
       double &val1 = matrix[i+j*n];
@@ -230,6 +231,7 @@ void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
     if(maxval < val) maxval = val;
   }
   double step_lambda = 1./maxval;
+  printf("maxval = %f\n", maxval);
   int niter = 60000;
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
 }

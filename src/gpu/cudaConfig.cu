@@ -528,9 +528,13 @@ cuFuncc(getMod,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,
     cuda1Idx()
     mod[index] = cuCabsf(amp[index]);
     })
-cuFuncc(getReal,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
+cuFuncc(getReal,(Real* mod, complexFormat* amp, Real norm),(Real* mod, cuComplex* amp, Real norm),(mod,(cuComplex*)amp, norm),{
     cuda1Idx()
-    mod[index] = amp[index].x;
+    mod[index] = amp[index].x*norm;
+    })
+cuFuncc(addReal,(Real* mod, complexFormat* amp, Real norm),(Real* mod, cuComplex* amp, Real norm),(mod,(cuComplex*)amp, norm),{
+    cuda1Idx()
+    mod[index] += amp[index].x*norm;
     })
 cuFuncc(getImag,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
@@ -548,6 +552,12 @@ cuFuncc(getMod2,(Real* mod2, complexFormat* amp),(Real* mod2, cuComplex* amp),(m
     cuda1Idx()
     cuComplex tmp = amp[index];
     mod2[index] = tmp.x*tmp.x + tmp.y*tmp.y;
+    })
+cuFuncc(getMod2,(complexFormat* mod2, complexFormat* amp),(cuComplex* mod2, cuComplex* amp),((cuComplex*)mod2,(cuComplex*)amp),{
+    cuda1Idx()
+    cuComplex tmp = amp[index];
+    mod2[index].x = tmp.x*tmp.x + tmp.y*tmp.y;
+    mod2[index].y = 0;
     })
 cuFuncc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(Real* mod2, cuComplex* amp, Real norm),(mod2,(cuComplex*)amp,norm),{
     cuda1Idx()

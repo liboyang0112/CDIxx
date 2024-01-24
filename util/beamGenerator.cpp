@@ -20,13 +20,27 @@ uint16_t inline setHole(int x, int y){
   if(r < 3) return maxpix;
   return 0;
 };
+uint16_t inline setHoleArray(int x, int y){
+  int offset = 15;
+  int r = 8, interval = 25;
+  int r2 = r*r;
+  for(int i = 0; i < 10; i++){
+  for(int j = 0; j < 10; j++){
+    int centx = offset + i*interval;
+    int centy = offset + j*interval;
+    Real dist = sqSum(centx-x, centy-y);
+    if(dist < r2) return maxpix;
+  }}
+  return 0;
+};
 int main(int argc, char** argv )
 {
-  int rows = 512, cols = 512, idx = 0;
+  int rows = 256, cols = 256, idx = 0;
   myDMalloc(uint16_t, image, rows*cols);
   for(int i = 0; i < rows; i++){
     for(int j = 0; j < cols; j++){
       image[idx] = setHole(i,j);
+      image[idx] = setHoleArray(i,j);
       idx++;
     }
   }
