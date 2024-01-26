@@ -102,7 +102,6 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 }
 
 int main(int argc, char** argv){
-  if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
   char training = 0;
   int ntraining = 1;
@@ -154,7 +153,7 @@ int main(int argc, char** argv){
   resize_cuda_image(objrow, objcol);
   double* lambdas, *spectra;
   mwl.jump = cdi.spectrumSamplingStep;
-  mwl.skip = mwl.jump/2;
+  mwl.skip = 0;
   Real monoLambda = cdi.lambda;
 #if 1
   int lambdarange = 4;
@@ -177,8 +176,8 @@ int main(int argc, char** argv){
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
-  Real startlambda = 480;
-  Real endlambda = 1000;
+  Real startlambda = 2.745;
+  Real endlambda = 12.4;
   int nlambda;
   if(cdi.solveSpectrum) {
     Real minlambda = startlambda/monoLambda;
@@ -190,6 +189,7 @@ int main(int argc, char** argv){
     getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
     printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
+    mwl.writeSpectra("spectra.txt", startlambda);
   }
 #endif
   init_fft(objrow, objcol);
@@ -207,7 +207,6 @@ int main(int argc, char** argv){
   initRand(devstates,seed);
   mwl.devstates = 0;//devstates;
   Real maxmerged = 0;
-  //mwl.writeSpectra("spectra.txt");
   for(int j = 0; j < (training? (training==1? ntraining:ntesting):1); j++){
     if(cdi.runSim){
       if(cdi.domnist) {
@@ -254,20 +253,22 @@ int main(int argc, char** argv){
         extendToComplex(realcache, d_solved);
         ccmemMngr.returnCache(intensity);
       }
+      plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
+      plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
     }
     if(cdi.doIteration){
       extendToComplex(d_patternSum, d_CpatternSum);
-      plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
-      plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
       if(!cdi.solveSpectrum) {
         mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 0, cdi.nIter, 1, 0);
         //applyNorm( d_CpatternSum, 20);
         //applyNorm( d_solved, 20);
         getMod(d_patternSum, d_solved);
         plt.saveFloat(d_patternSum, "pattern");
+        plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
+        plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1, 0, 1);
+        myFFT(d_solved, d_CpatternSum);
+        plt.plotComplex(d_CpatternSum, MOD, 1, 2./mwl.row, ("autocsolved"+to_string(j)).c_str(), 1);
       }
-      plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);
-      plt.plotComplex(d_solved, MOD, 0, 1, ("solvedlog"+to_string(j)).c_str(), 1, 0, 1);
       if(cdi.solveSpectrum) {
         mwl.resetSpectra();
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 1, 1, 0, 1);
@@ -307,8 +308,6 @@ int main(int argc, char** argv){
       //  mwl.writeSpectra("spectra_new.txt");
       //}
 
-      myFFT(d_solved, d_CpatternSum);
-      plt.plotComplex(d_CpatternSum, MOD, 1, 2./mwl.row, ("autocsolved"+to_string(j)).c_str(), 1);
     }
 
   }

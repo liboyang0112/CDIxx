@@ -6,7 +6,7 @@ set ylabel "Intensity"
 #set output "rawspectrum.png"
 set term pdf size 6,3
 set output "rawspectrum.pdf"
-plot "spectrum.txt" title "Spectrum" with lines lt 1 lw 3 lc rgb "blue"
+plot "spectra.txt" title "Spectrum" with lines lt 1 lw 3 lc rgb "blue"
 
 set logscale y
 set output "rawspectrumlog.pdf"

@@ -36,6 +36,7 @@ int main(int argc, char* argv[]){
   myCuDMalloc(complexFormat, refer, row*col);
   myCuDMalloc(complexFormat, d_support, row*col);
   myCuDMalloc(Real, d_pattern, row*col);
+  myCuDMalloc(complexFormat, d_wave, row*col);
   readComplexWaveFront(cfg.pupil.Intensity, cfg.phaseModulation? cfg.pupil.Phase:0, d_intensity, d_phase, row, col);
   resize_cuda_image(row, col);
   createWaveFront( d_intensity, d_phase, (complexFormat*)refer, row, col);
@@ -53,5 +54,8 @@ int main(int argc, char* argv[]){
     plt.plotFloat(d_pattern, MOD, 1, 1, "merged", 0, 0, 0);
     mwl.solvecSpectrum((Real*)d_pattern, 800);
   }
+  extendToComplex(d_pattern,d_wave);
+  myFFT(d_wave,d_wave);
+  plt.plotComplex(d_wave, MOD2, 1, 1, "autocorrelation_merged", 1, 0, 1);
   return 0;
 }
