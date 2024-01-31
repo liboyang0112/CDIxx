@@ -91,7 +91,7 @@ __global__ void fillMatrix(int rows, double* matrix, double* matrix_ext){
 void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* matrix){
   size_t sz = n*sizeof(double);
   double *lambda = (double*)memMngr.borrowCleanCache(sz); // lambdas
-  int szmat = 
+  int szmat =
 #ifdef useLapack
     n*(n+1)/2
 #else

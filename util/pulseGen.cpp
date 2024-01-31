@@ -91,16 +91,16 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
   gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
   gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
   if(0)
-  for(int i = 0; i < nlambda; i++){
-    if(lambdas[i] < ccd_lambda[0]){
-      printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
-      spectrum[i] /= ccd_rate[0];
-    }else if(lambdas[i] > ccd_lambda.back()){
-      printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
-      spectrum[i] /= ccd_rate.back();
-    }else
-    spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
-  }
+    for(int i = 0; i < nlambda; i++){
+      if(lambdas[i] < ccd_lambda[0]){
+        printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
+        spectrum[i] /= ccd_rate[0];
+      }else if(lambdas[i] > ccd_lambda.back()){
+        printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
+        spectrum[i] /= ccd_rate.back();
+      }else
+      spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
+    }
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 }
@@ -186,7 +186,7 @@ int main(int argc, char** argv){
     Real maxlambda = endlambda/monoLambda;
     mwl.init(objrow, objcol, minlambda, maxlambda);
     getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-    //mwl.init(objrow, objcol, 1, 2);
+                                                                                                  //mwl.init(objrow, objcol, 1, 2);
   }else{
     getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
     printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
@@ -292,7 +292,7 @@ int main(int argc, char** argv){
          cdi.setPattern(d_patternSum);
          init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
          cdi.phaseRetrieve();
-       */
+         */
 
       for(int i = 0; i < 0; i++){
         getMod2(cdi.patternData, (complexFormat*)cdi.patternWave);

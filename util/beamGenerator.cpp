@@ -51,9 +51,10 @@ void setHoleArray(uint16_t* arr, int rows, int cols, int randstep) {
   }
 };
 int main(int argc, char **argv) {
-  int rows = 128, cols = 128, idx = 0;
+  int rows = 128, cols = 128;
   myDMalloc(uint16_t, image, rows * cols);
   memset(image, 0, sizeof(uint16_t)*rows*cols);
+  //int idx = 0;
   //for (int i = 0; i < rows; i++) {
   //  for (int j = 0; j < cols; j++) {
   //    image[idx] = setHole(i, j);

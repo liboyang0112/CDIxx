@@ -1,3 +1,4 @@
+#cython:language_level=3
 import ctypes
 cimport numpy as np
 import numpy as np

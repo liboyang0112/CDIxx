@@ -6,7 +6,7 @@ extern "C"{
 #include "cudaConfig.hpp"
 #include "imageFile.hpp"
 void* to_gpu(void* ptr, struct imageFile *f){
-  size_t sz = f->rows*f->cols*typeSizes[f->type];
+  size_t sz = f->rows*f->cols*typeSizes[(int)f->type];
   init_cuda_image();
   resize_cuda_image(f->rows, f->cols);
   plt.init(f->rows, f->cols);

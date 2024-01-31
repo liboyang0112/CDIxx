@@ -85,15 +85,15 @@ AlgoParser::AlgoParser(const char* f){
   subParsersp=new std::vector<AlgoParser*>();
   countp=new std::vector<int>();
   algoListp=new std::vector<int>();
-	int j=0;
+  int j=0;
   std::string formula = f;
-	for(int i=0;f[i]!='\0';i++)
-	{
-		if(f[i]!=' ')
-			formula[j++]=f[i];
-	}
+  for(int i=0;f[i]!='\0';i++)
+  {
+    if(f[i]!=' ')
+      formula[j++]=f[i];
+  }
   formula.resize(j+1);
-	formula[j]='\0';
+  formula[j]='\0';
   printf("%s\n",formula.c_str());
   auto position = formula.find("(");
   while(position!= std::string::npos){
@@ -150,7 +150,7 @@ int AlgoParser::next(){
   }
   if(algoList[currentAlgo]>=nAlgo) {
     int retVal = subParsers[algoList[currentAlgo]-nAlgo]->next();
-    if(retVal==-1) { 
+    if(retVal==-1) {
       currentCount--;
       subParsers[algoList[currentAlgo]-nAlgo]->restart();
       return next();

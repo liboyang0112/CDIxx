@@ -5,7 +5,7 @@
 #include "material.hpp"
 #include "cuPlotter.hpp"
 #include <fstream>
-void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportinput){  //mask file, full image size, 
+void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportinput){  //mask file, full image size,
   myMalloc(complexFormat, cspectrum, nlambda);
   myDMalloc(complexFormat, support, row*column);
   myMemcpyD2H(support, d_supportinput, row*column*sizeof(complexFormat));
@@ -67,7 +67,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
       //if(spectra[j] < 3e-2) continue;
       int thisrow = rows[j];
       int thiscol = cols[j];
-      int M = sqrt(thisrow*thiscol);
+      //int M = sqrt(thisrow*thiscol);
       clearCuMem(d_obj, row*column*sizeof(complexFormat));
       resize_cuda_image(pixCount, 1);
 

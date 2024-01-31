@@ -44,7 +44,7 @@ int main(int argc, char* argv[]){
   resize_cuda_image(row, col);
   createWaveFront( d_intensity, d_phase, (complexFormat*)d_support, row, col);
   mwl.init(row, col, nlambda, lambdas, spectra);
-  mwl.initRefSupport(refer, d_support);  //mask file, full image size, 
+  mwl.initRefSupport(refer, d_support);  //mask file, full image size,
   void* randstate = newRand(row*col);
   if(cfg.runSim){
     mwl.generateMWL(d_pattern, &mat, 100);

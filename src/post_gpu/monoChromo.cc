@@ -108,7 +108,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     if(updateX||i==0||!gs) {
       myIFFT((complexFormat*)d_output, fftb);
     }
-    if(gs && monoidx < nmem) 
+    if(gs && monoidx < nmem)
       myMemcpyD2D(gs[monoidx], d_output, sz);
     if(updateX){
       myMemcpyD2D(deltab, d_input, sz);

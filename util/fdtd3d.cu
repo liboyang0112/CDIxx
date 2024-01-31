@@ -447,18 +447,16 @@ int main(){
   resize_cuda_image(nx,ny);
   plt.init(nx,ny);
   init_cuda_image();
-  
   int ezvid = plt.initVideo("Ez.mp4", 24);
   int hxvid = plt.initVideo("Hx.mp4", 24);
   int hyvid = plt.initVideo("Hy.mp4", 24);
   plt.showVid = -1;//ezvid;
-  
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
-    //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30))); 
+    //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30)));
     if(i < 280) {
-      applySource<<<1,1>>>(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2))); 
-      applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2))); 
+      applySource<<<1,1>>>(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
+      applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
     }//get circular polarized source!
     //applySourceV<<<nblkx,nthd2d>>>(Ez, nx, ny, nz, 100, 5*sin(M_PI/30*i));
 
@@ -483,7 +481,6 @@ int main(){
     applyPMLz0<<<nblkz,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0, nx, ny, nz);
 
     updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //------------UPDATE E-----------
-    
     if(saveField) {
       getYZSlice(slice, Ex, Ey, Ez , nx, ny, nz, 150);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);

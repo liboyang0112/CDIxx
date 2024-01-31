@@ -186,11 +186,11 @@ void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)
     printf("\n");
     fprintf(stderr, "Error: lapack factorization failed for idx %d, %f!\n", errIdx, matrix[getRFPidx(errIdx+1,errIdx+1,n)]);
     abort();
-  }   
+  }
   if(LAPACKE_dpftri(LAPACK_ROW_MAJOR, 'N', 'L', n, matrix)){
     fprintf(stderr, "Error: lapack inverse failed!\n");
     abort();
-  }   
+  }
 #else
   inverseMatrixEigen(matrix, n);
 #endif

@@ -89,7 +89,7 @@ cuFuncc(calcO,(complexFormat* ESW, complexFormat* ISW),(cuComplex* ESW, cuComple
   cuComplex tmp = cuCdivf(ESW[index],ISW[index]);
   /*
      Real ttmp = tmp.y;
-     tmp.y=tmp.x;   
+     tmp.y=tmp.x;
      tmp.x=1-ttmp;
    */
   ESW[index].x=1+tmp.x;

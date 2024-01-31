@@ -56,7 +56,6 @@ void holo::initXCorrelation(){
   cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
   myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   createMask( xcorrelation_support, cuda_spt, 1);
-  
   applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
   plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1, 0, 1);
   myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
@@ -129,7 +128,7 @@ void holo::iterate(){
   clearCuMem(patternWave_obj,  sz*2);
   AlgoParser algo(algorithm);
   int ialgo;
-  for(int i = 0;; i++){
+  while(1){
     ialgo = algo.next();
     if(ialgo < 0) break;
     if(ialgo == shrinkWrap){

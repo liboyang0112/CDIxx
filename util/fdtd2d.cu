@@ -25,7 +25,7 @@ cuFunc(updateH, (Real* Hx, Real* Hy, Real* Ez), (Hx, Hy, Ez),
     }
     );
 cuFunc(updateE, (Real* Hx, Real* Hy, Real* Ez), (Hx, Hy, Ez),{
-    cudaIdx(); 
+    cudaIdx();
     if(x != 0 && y!=0 && x < cuda_row && y < cuda_column){
       Ez[index] += mE*(Hy[index]-Hy[index-1]-Hx[index]+Hx[index-cuda_column]);
     }
@@ -141,7 +141,7 @@ int main(){
   size_t memsz = nnode*sizeof(Real);
   Real *Eprevx1,*Eprevy1;
   Real *Hprevx0,*Hprevy0;
-  //Real *Eprevz1,*Hprevz0; 
+  //Real *Eprevz1,*Hprevz0;
   if(nz != 1 || isTE){
     //Hz = (Real*)memMngr.borrowCleanCache(memsz);
     //Ex = (Real*)memMngr.borrowCleanCache(memsz);
@@ -178,7 +178,7 @@ int main(){
     //applyPeriodicy_E<<<1,nx-1>>>(Ez, nx*(ny-1));
     //applyPeriodicx_E<<<1,ny-1>>>(Ez, nx);
     //applySource<<<1,1>>>(Ez, Hy, Hx, sourcePos, exp(-pow(double(i-100)/30,2)), exp(-pow(double(i-100-dt1)/30,2)),exp(-pow(double(i-100-dt2)/30,2)),nx,ny,nz); //point source
-    applySource<<<1,1>>>(Ez, sourcePos, 10*exp(-pow(double(i-100)/20,2))*sin(M_PI/50*i));//50*exp(-pow(double(i-100)/30,2))); 
+    applySource<<<1,1>>>(Ez, sourcePos, 10*exp(-pow(double(i-100)/20,2))*sin(M_PI/50*i));//50*exp(-pow(double(i-100)/30,2)));
     updateH(Hx, Hy, Ez);
     //applyprePMLx1<<<1,ny-1>>>(Hx, Hy, Ez, Eprevx1, nx, ny);
     //applyprePMLx0<<<1,ny-1>>>(Hx, Hy, Ez, Eprevx1, nx, ny);

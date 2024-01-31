@@ -1,3 +1,4 @@
+#cython:language_level=3
 cimport numpy as np
 import os
 
@@ -18,21 +19,19 @@ class cythonLoader:
         self.lenl = self.rowl*self.coll*self.chanl
         self.pystr = db_path.encode("utf8")
         cdef char* path = self.pystr
-        cdef int handle;
+        cdef int handle = 1;
         self.length = initLMDB(&handle, path)
         self.handle = handle;
         print("Imported dataset:", db_path, ", containing ", self.length, " samples")
     def __getitem__(self, index):
         cdef np.npy_intp len = self.len
         cdef np.npy_intp lenl = self.lenl
-        cdef size_t datasz = len*sizeof(float)
-        cdef size_t labelsz = lenl*sizeof(float)
         cdef handle = self.handle;
         cdef int key = index
-        cdef int ndata;
+        cdef int ndata = 1;
         cdef size_t init_size = self.chan*self.row*self.col*sizeof(float);
         cdef size_t *data_size = &init_size;
-        cdef void **data;
+        cdef void **data = NULL;
         readLMDB(handle, &ndata, &data, &data_size, &key);
         imgnp = np.PyArray_SimpleNewFromData(1, &len, np.NPY_FLOAT, data[0]);
         labnp = np.PyArray_SimpleNewFromData(1, &lenl, np.NPY_FLOAT, data[1]);

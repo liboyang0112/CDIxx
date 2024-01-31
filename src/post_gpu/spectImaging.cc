@@ -12,11 +12,11 @@ void spectImaging::assignRef(void* wavefront, int i){
 }
 void spectImaging::assignRef(void* wavefront){
   assignRef(wavefront, 0);
-  for(int i = 1; i < nlambda; i++) 
+  for(int i = 1; i < nlambda; i++)
     myMemcpyD2D(refs[i], refs[0], pixCount*sizeof(complexFormat));
 }
 
-void spectImaging::initRefs(const char* maskFile){  //mask file, full image size, 
+void spectImaging::initRefs(const char* maskFile){  //mask file, full image size,
   //==create reference mask and it's map: d_maskMap, allocate refs==
   int mrow, mcol;
   Real* refMask = readImage(maskFile, mrow, mcol);

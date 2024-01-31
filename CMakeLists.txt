@@ -1,15 +1,25 @@
 cmake_minimum_required(VERSION 3.22)
 project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
-
-set(CMAKE_CXX_COMPILER "clang++-15") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang-15") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
+set(compileVTK FALSE)
+
 
 enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
 find_package ( CUDAToolkit ) #You have this if you installed CUDA, needed for cufft library
+if(NOT CUDATookit_FOUND)
+set(NVHPC_CUDA_VERSION 12.2)
+find_package(NVHPC REQUIRED COMPONENTS CUDA MATH)
+set(CUFFTLIB NVHPC::MATH)
+else()
+  set(CUFFTLIB CUDA::CUFFT)
+endif()
+
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
+add_compile_options(-Wall)
 
 find_package(PkgConfig REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 
@@ -36,7 +46,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas=-O3 --diag-suppress 20040")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
-target_link_libraries(${libname} CUDA::cufft)
+target_link_libraries(${libname} ${CUFFTLIB})
 set_target_properties( ${libname} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c ${PROJECT_SOURCE_DIR}/src/independant/*c)
@@ -134,6 +144,7 @@ target_link_libraries(testFISTA_run cdi_cc)
 target_link_libraries(simLineSpectrumImaging_run cdi_cc spectImaging_cc material_cc)
 target_link_libraries(spectphase_run readConfig_cc spectPhase_cc material_cc)
 
+if(compileVTK)
 #install it by `apt install libvtk9-dev`
 find_package(VTK COMPONENTS 
   jsoncpp
@@ -161,4 +172,5 @@ foreach( sourcefile ${APP_SOURCES} )
     MODULES ${VTK_LIBRARIES}
     )
 endforeach( sourcefile ${APP_SOURCES} )
-target_link_libraries(testVtk_run WriteVTI_cc)
+#target_link_libraries(testVtk_run WriteVTI_cc)
+endif()

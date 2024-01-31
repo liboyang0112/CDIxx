@@ -12,13 +12,12 @@ static FT_Face       face = 0;
 int putText(const char* text, int initx, int inity, int rows, int cols, void* data, char iscolor, void* rgb)
 {
 
-  FT_Error      error;
 
   int num_chars = strlen( text );
   double angle = ( 00.0 / 360 ) * 3.14159 * 2;      /* use 25 degrees     */
 
-  error = FT_Init_FreeType( &library );              /* initialize library */
-  error = FT_New_Face( library, fontfile, 0, &face );/* create face object */
+  FT_Init_FreeType( &library );              /* initialize library */
+  FT_New_Face( library, fontfile, 0, &face );/* create face object */
   FT_Set_Char_Size(face, 0, 10*64, 0,200 );                /* set character size */
 
   FT_GlyphSlot  slot = face->glyph;
@@ -46,7 +45,7 @@ int putText(const char* text, int initx, int inity, int rows, int cols, void* da
             for(int ic = 0; ic < 3; ic++) ((unsigned char*)data)[3*(rows*(q+y)+p+x)+ic] = ((unsigned char*)rgb)[ic];
           }else{
             ((pixeltype*)data)[rows*(q+y)+p+x] = *(pixeltype*)rgb;
-          }   
+          }
         }
       }
     }

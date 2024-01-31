@@ -162,7 +162,7 @@ cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
 })
 
 cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
-  cuda1Idx();
+  cuda1Idx()
   int y = index%cuda_column;
   out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
 })
