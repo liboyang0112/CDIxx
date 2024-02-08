@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 from torch import utils, tensor
-from libunetDataLoader_cython import cythonLoader
+from unetDataLoader import cythonLoader
 
 class unetDataLoader(utils.data.Dataset):
     def __init__(self, db_path, chan, row, col, chanl, rowl, coll, device, transform=None, target_transform=None):

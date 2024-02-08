@@ -2,20 +2,20 @@ cmake_minimum_required(VERSION 3.22)
 project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_C_COMPILER "clang-15") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 
 enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
 find_package ( CUDAToolkit ) #You have this if you installed CUDA, needed for cufft library
-if(NOT CUDATookit_FOUND)
+if(NOT CUDAToolkit_FOUND)
 set(NVHPC_CUDA_VERSION 12.2)
 find_package(NVHPC REQUIRED COMPONENTS CUDA MATH)
 set(CUFFTLIB NVHPC::MATH)
 else()
-  set(CUFFTLIB CUDA::CUFFT)
+  set(CUFFTLIB CUDA::cufft)
 endif()
 
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
@@ -24,13 +24,17 @@ add_compile_options(-Wall)
 find_package(PkgConfig REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
-pkg_check_modules(GTK REQUIRED gtk4)
+pkg_check_modules(GTK QUIET gtk4)
+if(GTK_FOUND)
 include_directories (${GTK_INCLUDE_DIRS})
+endif()
 #freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
 find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
+find_package( Python REQUIRED COMPONENTS NumPy)
+include_directories(${Python_INCLUDE_DIRS})
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -39,7 +43,6 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 include_directories ("${PROJECT_SOURCE_DIR}/include")
-include_directories (/usr/include/python3.11)
 link_directories(${PROJECT_SOURCE_DIR}/lib)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas=-O3 --diag-suppress 20040")
@@ -60,10 +63,11 @@ endforeach( sourcefile ${APP_SOURCES} )
 file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
 foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".pyx" ".c" cfile ${libname} )
-  string( REPLACE ".pyx" "_cython" libname ${libname} )
-  add_custom_command(OUTPUT ${cfile} COMMAND cython -3 ${sourcefile} --module-name=lib${libname} -o ${cfile} MAIN_DEPENDENCY ${sourcefile})
+  string( REPLACE ".pyx" "" libname ${libname} )
+  set(cfile ${libname}.c)
+  add_custom_command(OUTPUT ${cfile} COMMAND cython -3 ${sourcefile} -o ${cfile} MAIN_DEPENDENCY ${sourcefile})
   add_library(${libname} SHARED ${cfile})
+  SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "")
   target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
 endforeach( sourcefile ${APP_SOURCES} )
 
@@ -83,7 +87,7 @@ foreach( sourcefile ${APP_SOURCES} )
   add_executable( ${exename} ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
-if(DEFINED GTK_LIBRARIES)
+if(GTK_FOUND)
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/gui/*.cpp )
 foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
@@ -119,9 +123,9 @@ target_link_libraries(imgio_cc imgio_c)
 target_link_libraries(cdi_cc experimentConfig_cc mnistData_cc FISTA_cc)
 target_link_libraries(holo_cc cdi_cc)
 
-target_link_libraries(unetDataLoader_cython cdilmdb_c)
-target_link_libraries(imageIO_cython imgio_c)
-target_link_libraries(readHj_cython FGA_cc)
+target_link_libraries(unetDataLoader cdilmdb_c)
+target_link_libraries(imageIO imgio_c)
+target_link_libraries(readHj FGA_cc)
 
 target_link_libraries(fdtd3d_cu cudaLibcommon_cu)
 target_link_libraries(fdtd2d_cu cudaLibcommon_cu)

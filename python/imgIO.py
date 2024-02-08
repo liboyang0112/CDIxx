@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from libimageIO_cython import writeFloat,readImage,writePng
+from imageIO import writeFloat,readImage,writePng
 import numpy as np
 data = readImage("/home/boyang/SharedNTFS/images/einstein.png")
 writeFloat("einstein.bin",data)

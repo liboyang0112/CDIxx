@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from libreadHj_cython import runFGA
+from readHj import runFGA
 
 #data from NP
 Example_variables = np.load('Example_whitelight_experiment.npz')
