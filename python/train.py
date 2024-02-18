@@ -1,19 +1,18 @@
 #!/usr/bin/env python
-import torch
 from os.path import exists
 from os import mkdir
+import torch
 #from Deep import Deep
-from UNet import UNet
-from torch import device, tensor, nn
-from unetDataLoader import unetDataLoader as ul
+from torch import device, tensor, nn, _dynamo
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
-#from torch.utils.tensorboard import SummaryWriter
 from imageIO import writeFloat,readImage,writePng
 import numpy as np
-from torch.nn import functional as F
 from torchvision.transforms import CenterCrop
-import torch._dynamo
-torch._dynamo.config.suppress_errors = True
+from UNet import UNet
+from unetDataLoader import unetDataLoader as ul
+#from torch.utils.tensorboard import SummaryWriter
+_dynamo.config.suppress_errors = True
 
 net = UNet(1,4).cuda()
 #net = Deep(1,7).cuda()

@@ -109,7 +109,6 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   for(int i = 0; i < nlambda-1; i++){
     double cumnow = gsl_spline_eval (spline, lambda+stepsize/2, acc);
     spectra[i] = cumnow-cumprev;
-    printf("%f, %f, %f, %f\n", lambda, cumnow, cumprev, spectra[i]);
     cumprev = cumnow;
     lambda+=stepsize;
   }
@@ -119,6 +118,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
 
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  myMalloc(double, lambdas, nlambda);
   plt.init(row,column);
   locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   for(int i = 0; i < nlambda; i++){

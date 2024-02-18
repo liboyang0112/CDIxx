@@ -3,19 +3,19 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 
 enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
-find_package ( CUDAToolkit ) #You have this if you installed CUDA, needed for cufft library
-if(NOT CUDAToolkit_FOUND)
-set(NVHPC_CUDA_VERSION 12.2)
-find_package(NVHPC REQUIRED COMPONENTS CUDA MATH)
-set(CUFFTLIB NVHPC::MATH)
-else()
+find_package(NVHPC COMPONENTS CUDA MATH)
+if(NOT NVHPC_FOUND)
+find_package ( CUDAToolkit REQUIRED ) #You have this if you installed CUDA, needed for cufft library
   set(CUFFTLIB CUDA::cufft)
+else()
+  set(NVHPC_CUDA_VERSION 12.2)
+  set(CUFFTLIB NVHPC::MATH)
 endif()
 
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
@@ -33,8 +33,9 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package( Python REQUIRED COMPONENTS NumPy)
+find_package( Python 3.11 EXACT REQUIRED COMPONENTS NumPy)
 include_directories(${Python_INCLUDE_DIRS})
+include_directories("/usr/include/ffmpeg")
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -105,7 +106,7 @@ target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
 endif()
 
 
-target_link_libraries(broadBand_cc gsl memManager_cc cuPlotter_cc cudaLibcommon_cu)
+target_link_libraries(broadBand_cc gsl gslcblas memManager_cc cuPlotter_cc cudaLibcommon_cu)
 target_link_libraries(spectImaging_cc broadBand_cc)
 target_link_libraries(spectPhase_cc broadBand_cc)
 target_link_libraries(monoChromo_cc broadBand_cc orthFitter_cc FISTA_cc)

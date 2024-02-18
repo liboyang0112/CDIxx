@@ -2,12 +2,13 @@
 #include "cudaDefs_h.cu"
 #include "imgio.hpp"
 #include <curand_kernel.h>
+#include <cufft.h>
 cudaVars* cudaVar = 0;
 cudaVars* cudaVarLocal = 0;
 dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
-cufftHandle *plan = 0, *planR2C = 0;
+static cufftHandle *plan = 0, *planR2C = 0;
 int2 cuda_imgsz = {0,0};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
@@ -878,8 +879,8 @@ __device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rho
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
   }else{
-    rhonp1.x -= 0.9*rhoprime.x;
-    rhonp1.y -= 0.9*rhoprime.y;
+    rhonp1.x -= 1.2*rhoprime.x;
+    rhonp1.y -= 1.2*rhoprime.y;
   }
 }
 __device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
@@ -887,8 +888,11 @@ __device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rho
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
   }else{
+
     rhonp1.x = beta*rhonp1.x+(1-2*beta)*rhoprime.x;
     rhonp1.y = beta*rhonp1.y+(1-2*beta)*rhoprime.y;
+//    rhonp1.x = beta*(rhonp1.x-rhoprime.x);
+//    rhonp1.y = beta*(rhonp1.y-rhoprime.y);
   }
 }
 __device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){

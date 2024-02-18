@@ -4,7 +4,7 @@
 #include"monoChromo.hpp"
 #include"cub_wrap.hpp"
 
-int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* data)
+int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* data, int niter, int binskip)
 {
     Real* realb = (Real*)memMngr.borrowCache(sizeof(Real)*row*col);
     myMemcpyH2D(realb, data, sizeof(Real)*row*col);
@@ -12,8 +12,8 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     resize_cuda_image(row, col);
     applyNorm(realb, 1./findMax(realb));
     monoChromo mwl;
-    mwl.jump = 10;
-    mwl.skip = 5;
+    mwl.jump = binskip;
+    mwl.skip = mwl.jump/2;
     mwl.init(row, col, lambdas, spectra, nlambda);
     plt.init(row, col);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
@@ -22,7 +22,7 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     plt.saveFloat(realb, "broadpattern");
     plt.plotComplex(complexpattern,MOD,0,1,"logbroadpattern",1,0,1);
     plt.plotComplex(complexpattern,MOD,0,1,"broadpattern",0);
-    mwl.solveMWL(complexpattern, solved, 0, 1, 80, 1, 0);
+    mwl.solveMWL(complexpattern, solved, 0, 1, niter, 1, 0);
     plt.plotComplex(solved,MOD,0,1,"logmonopattern",1, 0, 1);
     plt.plotComplex(solved,MOD,0,1,"monopattern",0);
     getMod(realb, solved);

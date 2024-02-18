@@ -1,7 +1,7 @@
 #ifndef __CUDADEFS_H__
 #define __CUDADEFS_H__
-#include <cufft.h>
 #include "format.hpp"
+#include <cuComplex.h>
 #include <stdio.h>
 #define cuComplex float2
 #define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
@@ -60,7 +60,6 @@ struct cudaVars{
 };
 extern cudaVars* cudaVar;
 extern cudaVars* cudaVarLocal;
-extern cufftHandle *plan, *planR2C;
 extern int2 cuda_imgsz;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line)
