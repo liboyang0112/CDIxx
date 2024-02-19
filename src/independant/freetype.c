@@ -6,7 +6,8 @@
 #include "imgio.hpp"
 #include <stdint.h>
 #include <math.h>
-const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
+const char* fontfile= "/usr/share/fonts/msttcore/timesbi.ttf";
+//const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
 static FT_Library    library;
 static FT_Face       face = 0;
 int putText(const char* text, int initx, int inity, int rows, int cols, void* data, char iscolor, void* rgb)
@@ -19,6 +20,10 @@ int putText(const char* text, int initx, int inity, int rows, int cols, void* da
   FT_Init_FreeType( &library );              /* initialize library */
   FT_New_Face( library, fontfile, 0, &face );/* create face object */
   FT_Set_Char_Size(face, 0, 10*64, 0,200 );                /* set character size */
+  if(!face){
+    fprintf(stderr, "Failed to initialize font face, please check if you have the font:\n%s\nIf not, please use another font.\n", fontfile);
+    abort();
+  }
 
   FT_GlyphSlot  slot = face->glyph;
   FT_Matrix     matrix;                 /* transformation matrix */

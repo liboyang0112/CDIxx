@@ -155,7 +155,7 @@ int main(int argc, char** argv){
   mwl.jump = cdi.spectrumSamplingStep;
   mwl.skip = 0;
   Real monoLambda = cdi.lambda;
-#if 1
+#if 0
   int lambdarange = 4;
   int nlambda = objrow*(lambdarange-1)/2;
   lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
@@ -176,8 +176,8 @@ int main(int argc, char** argv){
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
-  Real startlambda = 2.745;
-  Real endlambda = 12.4;
+  Real startlambda = 480;
+  Real endlambda = 1000;
   int nlambda;
   if(cdi.solveSpectrum) {
     Real minlambda = startlambda/monoLambda;
