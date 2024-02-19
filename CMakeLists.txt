@@ -4,14 +4,14 @@ set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after libr
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
-set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 
 enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
 find_package(NVHPC COMPONENTS CUDA MATH)
 if(NOT NVHPC_FOUND)
-find_package ( CUDAToolkit REQUIRED ) #You have this if you installed CUDA, needed for cufft library
+  find_package ( CUDAToolkit REQUIRED ) #You have this if you installed CUDA, needed for cufft library
   set(CUFFTLIB CUDA::cufft)
 else()
   set(NVHPC_CUDA_VERSION 12.2)
@@ -33,11 +33,19 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package( Python 3.11 EXACT REQUIRED COMPONENTS NumPy)
+find_package( Python  3.11 EXACT REQUIRED COMPONENTS NumPy)
+execute_process(
+    COMMAND python3 -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
+    OUTPUT_VARIABLE SKBLD_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
+find_package ( Cython REQUIRED ) #You have this if you installed CUDA, needed for cufft library
+find_package ( PythonExtensions REQUIRED ) #You have this if you installed CUDA, needed for cufft library
 include_directories(${Python_INCLUDE_DIRS})
 include_directories("/usr/include/ffmpeg")
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -63,13 +71,12 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
 foreach( sourcefile ${APP_SOURCES} )
-  cmake_path(GET sourcefile FILENAME libname)
-  string( REPLACE ".pyx" "" libname ${libname} )
-  set(cfile ${libname}.c)
-  add_custom_command(OUTPUT ${cfile} COMMAND cython -3 ${sourcefile} -o ${cfile} MAIN_DEPENDENCY ${sourcefile})
-  add_library(${libname} SHARED ${cfile})
-  SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "")
-  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
+  string( REPLACE ".pyx" "" libname ${sourcefile} )
+  cmake_path(GET libname FILENAME libname)
+  add_cython_target(${sourcefile} CXX)
+  add_library(${libname} MODULE ${libname})
+  python_extension_module(${libname})
+  install(TARGETS ${libname} LIBRARY DESTINATION ${PROJECT_SOURCE_DIR}/lib)
 endforeach( sourcefile ${APP_SOURCES} )
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
@@ -123,14 +130,11 @@ target_link_libraries(imgio_c tiff png)
 target_link_libraries(imgio_cc imgio_c)
 target_link_libraries(cdi_cc experimentConfig_cc mnistData_cc FISTA_cc)
 target_link_libraries(holo_cc cdi_cc)
-
 target_link_libraries(unetDataLoader cdilmdb_c)
 target_link_libraries(imageIO imgio_c)
 target_link_libraries(readHj FGA_cc)
-
 target_link_libraries(fdtd3d_cu cudaLibcommon_cu)
 target_link_libraries(fdtd2d_cu cudaLibcommon_cu)
-
 target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
 target_link_libraries(cdi_run cdi_cc)
 target_link_libraries(ptycho_run experimentConfig_cc)
