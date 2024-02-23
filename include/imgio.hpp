@@ -9,6 +9,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+void* allocpngrow(void* pngfile);
+void readpngrow(void* pngfile, void* buffer);
+void* readpng(const char* fname, struct imageFile* fdata);
 void writeComplexImage(const char* name, void* data, int row, int column);
 void writeFloatImage(const char* name, void* data, int row, int col);
 Real *readImage_c(const char* name, struct imageFile *fdata, void* funcptr);

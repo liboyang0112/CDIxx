@@ -12,5 +12,7 @@ struct imageFile{
   char type;  // 8bit, 16bit, float, double
   int rows;
   int cols;
+  int nchann;
+  int typesize;
 };
 #endif

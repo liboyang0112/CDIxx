@@ -1,12 +1,12 @@
 #cython:language_level=3
-cimport numpy as np
 import os
+cimport numpy as np
+np.import_array()
 
 cdef extern from "cdilmdb.hpp":
     int initLMDB(int* handle, const char*)
     void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
 
-np.import_array()
 class cythonLoader:
     def __init__(self, db_path, chan, row, col, chanl, rowl ,coll):
         self.row = row;

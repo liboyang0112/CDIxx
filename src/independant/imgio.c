@@ -8,6 +8,16 @@
 #include <math.h>
 png_colorp palette = 0;
 const Real rgb2gray[3] = {0.299,0.587,0.114};
+struct pngdata{
+  png_structp png_ptr;
+  png_infop info_ptr;
+};
+void* allocpngrow(void* pngfilei){
+    struct pngdata* pngfile = pngfilei;
+    png_bytep rowbuf = (png_bytep)png_malloc(pngfile->png_ptr, png_get_rowbytes(pngfile->png_ptr, pngfile->info_ptr));
+    return rowbuf;
+}
+
 Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   void* (*cmalloc)(size_t) = malloc;
   if(funcptr) cmalloc = funcptr;
@@ -81,65 +91,25 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     }
     TIFFClose(tif);
   }else if(!strcmp(fext,".png")){
-    FILE *f = fopen(name, "rb");
-    if (f == NULL){
-      fprintf(stderr, "pngpixel: %s: could not open file\n", name);
-      abort();
-    }
-
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-        NULL, NULL, NULL);
-
-    if (png_ptr == NULL){
-      fprintf(stderr, "pngpixel: out of memory allocating png_struct\n");
-      abort();
-    }
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-
-    if (info_ptr == NULL){
-      fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
-      abort();
-    }
-    int bit_depth, color_type, interlace_method,
-        compression_method, filter_method;
-    png_init_io(png_ptr, f);
-    png_read_info(png_ptr, info_ptr);
-    png_bytep rowbuf = (png_bytep)png_malloc(png_ptr, png_get_rowbytes(png_ptr, info_ptr));
-    if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)&row, (unsigned int*)&col,
-          &bit_depth, &color_type, &interlace_method,
-          &compression_method, &filter_method)){
-      png_error(png_ptr, "pngpixel: png_get_IHDR failed");
-      abort();
-    }
-    fdata->rows = row;
-    fdata->cols = col;
-    fdata->type = REALIDX;
-    png_start_read_image(png_ptr);
-    unsigned int typesize = png_get_bit_depth(png_ptr, info_ptr);
-    if(typesize == 16) png_set_swap(png_ptr);
-    int colortype = png_get_color_type(png_ptr, info_ptr);
-    int nchann;
-    if(colortype == PNG_COLOR_TYPE_GRAY) nchann = 1;
-    else if(colortype == PNG_COLOR_TYPE_RGB) nchann = 3;
-    else{
-      fprintf(stderr, "ERROR: color type not know\n");
-      abort();
-    }
-    ret = (Real*) cmalloc(row*col*sizeof(Real));
-    for(int i = 0; i < col; i++){
-      png_read_row(png_ptr, rowbuf, NULL);
-      int idx = i*row;
-      for(int j = 0; j < row; j++){
-        if(nchann == 1) {
+    struct pngdata* pngfile = readpng(name, fdata);
+    png_structp png_ptr = pngfile->png_ptr;
+    png_infop info_ptr = pngfile->info_ptr;
+    void* rowbuf = allocpngrow(pngfile);
+    ret = (Real*) cmalloc(fdata->rows*fdata->cols*sizeof(Real));
+    for(int i = 0; i < fdata->cols; i++){
+      readpngrow(pngfile, rowbuf);
+      int idx = i*fdata->rows;
+      for(int j = 0; j < fdata->cols; j++){
+        if(fdata->nchann == 1) {
           Real val;
-          if(typesize==8) val = (Real)(((unsigned char*)rowbuf)[j])/255;
+          if(fdata->typesize==8) val = (Real)(((unsigned char*)rowbuf)[j])/255;
           else val = (Real)(((uint16_t*)rowbuf)[j])/65535;
           ret[idx+j] = val;
-        }else if(nchann == 3) {
+        }else if(fdata->nchann == 3) {
           Real val;
           ret[idx+j] = 0;
           for(int ic = 0; ic < 3; ic++){
-            if(typesize==8) val = (Real)(((unsigned char*)rowbuf)[3*j+ic])/255;
+            if(fdata->typesize==8) val = (Real)(((unsigned char*)rowbuf)[3*j+ic])/255;
             else val = (Real)(((uint16_t*)rowbuf)[3*j+ic])/65535;
             ret[idx+j] += val*rgb2gray[ic];
           }
@@ -154,6 +124,51 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     abort();
   }
   return ret;
+}
+void readpngrow(void* pngfile, void* buffer){
+  png_read_row(((struct pngdata*)pngfile)->png_ptr, buffer, NULL);
+}
+
+void* readpng(const char* fname, struct imageFile* fdata){
+  struct pngdata* data = (struct pngdata*) malloc(sizeof(void*)*2);
+    FILE *f = fopen(fname, "rb");
+    if (f == NULL){
+      fprintf(stderr, "pngpixel: %s: could not open file\n", fname);
+      abort();
+    }
+    png_structp png_ptr = data->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+        NULL, NULL, NULL);
+    if (png_ptr == NULL){
+      fprintf(stderr, "pngpixel: out of memory allocating png_struct\n");
+      abort();
+    }
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (info_ptr == NULL){
+      fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
+      abort();
+    }
+    int bit_depth, color_type, interlace_method,
+        compression_method, filter_method;
+    png_init_io(png_ptr, f);
+    png_read_info(png_ptr, info_ptr);
+    if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)&(fdata->rows), (unsigned int*)&(fdata->cols),
+          &bit_depth, &color_type, &interlace_method,
+          &compression_method, &filter_method)){
+      png_error(png_ptr, "pngpixel: png_get_IHDR failed");
+      abort();
+    }
+    fdata->type = REALIDX;
+    png_start_read_image(png_ptr);
+    fdata->typesize = png_get_bit_depth(png_ptr, info_ptr);
+    if(fdata->typesize == 16) png_set_swap(png_ptr);
+    int colortype = png_get_color_type(png_ptr, info_ptr);
+    if(colortype == PNG_COLOR_TYPE_GRAY) fdata->nchann = 1;
+    else if(colortype == PNG_COLOR_TYPE_RGB) fdata->nchann = 3;
+    else{
+      fprintf(stderr, "ERROR: color type %d not know\n", colortype);
+      abort();
+    }
+  return data;
 }
 
 void writeComplexImage(const char* name, void* data, int row, int column){

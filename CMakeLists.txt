@@ -33,17 +33,23 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package( Python  3.11 EXACT REQUIRED COMPONENTS NumPy)
+find_package( Python 3.11 EXACT REQUIRED COMPONENTS NumPy Interpreter)
+set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
+set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS})
+include_directories(${Python_INCLUDE_DIRS})
 execute_process(
-    COMMAND python3 -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
+    COMMAND python -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
     OUTPUT_VARIABLE SKBLD_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+execute_process(
+    COMMAND python -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))" # pip install scikit-build
+    OUTPUT_VARIABLE EXT_SUFFIX
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
-find_package ( Cython REQUIRED ) #You have this if you installed CUDA, needed for cufft library
-find_package ( PythonExtensions REQUIRED ) #You have this if you installed CUDA, needed for cufft library
-include_directories(${Python_INCLUDE_DIRS})
-include_directories("/usr/include/ffmpeg")
+find_package ( Cython REQUIRED )
+include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 #set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
 
@@ -73,9 +79,11 @@ file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
 foreach( sourcefile ${APP_SOURCES} )
   string( REPLACE ".pyx" "" libname ${sourcefile} )
   cmake_path(GET libname FILENAME libname)
-  add_cython_target(${sourcefile} CXX)
-  add_library(${libname} MODULE ${libname})
-  python_extension_module(${libname})
+  add_cython_target(${libname} ${sourcefile} C)
+  add_library(${libname} SHARED ${libname})
+  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
+  SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "")
+  SET_TARGET_PROPERTIES(${libname} PROPERTIES SUFFIX ${EXT_SUFFIX})
   install(TARGETS ${libname} LIBRARY DESTINATION ${PROJECT_SOURCE_DIR}/lib)
 endforeach( sourcefile ${APP_SOURCES} )
 
@@ -152,6 +160,7 @@ target_link_libraries(mono_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(testFISTA_run cdi_cc)
 target_link_libraries(simLineSpectrumImaging_run cdi_cc spectImaging_cc material_cc)
 target_link_libraries(spectphase_run readConfig_cc spectPhase_cc material_cc)
+target_link_libraries(readCCDResponse_run imgio_cc memManager_cc)
 
 if(compileVTK)
 #install it by `apt install libvtk9-dev`
