@@ -28,7 +28,9 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
     rows[i] = nearestEven(row*lambdas_[i]);
     cols[i] = nearestEven(column*lambdas_[i]);
     createPlan(locplan+i, rows[i], cols[i]);
+    file << lambdas_[i] << " " << 0 << endl;
     file << lambdas_[i] << " " << spectra_[i]*nlambda << endl;
+    file << lambdas_[i] << " " << 0 << endl;
   }
   file.close();
 }

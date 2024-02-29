@@ -131,43 +131,43 @@ void readpngrow(void* pngfile, void* buffer){
 
 void* readpng(const char* fname, struct imageFile* fdata){
   struct pngdata* data = (struct pngdata*) malloc(sizeof(void*)*2);
-    FILE *f = fopen(fname, "rb");
-    if (f == NULL){
-      fprintf(stderr, "pngpixel: %s: could not open file\n", fname);
-      abort();
-    }
-    png_structp png_ptr = data->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-        NULL, NULL, NULL);
-    if (png_ptr == NULL){
-      fprintf(stderr, "pngpixel: out of memory allocating png_struct\n");
-      abort();
-    }
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (info_ptr == NULL){
-      fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
-      abort();
-    }
-    int bit_depth, color_type, interlace_method,
-        compression_method, filter_method;
-    png_init_io(png_ptr, f);
-    png_read_info(png_ptr, info_ptr);
-    if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)&(fdata->rows), (unsigned int*)&(fdata->cols),
-          &bit_depth, &color_type, &interlace_method,
-          &compression_method, &filter_method)){
-      png_error(png_ptr, "pngpixel: png_get_IHDR failed");
-      abort();
-    }
-    fdata->type = REALIDX;
-    png_start_read_image(png_ptr);
-    fdata->typesize = png_get_bit_depth(png_ptr, info_ptr);
-    if(fdata->typesize == 16) png_set_swap(png_ptr);
-    int colortype = png_get_color_type(png_ptr, info_ptr);
-    if(colortype == PNG_COLOR_TYPE_GRAY) fdata->nchann = 1;
-    else if(colortype == PNG_COLOR_TYPE_RGB) fdata->nchann = 3;
-    else{
-      fprintf(stderr, "ERROR: color type %d not know\n", colortype);
-      abort();
-    }
+  FILE *f = fopen(fname, "rb");
+  if (f == NULL){
+    fprintf(stderr, "pngpixel: %s: could not open file\n", fname);
+    abort();
+  }
+  png_structp png_ptr = data->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+      NULL, NULL, NULL);
+  if (png_ptr == NULL){
+    fprintf(stderr, "pngpixel: out of memory allocating png_struct\n");
+    abort();
+  }
+  png_infop info_ptr = data->info_ptr = png_create_info_struct(png_ptr);
+  if (info_ptr == NULL){
+    fprintf(stderr, "pngpixel: out of memory allocating png_info\n");
+    abort();
+  }
+  int bit_depth, color_type, interlace_method,
+      compression_method, filter_method;
+  png_init_io(png_ptr, f);
+  png_read_info(png_ptr, info_ptr);
+  if (!png_get_IHDR(png_ptr, info_ptr, (unsigned int*)&(fdata->rows), (unsigned int*)&(fdata->cols),
+        &bit_depth, &color_type, &interlace_method,
+        &compression_method, &filter_method)){
+    png_error(png_ptr, "pngpixel: png_get_IHDR failed");
+    abort();
+  }
+  fdata->type = REALIDX;
+  png_start_read_image(png_ptr);
+  fdata->typesize = png_get_bit_depth(png_ptr, info_ptr);
+  if(fdata->typesize == 16) png_set_swap(png_ptr);
+  int colortype = png_get_color_type(png_ptr, info_ptr);
+  if(colortype == PNG_COLOR_TYPE_GRAY) fdata->nchann = 1;
+  else if(colortype == PNG_COLOR_TYPE_RGB) fdata->nchann = 3;
+  else{
+    fprintf(stderr, "ERROR: color type %d not know\n", colortype);
+    abort();
+  }
   return data;
 }
 

@@ -178,8 +178,8 @@ int main(int argc, char** argv){
   }
   mwl.init(objrow, objcol, nlambda, lambdas, spectra);
 #elif 1
-  Real startlambda = 480;
-  Real endlambda = 1000;
+  Real startlambda = 3.08;
+  Real endlambda = 10.63;
   int nlambda;
   if(cdi.solveSpectrum) {
     Real minlambda = startlambda/monoLambda;

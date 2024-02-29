@@ -25,6 +25,7 @@ int main(int argc, char** argv )
   Real startlambda = 50;
   Real endlambda = 400;
   int tolerance = 50;
+  float dfloor = 0.00631313;
   int row, column;
   unsigned char curveColor[3] = {0, 0, 255};
 
@@ -42,10 +43,10 @@ int main(int argc, char** argv )
   Real *rate = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
   int *count = (int*) ccmemMngr.borrowCleanCache(nlambda*sizeof(int));
 
-  for(int x = start[1]; x>end[1]; x--){
+  for(int x = end[1]; x>start[1]; x--){
     readpngrow(pngfile, rowp);
     for(int y = start[0]; y < end[0] ; y++){
-      if(x == start[1]) lambdas[y-start[0]] = startlambda + (endlambda-startlambda)/(end[0]-start[0])*(y-start[0]);
+      if(x == end[1]) lambdas[y-start[0]] = startlambda + (endlambda-startlambda)/(end[0]-start[0])*(y-start[0]);
       unsigned char* p = rowp+3*y;
       if(onCurve(p, curveColor, tolerance)) {
         Real tmp = Real(start[1]-x)/(start[1]-end[1]);
@@ -55,13 +56,14 @@ int main(int argc, char** argv )
         rate[y-start[0]] += tmp;
         count[y-start[0]] += 1;
       }
-      //else printf("find non-curve at (%d, %d)=[%d, %d, %d]\n", x, y, rowp[y][0], rowp[y][1], rowp[y][2]);
     }
   }
   ofstream outfile;
   outfile.open("ccd_response.txt", ios::out);
   for(int x = 0; x < nlambda; x++){
     if(count[x]) rate[x]/=count[x];
+    rate[x] -= dfloor;
+    if(rate[x] < 0) rate[x] = 0;
     outfile << lambdas[x] << " "<< rate[x] << endl;
   }
   outfile.close();

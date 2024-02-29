@@ -34,24 +34,22 @@ include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
 find_package( Python 3.11 EXACT REQUIRED COMPONENTS NumPy Interpreter)
-set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
-set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS})
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
-    COMMAND python -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
+    COMMAND ${Python_EXECUTABLE} -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
     OUTPUT_VARIABLE SKBLD_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 execute_process(
-    COMMAND python -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))" # pip install scikit-build
+    COMMAND ${Python_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))" # pip install scikit-build
     OUTPUT_VARIABLE EXT_SUFFIX
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
 find_package ( Cython REQUIRED )
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
-#set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -81,10 +79,8 @@ foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET libname FILENAME libname)
   add_cython_target(${libname} ${sourcefile} C)
   add_library(${libname} SHARED ${libname})
-  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
-  SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "")
-  SET_TARGET_PROPERTIES(${libname} PROPERTIES SUFFIX ${EXT_SUFFIX})
-  install(TARGETS ${libname} LIBRARY DESTINATION ${PROJECT_SOURCE_DIR}/lib)
+  target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION) #suppress numpy warning
+  SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "" SUFFIX ${EXT_SUFFIX}) #standard cpython library name
 endforeach( sourcefile ${APP_SOURCES} )
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )

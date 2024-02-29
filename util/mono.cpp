@@ -95,7 +95,7 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
         printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
         spectrum[i] /= ccd_rate.back();
       }else
-      spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
+        spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
     }
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
@@ -107,7 +107,8 @@ int main(int argc, char** argv){
   int ntraining = 1;
   int ntesting = 10;
   int testingstart = ntraining;
-  monoChromo_constRatio mwl;
+  //monoChromo_constRatio mwl;
+  monoChromo mwl;
   CDI cdi(argv[1]);
   //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
   //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
@@ -155,43 +156,52 @@ int main(int argc, char** argv){
   mwl.jump = cdi.spectrumSamplingStep;
   mwl.skip = 0;
   Real monoLambda = cdi.lambda;
-#if 0
-  int lambdarange = 4;
-  int nlambda = objrow*(lambdarange-1)/2;
-  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  for(int i = 0; i < nlambda; i++){
-    lambdas[i] = 1 + 2.*i/objrow;
-    spectra[i] = exp(-pow(i*2./nlambda-1,2))/nlambda; //gaussian, -1,1 with sigma=1
-  }
-  mwl.init(objrow, objcol, lambdas, spectra, nlambda);
-#elif 0
-  const int nlambda = 5;
-  myMalloc(double, lambdas, nlambda);
-  myMalloc(double, spectra, nlambda);
-  double spectratmp[nlambda] = {0.1,0.2,0.3,0.3,0.1};
-  for(int i = 0; i < nlambda; i++){
-    lambdas[i] = 11./(11-2*i);
-    spectra[i] = spectratmp[i];
-  }
-  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-#elif 1
-  Real startlambda = 480;
-  Real endlambda = 1000;
-  int nlambda;
-  if(cdi.solveSpectrum) {
-    Real minlambda = startlambda/monoLambda;
-    Real maxlambda = endlambda/monoLambda;
-    mwl.init(objrow, objcol, minlambda, maxlambda);
-    getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-    //mwl.init(objrow, objcol, 1, 2);
-  }else{
-    getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-    printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
+  if(string(cdi.spectrum) == "gaussian"){
+    int lambdarange = 6;
+    int nlambda = objrow*(lambdarange-1)/2;
+    lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+    spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+    for(int i = 0; i < nlambda; i++){
+      lambdas[i] = 1 + 2.*i/objrow;
+      spectra[i] = exp(-pow(2*(i*2./nlambda-1),2))/nlambda; //gaussian, -1,1 with sigma=1
+    }
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
-    mwl.writeSpectra("spectra.txt", startlambda);
   }
-#endif
+  else if(string(cdi.spectrum) == "comb"){
+    int maxh = 31;
+    float maxl = 6;
+    int minh = maxh / maxl - 2;
+    int nlambda = (maxh - minh)/2;
+    myMalloc(double, lambdas, nlambda);
+    myMalloc(double, spectra, nlambda);
+    float spectsum = 0;
+    for(int i = 0; i < nlambda; i++){
+      lambdas[i] = float(maxh)/(maxh-2*i);
+      spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2)); //gaussian, -1,1 with sigma=1
+      spectsum += spectra[i];
+    }
+    for(int i = 0; i < nlambda; i++){
+       spectra[i]/=spectsum;
+    }
+    mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+  }
+  else{
+    Real startlambda = 3.08;
+    Real endlambda = 10.63;
+    int nlambda;
+    if(cdi.solveSpectrum) {
+      Real minlambda = startlambda/monoLambda;
+      Real maxlambda = endlambda/monoLambda;
+      mwl.init(objrow, objcol, minlambda, maxlambda);
+      getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+                                                                                                    //mwl.init(objrow, objcol, 1, 2);
+    }else{
+      getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
+      printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
+      mwl.init(objrow, objcol, lambdas, spectra, nlambda);
+      mwl.writeSpectra("spectra.txt", startlambda);
+    }
+  }
   init_fft(objrow, objcol);
   int sz = mwl.row*mwl.column*sizeof(Real);
   Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
@@ -210,7 +220,7 @@ int main(int argc, char** argv){
   for(int j = 0; j < (training? (training==1? ntraining:ntesting):1); j++){
     if(cdi.runSim){
       if(cdi.domnist) {
-        mnist_dat[j%nconfig]->setIndex((training==2?testingstart:9)+j);
+        mnist_dat[j%nconfig]->setIndex((training==2?testingstart:0)+j);
         mnist_dat[j%nconfig]->cuRead(d_input);
         resize_cuda_image(mwl.row, mwl.column);
         plt.init(mwl.row, mwl.column);
@@ -240,6 +250,7 @@ int main(int argc, char** argv){
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
         plt.plotComplex(d_solved, MOD, 0, 1, ("singlelog"+to_string(j)).c_str(), 1, 0, 1);
       }
+      clearCuMem(d_solved,sz*2);
     }else{
       myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));
       ccmemMngr.returnCache(intensity);
@@ -285,7 +296,7 @@ int main(int argc, char** argv){
          cdi.setPattern(d_patternSum);
          init_cuda_image(objrow, objcol, 65535, 1./cdi.exposure);
          cdi.phaseRetrieve();
-       */
+         */
 
       for(int i = 0; i < 0; i++){
         getMod2(cdi.patternData, (complexFormat*)cdi.patternWave);
