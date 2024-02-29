@@ -107,8 +107,8 @@ int main(int argc, char** argv){
   int ntraining = 1;
   int ntesting = 10;
   int testingstart = ntraining;
-  //monoChromo_constRatio mwl;
-  monoChromo mwl;
+  monoChromo_constRatio mwl;
+  //monoChromo mwl;
   CDI cdi(argv[1]);
   //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
   //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
