@@ -53,6 +53,11 @@ void init_cuda_image(int rcolor, Real scale){
   if(scale==scale) cudaVarLocal->scale = scale;
   cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
 };
+size_t getGPUFreeMem(){
+    size_t freeBytes, totalBytes;
+    cudaMemGetInfo(&freeBytes, &totalBytes);
+    return freeBytes >> 20;
+}
 void setThreshold(Real val){
   cudaMemcpy(&cudaVar->threshold, &val, sizeof(cudaVarLocal->threshold),cudaMemcpyHostToDevice);
 }

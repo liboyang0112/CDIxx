@@ -63,6 +63,10 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
   thiscolp = column-2*jump;
   Real factor = Real(thisrowp)/row;
   nmiddle = 0;
+  if(maxlambda < 1) {
+    printf("Max lambda is shorter than 1, please check your middle lambda and lambda range\n");
+    abort();
+  }
   myMalloc(int, locplan, 2);
   if(minlambda > 1) {
     fprintf(stderr, "ERROR: minimum lambda > 1 detected, please reset it to 1\n");

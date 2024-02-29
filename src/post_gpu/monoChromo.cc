@@ -305,11 +305,14 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   }
   complexFormat *fbi;
   complexFormat *fbj;
-  int nmem = 128;
+
+  int nmem = 0;
   if(updateA) {
-    gs = (void**)ccmemMngr.borrowCache((nmem)*sizeof(void*));
-    for(int j = 0; j < nmem; j++){
+    gs = (void**)ccmemMngr.borrowCache((nlambda)*sizeof(void*));
+    for(int j = 0; j < nlambda; j++){
       gs[j] = memMngr.borrowCache(sz);
+      nmem++;
+      if(getGPUFreeMem()<1000) break;
     }
   }else {
     fbj = fbi = (complexFormat*)memMngr.borrowCache(sz);

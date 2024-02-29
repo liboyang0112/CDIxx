@@ -23,6 +23,7 @@ void* newRand(size_t sz);
 void clearCuMem(void*, size_t);
 void setThreshold(Real);
 void gpuerr();
+size_t getGPUFreeMem();
 
 class cuMemManager : public memManager{
   void c_malloc(void*& ptr, size_t sz);
