@@ -11,7 +11,7 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     init_cuda_image();
     resize_cuda_image(row, col);
     applyNorm(realb, 1./findMax(realb));
-    monoChromo mwl;
+    monoChromo_constRatio mwl;
     mwl.jump = binskip;
     mwl.skip = mwl.jump/2;
     mwl.init(row, col, lambdas, spectra, nlambda);
@@ -33,6 +33,6 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     myIFFT(solved, complexpattern);
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
-    mwl.writeSpectra("spectra_new.txt");
+    mwl.writeSpectra("spectra_new.txt", lambdas[0]);
     return 0;
 }
