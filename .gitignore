@@ -8,3 +8,4 @@ images
 run
 __pycache__
 html/CDIxx
+html/myenv.sh
