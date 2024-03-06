@@ -17,3 +17,4 @@ if [ -z ${CDI_DIR+x} ] ; then
 fi
 alias cdicd='cd $CDI_DIR'
 alias cdimake='ninja -C $CDI_DIR/build'
+alias cdiremake='cd $CDI_DIR/build ; rm -r * ../lib ../bin ; cmake .. ; ninja ; cd -'

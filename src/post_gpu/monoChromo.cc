@@ -234,13 +234,13 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
          add( (complexFormat*)d_output, fbi, 1+fact1);
          */
     }
+    //myFFT(d_output, d_output);
+    //cudaConvertFO((complexFormat*)d_output);
+    //zeroEdge( (complexFormat*)d_output, 30);
+    //cudaConvertFO((complexFormat*)d_output);
+    //applyNorm((complexFormat*)d_output, 1./(row*column));
+    //myIFFT(d_output, d_output);
   }
-      myFFT(d_output, d_output);
-      cudaConvertFO((complexFormat*)d_output);
-      zeroEdge( (complexFormat*)d_output, 30);
-      cudaConvertFO((complexFormat*)d_output);
-      applyNorm((complexFormat*)d_output, 1./(row*column));
-      myIFFT(d_output, d_output);
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);
@@ -418,6 +418,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       }
       if(beta1){
         updateMomentum( patternstep, momentum, beta1);
+        applyNorm(momentum, 1-0.2*lr);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
@@ -428,6 +429,12 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       forcePositive((complexFormat*)d_output);
     }
   }
+  //myFFT(d_output, d_output);
+  //cudaConvertFO((complexFormat*)d_output);
+  //zeroEdge( (complexFormat*)d_output, 30);
+  //cudaConvertFO((complexFormat*)d_output);
+  //applyNorm((complexFormat*)d_output, 1./(row*column));
+  //myIFFT(d_output, d_output);
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);

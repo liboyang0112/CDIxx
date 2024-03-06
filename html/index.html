@@ -100,16 +100,6 @@ button[disabled] {
       After selecting working folder, you can edit file here</textarea></p>
     <button id="savenote">Save</button>
     <button id="savenote_def">Save As Default</button>
-    <p>Monochromatization Config:</p>
-    <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
-      After selecting working folder, you can edit file here</textarea></p>
-    <button id="savepulse">Save</button>
-    <button id="savepulse_def">Save As Default</button>
-    <p>CDI Reconstruction Config:</p>
-    <p><textarea id="cdiconfig" contenteditable="true" rows="20" cols="80">
-      After selecting working folder, you can edit config file here</textarea></p>
-    <button id="savecdi">Save</button>
-    <button id="savecdi_def">Save As Default</button>
     <p class="warning">Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.</p>
     <p>Upload background: <input type="file" id="background" >
     Upload pattern: <input type="file" id="image" ></p>
@@ -151,16 +141,26 @@ button[disabled] {
     <button id="prepare">Process experimental data</button>
     <br>
     <br>
+    <p><embed id="spectrum_plt" type="application/pdf" width="600" height = "200"></p>
+    <p>Monochromatization Config:</p>
+    <p><textarea id="monoconfig" contenteditable="true" rows="20" cols="80">
+      After selecting working folder, you can edit file here</textarea></p>
+    <button id="savepulse">Save</button>
+    <button id="savepulse_def">Save As Default</button>
     <button id="monochrome_btn">Run Monochromatization</button>
-    <button id="cdi_btn">Run CDI</button>
+    <p><img class="images" id="logimg" width="150" border="0"><img class="images" id="solved" width="150" border="0"><img class="images" id="residual_img" width="150"></p>
+    <p><embed id="residual" type="application/pdf" width="450" height = "300"></p>
     <button id="rotate_btn">Rotate image</button>
     <button id="rotate180_btn">Transpose</button>
     <button id="flip_btn">Flip image</button>
     <button id="reset_btn">Reset image</button></p>
     <!--p><img class="images" id="logimg" width="200" border="0"><img id="spectrum_plt" width="400"></p-->
-    <p><embed id="spectrum_plt" type="application/pdf" width="600" height = "200"></p>
-    <p><img class="images" id="logimg" width="150" border="0"><img class="images" id="solved" width="150" border="0"><img class="images" id="residual_img" width="150"></p>
-    <p><embed id="residual" type="application/pdf" width="450" height = "300"></p>
+    <p>CDI Reconstruction Config:</p>
+    <p><textarea id="cdiconfig" contenteditable="true" rows="20" cols="80">
+      After selecting working folder, you can edit config file here</textarea></p>
+    <button id="savecdi">Save</button>
+    <button id="savecdi_def">Save As Default</button>
+    <button id="cdi_btn">Run CDI</button>
     <p><img class="images" id="recon_input" width="200" border="0"><img class="images" id="recon" width="200" border="0"><img class="images" id="recon_phase" width="200" border="0"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
     <p>Monochromatization log:</p><code id="monolog"></code>

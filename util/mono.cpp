@@ -107,8 +107,6 @@ int main(int argc, char** argv){
   int ntraining = 1;
   int ntesting = 10;
   int testingstart = ntraining;
-  monoChromo_constRatio mwl;
-  //monoChromo mwl;
   CDI cdi(argv[1]);
   //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
   //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
@@ -153,6 +151,8 @@ int main(int argc, char** argv){
   }
   resize_cuda_image(objrow, objcol);
   double* lambdas, *spectra;
+  monoChromo_constRatio mwl;
+  //monoChromo mwl;
   mwl.jump = cdi.spectrumSamplingStep;
   mwl.skip = 0;
   Real monoLambda = cdi.lambda;
@@ -168,16 +168,21 @@ int main(int argc, char** argv){
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   }
   else if(string(cdi.spectrum) == "comb"){
-    int maxh = 31;
-    float maxl = 6;
-    int minh = maxh / maxl - 2;
+    int maxh = 37;
+    int maxl = 6;
+    int minh = ((maxh / maxl)>>1<<1) - 1 ;
     int nlambda = (maxh - minh)/2;
     myMalloc(double, lambdas, nlambda);
     myMalloc(double, spectra, nlambda);
     float spectsum = 0;
     for(int i = 0; i < nlambda; i++){
       lambdas[i] = float(maxh)/(maxh-2*i);
-      spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2)); //gaussian, -1,1 with sigma=1
+        //spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2))*5; //gaussian, -1,1 with sigma=1
+      if(i < 4) spectra[i] = 0.03+i*0.03;
+      else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
+      else if(i == 5) spectra[i] = 0.6;
+      else if(i == 4) spectra[i] = 0.3;
+      else spectra[i] = 0.3+0.08*i;
       spectsum += spectra[i];
     }
     for(int i = 0; i < nlambda; i++){
@@ -186,7 +191,7 @@ int main(int argc, char** argv){
     mwl.init(objrow, objcol, nlambda, lambdas, spectra);
   }
   else{
-    Real startlambda = 630;
+    Real startlambda = 480;
     Real endlambda = 1000;
     int nlambda;
     if(cdi.solveSpectrum) {
@@ -271,8 +276,6 @@ int main(int argc, char** argv){
       extendToComplex(d_patternSum, d_CpatternSum);
       if(!cdi.solveSpectrum) {
         mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 0, cdi.nIter, 1, 0);
-        //applyNorm( d_CpatternSum, 20);
-        //applyNorm( d_solved, 20);
         getMod(d_patternSum, d_solved);
         plt.saveFloat(d_patternSum, "pattern");
         plt.plotComplex(d_solved, MOD, 0, 1, ("solved"+to_string(j)).c_str(), 0);

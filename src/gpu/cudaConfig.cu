@@ -634,8 +634,7 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     source[index].y *= rat;
     })
 
-cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),(cuComplex* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),
-    ((cuComplex*)source, target, bs, loose, iter, noiseLevel),{
+cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel),(cuComplex* source, Real* target, Real *bs, bool loose, int iter, int noiseLevel), ((cuComplex*)source, target, bs, loose, iter, noiseLevel),{
     cuda1Idx()
     Real maximum = vars->scale*0.95;
     Real mod2 = target[index];
