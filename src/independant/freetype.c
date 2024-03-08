@@ -6,7 +6,8 @@
 #include "imgio.hpp"
 #include <stdint.h>
 #include <math.h>
-const char* fontfile= "/usr/share/fonts/msttcore/timesbi.ttf";
+//const char* fontfile= "/usr/share/fonts/msttcore/timesbi.ttf";
+const char* fontfile= "/usr/share/fonts/gsfonts/NimbusRoman-BoldItalic.otf";
 //const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
 static FT_Library    library;
 static FT_Face       face = 0;
