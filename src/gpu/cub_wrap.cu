@@ -39,6 +39,16 @@ struct CustomSum
 };
 static CustomSum sum_op;
 
+struct CustomSqSum
+{
+    template <typename T>
+    __device__ __forceinline__
+    T operator()(const T &a, const T &b) const {
+        return a*a+b*b;
+    }
+};
+static CustomSum sqsum_op;
+
 struct CustomSumReal
 {
   __device__ __forceinline__
@@ -77,6 +87,7 @@ store(findMax);
 store(findMax_int);
 store(findMin_int);
 store(findSum);
+store(findSqSum);
 store(findSumComplex);
 store(findMod2Max);
 store(findSumReal);
@@ -92,6 +103,7 @@ void initCub(){
   initStore(findMax_int);
   initStore(findMin_int);
   initStore(findSum);
+  initStore(findSqSum);
   initStore(findMod2Max);
   initStore(findSumReal);
   initStore(findSumComplex);
@@ -143,6 +155,13 @@ Real findSum(Real* d_in, int num, bool debug=false)
   FUNC(Real, sum_op, Real(0), store_findSum);
   return output;
 }
+
+Real findSqSum(Real* d_in, int num, bool debug=false)
+{
+  FUNC(Real, sqsum_op, Real(0), store_findSqSum);
+  return output;
+}
+
 
 cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
   cuda1Idx();
