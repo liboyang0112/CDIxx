@@ -62,6 +62,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void shiftWave(complexFormat* wave, Real shiftx, Real shifty);
+void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void shiftMiddle(complexFormat* wave);
 void getMod(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
@@ -158,6 +159,8 @@ template <typename T1, typename T2>
 void assignVal(T1* out, T2* input);
 template<typename T>
 void cudaConvertFO(T* data, T* out = 0);
+template<typename T>
+void transpose(T* data, T* out = 0);
 template<typename T>
 void createMask(Real* data, T* spt, bool isFrequency=0);
 template<typename T>

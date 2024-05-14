@@ -27,12 +27,16 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   int row, col;
   if(!strcmp(fext, ".bin")){
     FILE* fin = fopen(name, "r");
-    fread(fdata, sizeof(struct imageFile), 1, fin);
+    if(!fread(fdata, sizeof(struct imageFile), 1, fin)){
+      printf("Warning: file is empty!\n");
+    }
     row = fdata->rows;
     col = fdata->cols;
     size_t datasz = row*col*typeSizes[(int)fdata->type];
     ret = (Real*) cmalloc(datasz);
-    fread(ret, datasz, 1, fin);
+    if(!fread(ret, datasz, 1, fin)){
+      printf("Warning: image is empty!\n");
+    }
     if(fdata->type != REALIDX && fdata->type != COMPLEXIDX){  //only save floats with bin;
       fprintf(stderr, "ERROR: FILETYPE unrecognized: %d\n", fdata->type);
       abort();
@@ -245,7 +249,7 @@ int put_formula(const char* formula, int x, int y, int width, void* data, char i
   char cmd[1000] = "texFormula.sh \"";
   strcat(cmd, formula);
   strcat(cmd, "\" tmp");
-  system(cmd);
+  if(system(cmd)!=0){printf("Warning: cmd filed\n");}
   FILE *f = fopen("out_tmp.png", "rb");
   if (f == NULL){
     fprintf(stderr, "pngpixel: out_tmp.png: could not open file\n");
@@ -282,8 +286,8 @@ int put_formula(const char* formula, int x, int y, int width, void* data, char i
   png_free(png_ptr, rowbuf);
   png_destroy_info_struct(png_ptr, &info_ptr);
   png_destroy_read_struct(&png_ptr, NULL, NULL);
-  system("rm out_tmp.png");
-  system("rm out_tmp.pdf");
+  if(system("rm out_tmp.png")!=0){printf("Warning: cmd filed!\n");};
+  if(system("rm out_tmp.pdf")!=0){printf("Warning: cmd filed!\n");};
   return 0;
 }
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x

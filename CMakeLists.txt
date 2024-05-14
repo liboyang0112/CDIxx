@@ -3,7 +3,8 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_HOST_COMPILER clang++-15) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_CUDA_FLAGS "--allow-unsupported-compiler")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
@@ -41,20 +42,26 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 execute_process(
-    COMMAND ${Python_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))" # pip install scikit-build
+  COMMAND ${Python_EXECUTABLE} -c "import numpy; print(numpy.get_include())" # pip install scikit-build
+    OUTPUT_VARIABLE NUMPY_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+execute_process(
+    COMMAND ${Python_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
     OUTPUT_VARIABLE EXT_SUFFIX
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
 find_package ( Cython REQUIRED )
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
-#set(CMAKE_BUILD_TYPE Debug)
+include_directories(${NUMPY_DIR}) #libav* is in this directory on Fedora
 get_property( dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES )
 
 foreach( dir ${dirs} )
     message( STATUS "include dir=${dir}" )
 endforeach()
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -63,7 +70,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 include_directories ("${PROJECT_SOURCE_DIR}/include")
 link_directories(${PROJECT_SOURCE_DIR}/lib)
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas=-O3 --diag-suppress 20040")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}  -Xptxas=-O3 --diag-suppress 20040")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
@@ -157,6 +164,7 @@ target_link_libraries(propagatorDemo_run cudaLibcommon_cu)
 target_link_libraries(fftDemo_run cudaLibcommon_cu)
 target_link_libraries(zoom_run cudaLibcommon_cu)
 target_link_libraries(processimg_run cudaLibcommon_cu)
+target_link_libraries(takepsnr_run cudaLibcommon_cu)
 target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(mono_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(testFISTA_run cdi_cc)

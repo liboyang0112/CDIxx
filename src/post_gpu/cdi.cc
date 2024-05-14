@@ -168,11 +168,16 @@ void CDI::prepareIter(){
   if(restart){
     imageFile fdata;
     FILE* frestart = fopen(common.restart, "r");
-    if(frestart) fread(&fdata, sizeof(fdata), 1, frestart);
+    if(frestart)
+      if(!fread(&fdata, sizeof(fdata), 1, frestart)){
+        printf("WARNING: file %s is empty!\n", common.restart);
+      }
     if(fdata.rows == row && fdata.cols == column){
       size_t sz = row*column*sizeof(complexFormat);
       complexFormat *wf = (complexFormat*) ccmemMngr.borrowCache(sz);
-      fread(wf, sz, 1, frestart);
+      if(!fread(wf, sz, 1, frestart)){
+        printf("WARNING: file %s is empty!\n", common.restart);
+      }
       myMemcpyH2D(patternWave, wf, sz);
       ccmemMngr.returnCache(wf);
       verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
@@ -241,9 +246,10 @@ void CDI::saveState(){
   resize_cuda_image(row,column);
   plt.init(row,column);
   memMngr.returnCache(tmp);
-
-  if(isFresnel) multiplyFresnelPhase(cuda_gkp1, -d);
-  plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
+  if(isFresnel) {
+    multiplyFresnelPhase(cuda_gkp1, -d);
+    plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
+  }
   Real* tmp2 = (Real*)memMngr.useOnsite(sz/2);
   getMod2( tmp2, (complexFormat*)patternWave);
   myFFTR2C(tmp2, (complexFormat*)tmp2);

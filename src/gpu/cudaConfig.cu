@@ -143,6 +143,19 @@ template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat*
   cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)data, (cuComplex*)(out==0?data:out));
 }
 
+cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if(index >= (cuda_row*cuda_column)/2) return;
+    int indexp = cuda_row*cuda_column - index;
+    T tmp = data[index];
+    out[index]=data[indexp];
+    out[indexp]=tmp;
+    })
+template void transpose<Real>(Real*, Real*);
+template<> void transpose<complexFormat>(complexFormat* data, complexFormat* out){
+  transposeWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)data, (cuComplex*)(out==0?data:out));
+}
+
 template <typename T1, typename T2>
 __global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
   cuda1Idx()

@@ -22,8 +22,10 @@ def writeFloat(path, array):
     fn = path.encode("utf8");
     cdef char* fname = fn;
     print("write to", array.dtype, "image", fname);
-    if array.dtype == np.single or array.dtype == np.double:
+    if array.dtype == np.single:
         writeFloatImage(fname, np.PyArray_BYTES(array), array.shape[0], array.shape[1]);
+    if array.dtype == np.double:
+        writeFloatImage(fname, np.PyArray_BYTES(array.astype(np.single)), array.shape[0], array.shape[1]);
     elif array.dtype == np.csingle or array.dtype == np.cdouble:
         print("write to complex image", fname);
         writeComplexImage(fname, np.PyArray_BYTES(array), array.shape[0],array.shape[1]);

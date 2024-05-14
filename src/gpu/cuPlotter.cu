@@ -91,8 +91,10 @@ void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency
   return cv_data;
 };
 void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
-  if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
+  if(!cuCache_data) {
+    cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
+  }
   process<cuComplex><<<numBlocks,threadsPerBlock>>>(cudaVar, rows, cols, cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
-  cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost);
+  myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
   return cv_data;
 };

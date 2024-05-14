@@ -213,7 +213,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       //multiplyPixelWeight( patternstep, pixel_weight);
       if(beta1){
         updateMomentum( patternstep, momentum, beta1);
-        applyNorm(momentum, 1-0.2*lr);
+        applyNorm(momentum, 1-0.05*lr);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
