@@ -11,7 +11,8 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     init_cuda_image();
     resize_cuda_image(row, col);
     applyNorm(realb, 1./findMax(realb));
-    monoChromo_constRatio mwl;
+    monoChromo mwl;
+    //monoChromo_constRatio mwl;
     mwl.jump = binskip;
     mwl.skip = mwl.jump/2;
     mwl.init(row, col, lambdas, spectra, nlambda);

@@ -8,4 +8,4 @@ Example_variables = np.load('Example_whitelight_experiment.npz')
 B = Example_variables['B']
 spect_I = Example_variables['spect_I']
 spect_lambda = Example_variables['spect_lambda']
-runFGA(B,spect_lambda / spect_lambda[0],spect_I, 100, 5)
+runFGA(B,spect_lambda / spect_lambda[0],spect_I, 100, 1)

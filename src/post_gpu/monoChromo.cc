@@ -55,8 +55,10 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
   resize_cuda_image(row, column);
-  Real lr = 2.;
+  Real lr = 1.4;
+  Real k = 0.8;
   Real beta1 = 1;//0.1;
+  //Real beta1 = 0;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
   if(restart) {
@@ -212,12 +214,13 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       }
       //multiplyPixelWeight( patternstep, pixel_weight);
       if(beta1){
-        updateMomentum( patternstep, momentum, beta1);
-        applyNorm(momentum, 1-0.05*lr);
+        //updateMomentum( patternstep, momentum, 2*beta1);
+        add( momentum, patternstep, 2*beta1);
+        applyNorm(momentum, k);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
-        }else add((complexFormat*)d_output, momentum, lr);
+        }else add((complexFormat*)d_output, momentum, 1);
       }else{
         add( (complexFormat*)d_output, patternstep, lr);
       }
@@ -417,12 +420,12 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
         add((complexFormat*)patternstep, fbi, spectra[j]);
       }
       if(beta1){
-        updateMomentum( patternstep, momentum, beta1);
-        applyNorm(momentum, 1-0.2*lr);
+        updateMomentum( patternstep, momentum, 2*beta1);
+        applyNorm(momentum, 0.8);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
-        }else add((complexFormat*)d_output, momentum, lr);
+        }else add((complexFormat*)d_output, momentum, 1);
       }else{
         add( (complexFormat*)d_output, patternstep, lr);
       }

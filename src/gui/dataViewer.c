@@ -27,7 +27,7 @@ static void dataviewer_app_open(GApplication* app, GFile** file, int nfile, cons
   for(int i = 0; i < nfile; i++)
     dataviewer_window_open (win, file[i]);
   gtk_window_present (GTK_WINDOW (win));
-  gtk_dataviewer_window_save(win);
+  //gtk_dataviewer_window_save(win);
 }
 
 static void dataviewer_app_class_init (DataviewerAppClass *class)

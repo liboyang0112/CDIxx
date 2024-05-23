@@ -104,7 +104,8 @@ void cropinner(complexFormat* src, complexFormat* dest, int row, int col, Real n
 void padinner(Real* src, Real* dest, int row, int col, Real norm);
 void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm);
 void createGauss(Real* data, int sz, Real sigma);
-void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma);
+void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size = 0);
+void ssimMap(Real* output, Real* mu1sq, Real* mu2sq, Real* mu1mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2);
 void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 void zeroEdgey(complexFormat* a, int n);

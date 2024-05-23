@@ -16,9 +16,11 @@ ratio = 1. / STATS_mean_y
 if(max < 1.2*STATS_max_y/STATS_mean_y) max = 1.2*STATS_max_y/STATS_mean_y
 #set title "Spectrum"
 set xlabel "Wavelength (nm)"
-set ylabel "Normalized intensity (a.u.)"
-set yrange [-0.1:max]
-set term pdf size 6,2
+set ylabel "Intensity (a.u.)"
+set yrange [0:max]
+set xrange [632:1000]
+set ytics 2
+set term pdf size 5,2 font ",16"
 set output "spectra.pdf"
 #set term png size 1000,500
 #set output "spectra.png"

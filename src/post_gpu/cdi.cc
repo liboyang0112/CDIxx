@@ -344,6 +344,7 @@ void* CDI::phaseRetrieve(){
   addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
   getMod2(cuda_objMod, cuda_objMod);
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
+  initCub();
   residual = findSum(cuda_objMod);
   printf("residual= %f\n",residual);
 

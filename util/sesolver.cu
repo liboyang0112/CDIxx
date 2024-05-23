@@ -43,18 +43,26 @@ __global__ void Hpsifunc(Real* psi, Real* V, Real* Hpsi, int nx, int ny, int nz,
     Hpsi[index] -= psi[index - nx];
   }
 }
-__global__ void initV(Real* V, int nx, int ny, int nz, Real val)
+__global__ void initV(Real* V, int cuda_row, int cuda_column, int cuda_height, Real val)
 {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= nx*ny*nz) return;
-  int x = index%nx;
-  int y = (index/nx)%ny;
-  int z = index/(nx*ny);
-  Real xmid = nx/2-0.5;
-  Real ymid = ny/2-0.5;
+  cuda3Idx()
+  int &nx = cuda_row;
+  int &ny = cuda_column;
+  int &nz = cuda_height;
+  Real xmid = nx/2-0.5-2;
+  Real ymid = ny/2-0.5-1;
   Real zmid = nz/2-0.5;
   Real r2 = sq(x-xmid) + sq(y-ymid) + sq(z-zmid);
-  V[index] = val/sqrt(r2);
+  V[index] = -val/sqrt(r2);
+  Real xmid1 = nx/3-0.5;
+  Real ymid1 = ny/3-0.5;
+  Real zmid1 = nz/2-0.5;
+  Real xmid2 = nx*2/3-0.5;
+  Real ymid2 = ny*2/3-0.5;
+  Real zmid2 = nz/2-0.5;
+  Real r21 = sq(x-xmid1) + sq(y-ymid1) + sq(z-zmid1);
+  Real r22 = sq(x-xmid2) + sq(y-ymid2) + sq(z-zmid2);
+  V[index] += val/sqrt(r21) + val/sqrt(r22);
 }
 cuFunc(getXYSlice,(Real* slice, Real* data, int nx, int ny, int iz), (slice, data, nx, ny, iz), {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -77,7 +85,7 @@ cuFunc(getYZSlice,(Real* slice, Real* data, int nx, int ny, int nz, int ix), (sl
   slice[index] = data[idx];
 })
 int main(){
-  int nsteps = 400;
+  int nsteps = 2000;
   const int nx = 200;
   const int ny = 200;
   const int nz = 200;
@@ -120,6 +128,7 @@ int main(){
   for(int i = 0; i < nsteps; i++){
     resize_cuda_image(nx*ny,nz);
     add(psi, H2psi, mom, 1-beta);
+    if(i > 100) beta = 0.01;
     Hpsifunc<<<nblk,nthd>>>(psi, V, Hpsi, nx, ny, nz, -12);
     myMemcpyD2D(psi,H2psi,nx*ny*nz*sizeof(Real));
     Hpsifunc<<<nblk,nthd>>>(Hpsi, V, H2psi, nx, ny, nz, -12);
@@ -128,7 +137,7 @@ int main(){
     if(norm!=norm) abort();
     applyNorm(H2psi, 1./sqrt(norm));
     add(mom, H2psi, psi, -1);
-    if(i%1==0) {
+    if(i%3==0) {
       resize_cuda_image(nx,ny);
       getXYSlice(slice, H2psi , nx, ny, nz/2);
       plt.toVideo = psivid;

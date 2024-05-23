@@ -4,8 +4,8 @@
 #include <cuComplex.h>
 #include <stdio.h>
 #define cuComplex float2
-#define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, args
-#define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, x
+#define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, args
+#define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, int cuda_height, x
 #define cuFunc(name,args,param,content...)\
   __global__ void name##Wrap(addVarArg args) content \
   void name args{\
@@ -50,6 +50,13 @@
   if(index >= cuda_row*cuda_column) return;\
   int x = index/cuda_column;\
   int y = index%cuda_column;
+#define cuda3Idx() \
+  int index = blockIdx.x * blockDim.x + threadIdx.x;\
+  if(index >= cuda_row*cuda_column*cuda_height) return;\
+  int z = index/(cuda_row*cuda_column);\
+  int idxxy = index-z*(cuda_row*cuda_column);\
+  int x = idxxy%cuda_row;\
+  int y = idxxy/cuda_row;
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
 struct cudaVars{
@@ -60,7 +67,7 @@ struct cudaVars{
 };
 extern cudaVars* cudaVar;
 extern cudaVars* cudaVarLocal;
-extern int2 cuda_imgsz;
+extern int3 cuda_imgsz;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line)
 {

@@ -2,6 +2,7 @@
 #include "cudaDefs_h.cu"
 #include "imgio.hpp"
 #include <curand_kernel.h>
+#include <cub_wrap.hpp>
 #include <cufft.h>
 cudaVars* cudaVar = 0;
 cudaVars* cudaVarLocal = 0;
@@ -9,7 +10,7 @@ dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
 static cufftHandle *plan = 0, *planR2C = 0;
-int2 cuda_imgsz = {0,0};
+int3 cuda_imgsz = {0,0,1};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
 cuMemManager memMngr;
@@ -35,6 +36,12 @@ void resize_cuda_image(int rows, int cols){
   cuda_imgsz.x = rows;
   cuda_imgsz.y = cols;
   numBlocks.x=(rows*cols-1)/threadsPerBlock.x+1;
+}
+void resize_cuda_volumn(int rows, int cols, int layers){
+  cuda_imgsz.x = rows;
+  cuda_imgsz.y = cols;
+  cuda_imgsz.z = layers;
+  numBlocks.x=(rows*cols*layers-1)/threadsPerBlock.x+1;
 }
 void init_cuda_image(int rcolor, Real scale){
   const int sz = sizeof(cudaVars);
@@ -140,7 +147,7 @@ cuFuncTemplate(cudaConvertFO, (T* data, T* out),(data,out==0?data:out),{
     })
 template void cudaConvertFO<Real>(Real*, Real*);
 template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat* out){
-  cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)data, (cuComplex*)(out==0?data:out));
+  cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)data, (cuComplex*)(out==0?data:out));
 }
 
 cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
@@ -153,22 +160,22 @@ cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
     })
 template void transpose<Real>(Real*, Real*);
 template<> void transpose<complexFormat>(complexFormat* data, complexFormat* out){
-  transposeWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)data, (cuComplex*)(out==0?data:out));
+  transposeWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
 }
 
 template <typename T1, typename T2>
-__global__ void assignValWrap(int cuda_row, int cuda_column, T1* out, T2* input){
+__global__ void assignValWrap(int cuda_row, int cuda_column, int cuda_height, T1* out, T2* input){
   cuda1Idx()
     out[index] = input[index];
 }
 template <typename T1, typename T2>
 void assignVal(T1* out, T2* input){
-  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,out,input);
+  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, out, input);
 }
 template void assignVal<Real,Real>(Real*, Real*);
 template void assignVal<Real,double>(Real*, double*);
 template<> void assignVal<complexFormat, complexFormat>(complexFormat* out, complexFormat* input){
-  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y,(cuComplex*)out,(cuComplex*)input);
+  assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)out,(cuComplex*)input);
 }
 
 cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx, Real midy),(src,dest,row,col,midx,midy),{
@@ -184,7 +191,7 @@ cuFuncTemplate(crop,(T* src, T* dest, int row, int col, Real midx, Real midy),(s
     })
 template void crop<Real>(Real*, Real*, int, int, Real, Real);
 template<> void crop<complexFormat>(complexFormat* src, complexFormat* dest, int row, int col, Real midx, Real midy){
-  cropWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)src, (cuComplex*)dest, row, col, midx, midy);
+  cropWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)src, (cuComplex*)dest, row, col, midx, midy));
 }
 
 
@@ -195,6 +202,15 @@ cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuCompl
     object[index] = cuCmulf(object[index],tmp);
     })
 
+cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
+    cuda1Idx()
+    data[index].x*=factor;
+    data[index].y*=factor;
+    })
+cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
+    cuda1Idx()
+    data[index]*=factor;
+    })
 
 void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
   myFFT(wave, wave);
@@ -235,10 +251,10 @@ __global__ void createGaussKernel(Real* data, int sz, Real sigma){
 
 void createGauss(Real* data, int sz, Real sigma){
   createGaussKernel<<<(sz*sz-1)/threadsPerBlock.x+1,threadsPerBlock>>>(data, sz, sigma);
+  applyNormWrap<<<(sz*sz-1)/threadsPerBlock.x+1,threadsPerBlock>>> (addVar(data, Real(1./findSum(data))));
 }
-void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma){
-  int size = floor(sigma*6); // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
-  size = size>>1;
+void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size){
+  if(size == 0) size = int(floor(sigma*6))>>1; // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
   int width = (size<<1)+1;
   createGauss(gaussMem, width, sigma);
   applyConvolution((sq(width-1+16)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
@@ -293,15 +309,6 @@ cuFuncShared(applyConvolution,(Real *input, Real *output, Real* kernel, int kern
     output[index] = n_output;
     })
 
-cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
-    cuda1Idx()
-    data[index].x*=factor;
-    data[index].y*=factor;
-    })
-cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
-    cuda1Idx()
-    data[index]*=factor;
-    })
 cuFunc(interpolate,(Real* out, Real* data0, Real* data1, Real dx),(out, data0,data1,dx),{
     cuda1Idx()
     out[index] = data0[index]*(1-dx) + data1[index]*dx;
@@ -1222,6 +1229,12 @@ cuFuncc(zeroEdgey,(complexFormat* a, int n),(cuComplex* a, int n),((cuComplex*)a
     a[index] = cuComplex();
     })
 
+cuFunc(ssimMap,(Real* output, Real* mu1sq, Real* mu2sq, Real* mu1mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2),(output, mu1sq, mu2sq, mu1mu2, sigma1sq, sigma2sq, sigma12, C1, C2),{
+    cuda1Idx()
+    output[index] = (2*mu1mu2[index]+C1)*(2*sigma12[index]+C2)/((mu1sq[index]+mu2sq[index]+C1)*(sigma1sq[index]+sigma2sq[index]+C2));
+    if(output[index] > 1) printf("output=(2*%f)*(2*%f)/(%f+%f)(%f+%f)=%f\n", mu1mu2[index], sigma12[index], mu1sq[index], mu2sq[index], sigma1sq[index], sigma2sq[index], output[index]);
+    })
+
 cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx, int shifty),(src, dest, row, col, shiftx, shifty),{
     cudaIdx()
     int marginx = (cuda_row-row)/2+shiftx;
@@ -1235,7 +1248,7 @@ cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx, int shifty),(
     })
 template void pad<Real>(Real*, Real*, int, int, int, int);
 template<> void pad<complexFormat>(complexFormat* src, complexFormat* dest, int row, int col, int shiftx, int shifty){
-  padWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, (cuComplex*)src, (cuComplex*)dest, row, col, shiftx, shifty);
+  padWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)src, (cuComplex*)dest, row, col, shiftx, shifty));
 };
 
 cuFuncTemplate(refine,(T* src, T* dest, int refinement),(src,dest,refinement),{
