@@ -1,11 +1,49 @@
-#include "cuPlotter.hpp"
+#include "format.hpp"
+enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cudaDefs_h.cu"
-#include "cudaConfig.hpp"
-void cuPlotter::freeCuda(){
-  if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
-  if(cuCache_float_data) { memMngr.returnCache(cuCache_float_data); cuCache_float_data = 0;}
-}
-
+__device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
+    H*=6;
+    char hi = floor(H);
+    Real f = H - hi;
+    unsigned char p = floor(V*(1-S)*255);
+    unsigned char q = floor(V*(1-f*S)*255);
+    unsigned char t = floor(V*(1-(1-f)*S)*255);
+    unsigned char Vi = floor(V*255);
+    switch(hi){
+        case 0:
+          rgb[0] = Vi;
+          rgb[1] = t;
+          rgb[2] = p;
+          break;
+        case 1:
+          rgb[0] = q;
+          rgb[1] = Vi;
+          rgb[2] = p;
+          break;
+        case 2:
+          rgb[0] = p;
+          rgb[1] = Vi;
+          rgb[2] = t;
+          break;
+        case 3:
+          rgb[0] = p;
+          rgb[1] = q;
+          rgb[2] = Vi;
+          break;
+        case 4:
+          rgb[0] = t;
+          rgb[1] = p;
+          rgb[2] = Vi;
+          break;
+        case 5:
+          rgb[0] = Vi;
+          rgb[1] = p;
+          rgb[2] = q;
+          break;
+        default:
+          rgb[0] = rgb[1] = rgb[2] = -1;
+    }
+};
 __device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, bool islog){
   Real target = 0;
   switch(m){
@@ -57,8 +95,7 @@ __device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool is
   return ret;
 }
 
-template <typename T>
-__global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cudaData, pixeltype* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0){
+cuFuncTemplate(process,(void* cudaData, pixeltype* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0),(cudaData, cache, m, isFrequency, decay, islog, isFlip),{
   cudaIdx()
   int halfrow = cuda_row>>1;
   int halfcol = cuda_column>>1;
@@ -77,24 +114,29 @@ __global__ void process(cudaVars* vars, int cuda_row, int cuda_column, void* cud
     target=vars->rcolor-1;
   }
   cache[targetx*cuda_column+targety] = floor(target);
+})
+template void process<Real>(void* cudaData, pixeltype* cache, mode m, bool isFrequency, Real decay, bool islog, bool isFlip);
+template<> void process<complexFormat>(void* cudaData, pixeltype* cache, mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  processWrap<cuComplex><<<numBlocks, threadsPerBlock>>>(addVar(cudaData, cache, m, isFrequency, decay, islog, isFlip));
 }
-void cuPlotter::saveFloatData(void* cudaData){
-  cudaMemcpy(cv_float_data, cudaData, rows*cols*sizeof(Real), cudaMemcpyDeviceToHost);
-};
-void cuPlotter::saveComplexData(void* cudaData){
-  cudaMemcpy(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat), cudaMemcpyDeviceToHost);
-};
-void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
-  if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
-  process<Real><<<numBlocks,threadsPerBlock>>>(cudaVar, rows, cols, cudaData, cuCache_data, m, isFrequency, decay, islog, isFlip);
-  cudaMemcpy(cv_data, cuCache_data,rows*cols*sizeof(pixeltype), cudaMemcpyDeviceToHost);
-  return cv_data;
-};
-void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
-  if(!cuCache_data) {
-    cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
+
+cuFunc(process_rgb,(void* cudaData, col_rgb* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0),(cudaData, cache, m, isFrequency, decay, islog, isFlip),{
+  cudaIdx()
+  int halfrow = cuda_row>>1;
+  int halfcol = cuda_column>>1;
+  int targetx = x;
+  int targety = y;
+  if(isFrequency) {
+    targetx = x<halfrow?x+halfrow:(x-halfrow);
+    targety = y<halfcol?y+halfcol:(y-halfcol);
   }
-  process<cuComplex><<<numBlocks,threadsPerBlock>>>(cudaVar, rows, cols, cudaData, cuCache_data, m,isFrequency, decay, islog, isFlip);
-  myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
-  return cv_data;
-};
+  if(isFlip){
+    targetx = cuda_row-x-1;
+  }
+  cuComplex data = ((cuComplex*)cudaData)[index];
+  Real mod = cuCabsf(data)*decay;
+  if(mod > 1) mod = 1;
+  Real phase = atan2(data.y,data.x)/2/M_PI+0.5; //0-1
+  char* col = (char*)(&(cache[targetx*cuda_column+targety]));
+  hsvToRGB(phase, 1, mod, col);
+})

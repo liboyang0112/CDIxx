@@ -147,7 +147,7 @@ cuFuncTemplate(cudaConvertFO, (T* data, T* out),(data,out==0?data:out),{
     })
 template void cudaConvertFO<Real>(Real*, Real*);
 template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat* out){
-  cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(cudaVar, cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)data, (cuComplex*)(out==0?data:out));
+  cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
 }
 
 cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{

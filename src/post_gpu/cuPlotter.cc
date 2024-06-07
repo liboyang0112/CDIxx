@@ -1,8 +1,9 @@
-#include "cuPlotter.hpp"
-#include "memManager.hpp"
-#include "videoWriter.hpp"
 #include <string>
 #include <stdio.h>
+#include "cuPlotter.hpp"
+#include "memManager.hpp"
+#include "cudaConfig.hpp"
+#include "videoWriter.hpp"
 #include "imgio.hpp"
 extern "C" {
 #include "freetype.hpp"
@@ -74,6 +75,16 @@ void cuPlotter::saveVideo(int handle){
 }
 void cuPlotter::init(int rows_, int cols_){
   if(rows==rows_ && cols==cols_) return;
+  freeMem();
+  printf("init plot %d, %d\n",rows_,cols_);
+  rows=rows_;
+  cols=cols_;
+  cv_cache = ccmemMngr.borrowCache(rows*cols*3);
+  cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
+  cuCache_data = memMngr.borrowCache(rows*cols*3);
+}
+
+void cuPlotter::freeMem(){
   if(cv_cache) {
     ccmemMngr.returnCache(cv_cache);
     ccmemMngr.returnCache(cv_data);
@@ -88,15 +99,37 @@ void cuPlotter::init(int rows_, int cols_){
     ccmemMngr.returnCache(cv_complex_data);
     cv_complex_data = 0;
   }
-  printf("init plot %d, %d\n",rows_,cols_);
-  rows=rows_;
-  cols=cols_;
-  cv_cache = ccmemMngr.borrowCache(rows*cols*3);
-  cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
-  freeCuda();
+  if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0;}
+}
+
+void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(!cuCache_data) cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
+  process<Real>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+  myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
+  return cv_data;
+};
+void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(!cuCache_data) {
+    cuCache_data = (pixeltype*) memMngr.borrowCache(rows*cols*sizeof(pixeltype));
+  }
+  process<complexFormat>(cudaData, (pixeltype*)cuCache_data, m,isFrequency, decay, islog, isFlip);
+  myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
+  return cv_data;
+};
+void* cuPlotter::processComplexColor(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(!cuCache_data) {
+    cuCache_data = (col_rgb*) memMngr.borrowCache(rows*cols*sizeof(col_rgb));
+  }
+  process_rgb(cudaData, (col_rgb*)cuCache_data, m,isFrequency, decay, islog, isFlip);
+  myMemcpyD2H(cv_cache, cuCache_data,rows*cols*sizeof(col_rgb));
+  return cv_cache;
+};
+void cuPlotter::plotComplexColor(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
+  processComplexColor(cudaData,m,isFrequency,decay,islog,isFlip);
+  writePng((std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
-  cuPlotter::processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
+  processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, isColor, caption);
 }
 void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
@@ -107,14 +140,14 @@ void cuPlotter::saveComplex(void* cudaData, const char* label){
   if(!cv_complex_data){
     cv_complex_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real)*2);
   }
-  saveComplexData(cudaData);
+  myMemcpyD2H(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat));
   writeComplexImage((std::string(label)+".bin").c_str(), cv_complex_data, rows, cols);
 }
 void cuPlotter::saveFloat(void* cudaData, const char* label){
   if(!cv_float_data){
     cv_float_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real));
   }
-  saveFloatData(cudaData);
+  myMemcpyD2H(cv_float_data, cudaData, rows*cols*sizeof(Real));
   writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
 void* cuPlotter::cvtTurbo(void* icache){
@@ -155,6 +188,6 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
   printf("written to file %s\n", fname.c_str());
 }
 cuPlotter::~cuPlotter(){
-  freeCuda();
+  freeMem();
 }
 

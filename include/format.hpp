@@ -11,6 +11,12 @@ typedef  unsigned short pixeltype;
 typedef uchar pixeltype;
 #endif
 
+typedef struct col_rgb{
+    char r;
+    char g;
+    char b;
+} col_rgb;
+
 const int rcolor=65535;
 enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, cnt};
 

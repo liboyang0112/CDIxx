@@ -21,7 +21,7 @@
   __global__ void name##Wrap(addVarArg args) content \
   template<typename T>\
   void name args{\
-    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+    name##Wrap<T><<<numBlocks, threadsPerBlock>>>(addVar param);\
   }
 #define cuFunccTemplate(name,argsf,argsw,param,content...)\
   template<typename T>\

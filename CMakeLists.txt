@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 project(CDIxx LANGUAGES CXX C)
+
+#Prerequisite: gsl freetype libpng libtiff
+#Optional: Python(Numpy, skbuild, Cython), VTK, GTK
+
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
@@ -22,10 +26,11 @@ endif()
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
 add_compile_options(-Wall)
 
-find_package(PkgConfig REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
-
+find_package(PkgConfig) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
+if(PkgConfig_FOUND)
 pkg_check_modules(GTK QUIET gtk4)
+endif(PkgConfig_FOUND)
 if(GTK_FOUND)
 include_directories (${GTK_INCLUDE_DIRS})
 endif()
@@ -34,7 +39,8 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package( Python REQUIRED COMPONENTS NumPy Interpreter) # pip install numpy
+find_package( Python COMPONENTS NumPy Interpreter) # pip install numpy
+if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
     COMMAND ${Python_EXECUTABLE} -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
@@ -53,15 +59,17 @@ execute_process(
 )
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
 find_package ( Cython REQUIRED )
-include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 include_directories(${NUMPY_DIR}) #libav* is in this directory on Fedora
-get_property( dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES )
+endif(Python_FOUND)
+include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 
-foreach( dir ${dirs} )
-    message( STATUS "include dir=${dir}" )
-endforeach()
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#for debug
+#get_property( dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES )
+#foreach( dir ${dirs} )
+#    message( STATUS "include dir=${dir}" )
+#endforeach()
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -85,6 +93,7 @@ foreach( sourcefile ${APP_SOURCES})
   add_library( ${libname} SHARED ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
+if(Python_FOUND)
 file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
 foreach( sourcefile ${APP_SOURCES} )
   string( REPLACE ".pyx" "" libname ${sourcefile} )
@@ -94,6 +103,7 @@ foreach( sourcefile ${APP_SOURCES} )
   target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION) #suppress numpy warning
   SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "" SUFFIX ${EXT_SUFFIX}) #standard cpython library name
 endforeach( sourcefile ${APP_SOURCES} )
+endif(Python_FOUND)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
 foreach( sourcefile ${APP_SOURCES} )

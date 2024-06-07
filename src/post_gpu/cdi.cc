@@ -243,6 +243,7 @@ void CDI::saveState(){
   plt.init(row/oversampling_spt,column/oversampling_spt);
   plt.plotFloat(tmp1, MOD, 0, 1./max, ("recon_intensity_cropped"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(tmp, PHASE, 0, 1, ("recon_phase_cropped"+save_suffix).c_str(), 0, isFlip);
+  plt.plotComplexColor(tmp, MOD2, 0, 1, ("recon_wave"+save_suffix).c_str(), 0, isFlip);
   resize_cuda_image(row,column);
   plt.init(row,column);
   memMngr.returnCache(tmp);
