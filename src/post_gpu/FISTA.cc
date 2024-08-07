@@ -1,14 +1,9 @@
 #include "tvFilter.hpp"
 #include "cudaConfig.hpp"
 #include <math.h>
-#define swap(x, y) \
-  auto x##swapTMPVariable = x;\
-  x = y;\
-  y = x##swapTMPVariable
 
 void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, Real*)){
   size_t sz = memMngr.getSize(b);
-  Real tk = 0.5+sqrt(1.25);
   Real* pij = (Real*)memMngr.borrowCleanCache(sz);
   Real* qij = (Real*)memMngr.borrowCleanCache(sz);
   Real* lpq = (Real*)memMngr.borrowCache(sz);
@@ -21,17 +16,24 @@ void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, R
   }
   if(applyC) applyC(b, output);
   else myMemcpyD2D(output, b, sz);
+  Real tk = 0.5+sqrt(1.25);
+  Real tkp1, fact1;
+  Real* tmp;
   for(int iter = 0; iter < niter ; iter++){
-    swap(pij, pijprev);
-    swap(qij, qijprev);
+    tmp = pij;
+    pij = pijprev;
+    pijprev = tmp;
+    tmp = qij;
+    qij = qijprev;
+    qijprev = tmp;
     applyNorm( output, 0.125/lambda);
     partialx( output, pij);
     partialy( output, qij);
     add( pij, pijprev, 1);
     add( qij, qijprev, 1);
     diffMax( pij, qij);
-    Real tkp1 = 0.5+sqrt(0.25+tk*tk);
-    Real fact1 = (tk-1)/tkp1;
+    tkp1 = 0.5+sqrt(0.25+tk*tk);
+    fact1 = (tk-1)/tkp1;
     tk = tkp1;
     applyNorm( pij, 1+fact1);
     applyNorm( qij, 1+fact1);

@@ -518,12 +518,13 @@ cuFuncc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, void* s
     if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
     data[index] = dataint-noiseLevel;
     });
-cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exposure),
-    (data,wave,noiseLevel,state,exposure),{
+cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exposure, int rcolor),
+    (data,wave,noiseLevel,state,exposure, rcolor),{
     cuda1Idx()
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*wave[index]*exposure);
-    if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
-    data[index] = Real(dataint-noiseLevel)/vars->rcolor;
+    if(rcolor == 0) rcolor = vars->rcolor;
+    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + rcolor*wave[index]*exposure);
+    if(dataint >= rcolor) dataint = rcolor-1;
+    data[index] = Real(dataint-noiseLevel)/rcolor;
     });
 cuFuncc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(Real* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
     (data,(cuComplex*)wave,noiseLevel,state,exposure),{
@@ -826,6 +827,7 @@ cuFuncc(padinner, (complexFormat* src, complexFormat* dest, int row, int col, Re
 cuFunc(paste, (Real* out, Real* in, int colout, int posx, int posy, bool replace),(out, in, colout, posx, posy, replace),{
     cudaIdx();
     int tidx = (x+posx)*colout + y + posy;
+    if(tidx < 0) return;
     Real data = in[index];
     if(!replace) data += out[tidx];
     out[tidx] = data>1?1:data;

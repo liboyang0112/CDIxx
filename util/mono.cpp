@@ -103,16 +103,16 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 
 int main(int argc, char** argv){
   int handle;
-  char training = 0;
-  int ntraining = 1;
-  int ntesting = 10;
-  int testingstart = ntraining;
+  char training = 1; //0: no DB generation, 1: trainging DB, 2: testing DB
+  int ntraining = 1000;
+  int ntesting = 100;
+  int testingstart = ntraining+100;
   CDI cdi(argv[1]);
-  //int datamerge[] = {2,2,2,2,3,3,3,4,4,4,4};
-  //int datarefine[] ={2,3,4,1,2,3,1,1,2,3,4};
-  int datamerge[] = {1};
-  int datarefine[] ={3};
-  const int nconfig = 1;
+  int datamerge[] = {1,2,2,2,2,3,3,3};
+  int datarefine[] ={3,2,3,4,1,2,3,1};
+  //int datamerge[] = {1};
+  //int datarefine[] ={3};
+  const int nconfig = sizeof(datamerge)/sizeof(int);
   cuMnist *mnist_dat[nconfig];
   int objrow;
   int objcol;
@@ -147,6 +147,7 @@ int main(int argc, char** argv){
       memMngr.returnCache(d_input);
     }
   }else{
+    training = 0;
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
   }
   resize_cuda_image(objrow, objcol);
@@ -191,7 +192,7 @@ int main(int argc, char** argv){
     mwl.init(objrow, objcol, nlambda, lambdas, spectra);
   }
   else{
-    Real startlambda = 480;
+    Real startlambda = 500;
     Real endlambda = 1000;
     int nlambda;
     if(cdi.solveSpectrum) {
@@ -230,13 +231,17 @@ int main(int argc, char** argv){
         resize_cuda_image(mwl.row, mwl.column);
         plt.init(mwl.row, mwl.column);
         pad(d_input, d_obj, objrow/cdi.oversampling, objcol/cdi.oversampling);
-        if(j==0){
+        if(j<nconfig){
           plt.plotFloat(d_obj, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
         }
       }
       mwl.generateMWL(d_obj, d_patternSum, d_solved);
-      if(maxmerged==0) maxmerged = findMax(d_patternSum);
-      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
+      if(maxmerged==0){
+       maxmerged = findMax(d_patternSum);
+       Real rat = findSum(d_patternSum)/maxmerged;
+       printf("ratio = %f\n", rat);
+      }
+      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged, 6553500);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "broad_pattern");
       myMemcpyD2H(merged, d_patternSum, sz);
@@ -250,7 +255,7 @@ int main(int argc, char** argv){
         size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
         fillLMDB(handle, &key, 2, ptrs, sizes);
       }
-      if(j==0){
+      if(j<nconfig){
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
         plt.plotComplex(d_solved, MOD, 0, 1, ("singlelog"+to_string(j)).c_str(), 1, 0, 1);

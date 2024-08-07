@@ -283,7 +283,8 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   size_t sz = row*column*sizeof(complexFormat);
   init_fft(row,column);
   resize_cuda_image(row, column);
-  Real lr = 2.;
+  Real lr = 1.4;
+  Real k = 0.9;
   Real beta1 = 1;//0.1;
   Real beta2 = 0.;//5;//0.99;
   Real adamepsilon = 1e-4;
@@ -421,7 +422,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       }
       if(beta1){
         updateMomentum( patternstep, momentum, 2*beta1);
-        applyNorm(momentum, 0.8);
+        applyNorm(momentum, k);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
           adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);

@@ -1,7 +1,7 @@
+//#include <iostream>
 #include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include <cub/device/device_reduce.cuh>
-#include <iostream>
 #define FUNC(T,OP,INIT,STORE)\
 T *d_out = (T*)memMngr.borrowCache(sizeof(T));\
 size_t num_items = num;\

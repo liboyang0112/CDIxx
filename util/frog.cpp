@@ -1,12 +1,13 @@
-#include "cudaConfig.hpp" //cuda related
-#include "cuPlotter.hpp" //plt
-#include <complex.h>
-#include "cub_wrap.hpp"
-#include "frog.hpp"
 #include <fstream>
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <complex.h>
+#include "cudaConfig.hpp" //cuda related
+#include "cuPlotter.hpp" //plt
+#include "cub_wrap.hpp"
+#include "frog.hpp"
+#include "imgio.hpp"
 using namespace std;
 
 void saveWave(const char* fname, complexFormat* ccE, int n){
@@ -27,7 +28,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   initE(E);
   myMemcpyD2D(gate, E, nspect*sizeof(complexFormat));
   int niter = 3000;
-  double step = spectrum?10:3.;
+  double step = spectrum?20:3.;
   vector<int> sf(ndelay);
   for(int i = 0; i < ndelay; i++) sf[i] = i;
   std::mt19937 mtrnd( std::random_device {} () );
@@ -90,42 +91,7 @@ void genTrace(complexFormat* E, complexFormat* fulltrace, Real* delays, int nspe
   convertFOy(fulltrace);
 }
 
-int main(int argc, char** argv )
-{
-  init_cuda_image();  //always needed
-  int ndelay = 5;
-  int nspect = 128;
-  int nspectm=58;
-  int nfulldelay = 128;
-  int noiseLevel = 20;
-  //declare and allocate variables
-  myDMalloc(Real, delays, ndelay);
-  myCuDMalloc(Real, d_fulldelays, nfulldelay);
-  myCuDMalloc(Real, d_delays, ndelay);
-  myCuDMalloc(complexFormat, d_cE, nspect);
-  myCuDMalloc(complexFormat, d_spect, nspect);
-  myCuDMalloc(Real, d_spectrum, nspect);
-  myCuDMalloc(complexFormat, d_fulltraces, nspect*nfulldelay);
-  myCuDMalloc(Real, d_traceIntensity, nspect*ndelay);
-  myCuDMalloc(complexFormat, d_traces, nspect*ndelay);
-  //Generate electric field, and write to file
-  resize_cuda_image(nspect,1);
-  genEComplex(d_cE);
-  myDMalloc(complexFormat, ccE, nspect);
-  myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
-  saveWave("input.txt", ccE, nspect);
-
-  //calculate the spectrum, and write to file
-  int singleplan;
-  createPlan1d(&singleplan, nspect);
-  myFFTM(singleplan, d_cE, d_spect);
-  applyNorm(d_spect, 1./sqrt(nspect));
-  getMod2(d_spectrum, d_spect);
-  cudaConvertFO(d_spect);
-  convertFOPhase(d_spect);
-  myMemcpyD2H(ccE, d_spect, sizeof(complexFormat)*nspect);
-  saveWave("inputSpect.txt", ccE, nspect);
-  //calculate the complete FROG trace and plot
+void computeTrace(int nfulldelay, Real* d_fulldelays, int nspect, complexFormat* d_cE, complexFormat* d_fulltraces){
   resize_cuda_image(nfulldelay,1);
   setDelay(d_fulldelays);
   init_fft(nspect,1,nfulldelay);
@@ -134,22 +100,77 @@ int main(int argc, char** argv )
   genTrace(d_cE, d_fulltraces, d_fulldelays);
   convertFOy(d_fulltraces);
   plt.plotComplex(d_fulltraces, MOD2, 0, 1, "trace_truth", 1, 0, 1);
-  //downsampling, calculate downsampled trace and plot.
+}
+
+void genE(int nspect, complexFormat* d_cE, complexFormat* ccE){
+  resize_cuda_image(nspect,1);
+  genEComplex(d_cE);
+  myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
+  saveWave("input.txt", ccE, nspect);
+}
+void saveSpect(int nspect, complexFormat* d_cE, Real* d_spectrum, complexFormat* d_spect, complexFormat* ccE, int singleplan){
+  //calculate the spectrum, and write to file
+  myFFTM(singleplan, d_cE, d_spect);
+  applyNorm(d_spect, 1./sqrt(nspect));
+  getMod2(d_spectrum, d_spect);
+  cudaConvertFO(d_spect);
+  convertFOPhase(d_spect);
+  myMemcpyD2H(ccE, d_spect, sizeof(complexFormat)*nspect);
+  saveWave("inputSpect.txt", ccE, nspect);
+}
+void computeDownsampledTrace(int nfulldelay, int ndelay, int nspect, int nspectm, Real* d_delays, Real* d_fulltraceIntensity, Real* d_traceIntensity, int noiseLevel){
+  resize_cuda_image(ndelay,nspect);
+  downSample(d_traceIntensity, d_fulltraceIntensity, d_delays, nspectm, nfulldelay);
+  void* state = newRand(ndelay*nspect);
+  initRand(state, time(NULL));
+  //ccdRecord(d_traceIntensity, d_traceIntensity, noiseLevel, state, 1);
+  plt.init(ndelay,nspect);
+  plt.plotFloat(d_traceIntensity, MOD, 0, 1, "trace_sampled", 1, 0, 1);
+}
+
+int main(int argc, char** argv )
+{
+  init_cuda_image();  //always needed
+  bool runSim = 1;
+  int noiseLevel = 20;
+
+  //declare and allocate variables
+  int nspect = 128;
+  int nfulldelay = 128;
+  Real* traceExp;
+  if(!runSim) traceExp = readImage("frogtrace.bin", nspect, nfulldelay);
+  myCuDMalloc(Real, d_fulldelays, nfulldelay);
+  myCuDMalloc(complexFormat, d_cE, nspect);
+  myCuDMalloc(complexFormat, d_spect, nspect);
+  myCuDMalloc(Real, d_spectrum, nspect);
+  myCuDMalloc(complexFormat, d_fulltraces, nspect*nfulldelay);
+  myCuDMalloc(Real, d_fulltraceIntensity, nspect*nfulldelay);
+
+  int ndelay = 9;
+  int nspectm=58;
+  myDMalloc(Real, delays, ndelay);
+  myDMalloc(complexFormat, ccE, nspect);
   for(int i = 0; i < ndelay; i++){
     delays[i] = i*Real(nfulldelay-1)/(ndelay-1) - Real(nfulldelay)/2;
   }
+  myCuDMalloc(Real, d_delays, ndelay);
+  myCuDMalloc(Real, d_traceIntensity, nspect*ndelay);
+  myCuDMalloc(complexFormat, d_traces, nspect*ndelay);
   myMemcpyH2D(d_delays, delays, ndelay*sizeof(Real));
-  resize_cuda_image(ndelay,nspect);
-  void* state = newRand(ndelay*nspect);
-  initRand(state, time(NULL));
-  plt.init(ndelay,nspect);
-  init_fft(nspect,1,ndelay);
-  genTrace(d_cE, d_traces, d_delays, nspectm);
-  getMod2(d_traceIntensity, d_traces);
-  applyNorm(d_traceIntensity, 1./nspect);
-  ccdRecord(d_traceIntensity, d_traceIntensity, noiseLevel, state, 1);
-  convertFOy(d_traces);
-  plt.plotComplex(d_traces, MOD2, 0, 1, "trace_sampled", 1, 0, 1);
+  //Generate electric field, and write to file
+  int singleplan;
+  createPlan1d(&singleplan, nspect);
+  if(runSim){
+    genE(nspect, d_cE, ccE);
+    saveSpect(nspect, d_cE, d_spectrum, d_spect, ccE, singleplan);
+    //calculate the complete FROG trace and plot
+    computeTrace(nfulldelay, d_fulldelays, nspect, d_cE, d_fulltraces);
+    getMod2(d_fulltraceIntensity, d_fulltraces);
+    //downsampling, calculate downsampled trace and plot.
+    computeDownsampledTrace(nfulldelay, ndelay, nspect, nspectm, d_delays, d_fulltraceIntensity, d_traceIntensity, noiseLevel);
+  }else{
+    myMemcpyH2D(d_traceIntensity, traceExp, nspect*nfulldelay*sizeof(Real));
+  }
   //Reconstruct electric field
   clearCuMem(d_cE,  nspect*sizeof(complexFormat));
   clearCuMem(d_traces,  nspect*ndelay*sizeof(complexFormat));

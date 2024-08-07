@@ -54,8 +54,8 @@ mnistData::~mnistData(){
 
 cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir), refinement(re), row(r), col(c), nmerge(nm){
   cuRaw = memMngr.borrowCache(rowraw*colraw*sizeof(Real));
-  rowrf = rowraw*nmerge;
-  colrf = colraw*nmerge;
+  rowrf = rowraw*nmerge*2/3;
+  colrf = colraw*nmerge*2/3;
   cuRefine = memMngr.borrowCache(rowrf*colrf*refinement*refinement*sizeof(Real));
   if(refinement!=1){
     createPlan(&handle, rowrf*refinement, colrf*refinement);
@@ -64,17 +64,15 @@ cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir)
   myCuMalloc(complexFormat, cacheraw, rowrf*colrf);
   myCuMalloc(complexFormat, cache, rowrf*colrf*refinement*refinement);
 };
-/*
 void cuMnist::cuRead(void* out){
-  Real val = nmerge;
   init_cuda_image(65536,1);
   void* media = (refinement==1?cuRefine:out);
   clearCuMem(media,rowrf*colrf*sizeof(Real));
   resize_cuda_image(rowraw, colraw);
-  for(int i = 0; i < val; i++){
-    for(int j = 0; j < val; j++){
+  for(int i = 0; i < nmerge; i++){
+    for(int j = 0; j < nmerge; j++){
       myMemcpyH2D(cuRaw, read(), rowraw*colraw*sizeof(Real));
-      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3, colraw*j*2/3);
+      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3-7, colraw*j*2/3-7);
     }
   }
   if(refinement!=1){
@@ -93,15 +91,14 @@ void cuMnist::cuRead(void* out){
     pad( (Real*)media, (Real*)out,rowrf, colrf);
   }
 }
-*/
+/*
 void cuMnist::cuRead(void* out){
-  Real val = nmerge;
   resize_cuda_image(rowrf, colrf);
   init_cuda_image(65536,1);
   auto media = (refinement==1?cuRefine:out);
   clearCuMem(media,rowrf*colrf*sizeof(Real));
-  for(int i = 0; i < val; i++){
-    for(int j = 0; j < val; j++){
+  for(int i = 0; i < nmerge; i++){
+    for(int j = 0; j < nmerge; j++){
       myMemcpyH2D(cuRaw, read(), rowraw*colraw*sizeof(Real));
       paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3, colraw*j*2/3);
     }
@@ -116,3 +113,4 @@ void cuMnist::cuRead(void* out){
     pad( (Real*)media, (Real*)out,rowrf, colrf);
   }
 }
+*/

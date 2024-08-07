@@ -102,6 +102,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
     spectrumfile<<lambdasi[i]<<" "<<spectrumi[i]/spectrumi[narray-1]<<std::endl;
   }
   lambdasi[0] /= (1+skiplambda);
+  stepsize /= (1+skiplambda);
   for(int i = 1; i < narray; i++){
     lambdasi[i] /= (1+skiplambda);
     spectrumi[i] += spectrumi[i-1];

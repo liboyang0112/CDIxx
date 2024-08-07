@@ -53,7 +53,7 @@ __global__ void initV(Real* V, int cuda_row, int cuda_column, int cuda_height, R
   Real ymid = ny/2-0.5-1;
   Real zmid = nz/2-0.5;
   Real r2 = sq(x-xmid) + sq(y-ymid) + sq(z-zmid);
-  V[index] = -val/sqrt(r2);
+  //V[index] = -val/sqrt(r2);
   Real xmid1 = nx/3-0.5;
   Real ymid1 = ny/3-0.5;
   Real zmid1 = nz/2-0.5;
@@ -145,4 +145,6 @@ int main(){
     }
   }
   plt.saveVideo(psivid);
+  plt.toVideo = -1;
+  plt.plotFloat(slice, MOD2, 0, 5e4, "psi",1,0,1);
 }

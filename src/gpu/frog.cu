@@ -140,3 +140,11 @@ cuFuncc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int
     source[index].x *= rat;
     source[index].y *= rat;
     })
+cuFunc(downSample, (Real* out, Real* input, Real* colsel, int rowcut, int nfulldelay), (out, input, colsel, rowcut, nfulldelay), {
+    cudaIdx();
+    if(y < rowcut || y > cuda_column - rowcut){
+      out[index] = 0;
+    }else{
+      out[index] = input[int(colsel[x]+nfulldelay/2)*cuda_column+y];
+    }
+    })

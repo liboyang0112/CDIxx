@@ -1,4 +1,3 @@
-#include "readConfig.hpp"
 #include  <memory>
 #include <vector>
 #include <string>
@@ -9,6 +8,7 @@ using namespace std;
 #define count (*(std::vector<int>*) countp)
 #define algoList (*(std::vector<int>*) algoListp)
 #include "format.hpp"
+#include "readConfig.hpp"
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.

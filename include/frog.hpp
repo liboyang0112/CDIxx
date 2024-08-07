@@ -11,3 +11,4 @@ void removeHighFreq (complexFormat* data);
 void shiftmid (complexFormat* Eprime, complexFormat* E, int tx);
 void average (complexFormat* Eprime, complexFormat* E, Real gamma);
 void applyModAbsxrange(complexFormat* source, Real* target, void* state, int xrange, Real gamma);
+void downSample (Real* out, Real* input, Real* colsel, int rowcut, int nfulldelay);

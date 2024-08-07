@@ -78,7 +78,7 @@ void applyPoissonNoise(Real* wave, Real noiseLevel, void *state, Real scale = 0)
 void applyPoissonNoise_WO(Real* wave, Real noiseLevel, void *state, Real scale = 0);
 void ccdRecord(uint16_t* data, Real* wave, int noiseLevel, void *state, Real exposure = 1);
 void ccdRecord(uint16_t* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
-void ccdRecord(Real* data, Real* wave, int noiseLevel, void *state, Real exposure = 1);
+void ccdRecord(Real* data, Real* wave, int noiseLevel, void *state, Real exposure = 1, int rcolor = 0);
 void ccdRecord(Real* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
 void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
 void initRand(void *state,unsigned long long seed);

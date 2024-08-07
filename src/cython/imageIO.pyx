@@ -22,15 +22,15 @@ def writeFloat(path, array):
     fn = path.encode("utf8");
     cdef char* fname = fn;
     print("write to", array.dtype, "image", fname);
-    if array.dtype == np.single:
+    if array.dtype == np.dtype('float32'):
         writeFloatImage(fname, np.PyArray_BYTES(array), array.shape[0], array.shape[1]);
-    if array.dtype == np.double:
-        writeFloatImage(fname, np.PyArray_BYTES(array.astype(np.single)), array.shape[0], array.shape[1]);
+    elif array.dtype == np.dtype('float64'):
+        writeFloatImage(fname, np.PyArray_BYTES(array.astype(np.dtype("float32"))), array.shape[0], array.shape[1]);
     elif array.dtype == np.csingle or array.dtype == np.cdouble:
         print("write to complex image", fname);
         writeComplexImage(fname, np.PyArray_BYTES(array), array.shape[0],array.shape[1]);
     else:
-        print("data type not known");
+        print("data type not known:", array.dtype);
         exit();
 
 def writePng(path, array, cache, iscolor, islog = 1):

@@ -4,7 +4,7 @@
 #include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
-#define n_PML 10
+#define n_PML 1
 #define k_PML 0.0035
 #define secondOrder
 #ifdef secondOrder
@@ -130,25 +130,41 @@ __global__ void applyPMLx1_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, R
   Hx[index] *= sf;
   Hz[index] *= sf;
 }
-__global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
+__global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
   int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  if(edgeIdx >= ny*nz) return;
+  if(edgeIdx >= ny*nz-ny) return;
   int y = edgeIdx%ny;
   int z = edgeIdx/ny;
   edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
   Real mH = getmH(nx-1,y,z);
   Real mE = getmE(nx-1,y,z);
   Real rat = sqrt(mH/mE);
-  Real dt = 0.5/(mE*rat)-0.5;
+  Real b = (Ex[edgeIdx-1+nx*ny] + Ex[edgeIdx-1] + ExBdx1[y+z*ny]+ExBdx1[y+(z+1)*ny])/4;
   Real a = Ez[edgeIdx];
-  Hy[edgeIdx-1] += rat*(dt*EzBdx1[y+z*ny] + (1-dt)*a);
+  Real ratio = b/a;
+  if(fabs(a) > 1e-7) ratio = sqrt(1./(1+ratio*ratio));
+  else ratio = 1;
+  Real dt = 0.5/(mE*rat)*ratio-0.5;
+  Real dh = rat*(dt*EzBdx1[y+z*ny] + (1-dt)*a);
+  char sgn = 0;
+  if(dh < 0) sgn = -1;
+  else if(dh > 0) sgn = 1;
+  Hy[edgeIdx-1] += sgn*sqrt(dh*dh + b*b);
   EzBdx1[y+z*ny] = a;
   Ez[edgeIdx] = 0;
-  Ex[edgeIdx-1] = 0;
   a = Ey[edgeIdx];
   Hz[edgeIdx-1] -= rat*(dt*EyBdx1[y+z*ny] + (1-dt)*a);
   EyBdx1[y+z*ny] = a;
   Ey[edgeIdx] = 0;
+}
+__global__ void applyPMLx1post(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
+  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  if(edgeIdx >= ny*nz) return;
+  int y = edgeIdx%ny;
+  int z = edgeIdx/ny;
+  edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
+  ExBdx1[y+z*ny] = Ex[edgeIdx-1];
+  Ex[edgeIdx-1] = 0;
 }
 __global__ void applyPMLx0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HyBdx0, Real* HzBdx0, int nx, int ny, int nz){
   int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -428,6 +444,7 @@ int main(){
   unsigned char* material_map = (unsigned char*)memMngr.borrowCleanCache(nnode);  //supports 255 kinds of materials
   //record boundaries for PML
   Real* EzBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
+  Real* ExBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
   Real* EyBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
   Real* EzBdy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
   Real* ExBdy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
@@ -443,7 +460,7 @@ int main(){
   Real* slice = (Real*)memMngr.borrowCache(nx*ny*sizeof(Real));
 
   bool saveField = 0;
-  int sourcePos = 100+nx*100 + nx*ny*100;
+  int sourcePos = nx/2+nx*ny/2 + nx*ny*nz/2;
   resize_cuda_image(nx,ny);
   plt.init(nx,ny);
   init_cuda_image();
@@ -456,11 +473,15 @@ int main(){
     //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30)));
     if(i < 280) {
       applySource<<<1,1>>>(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
-      applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
+      applySource<<<1,1>>>(Hx, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      applySource<<<1,1>>>(Hx, sourcePos+1, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      applySource<<<1,1>>>(Hx, sourcePos-1, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      //applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
     }//get circular polarized source!
     //applySourceV<<<nblkx,nthd2d>>>(Ez, nx, ny, nz, 100, 5*sin(M_PI/30*i));
 
-    applyPMLx1<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, EyBdx1, EzBdx1, nx, ny, nz);
+    applyPMLx1<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx, ny, nz);
+    applyPMLx1post<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx, ny, nz);
     applyPMLx1_d<<<nblkx_d,nthdx_d>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //do separately to speed up
     applyPMLy1<<<nblky,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdy1, EzBdy1, nx, ny, nz);
     applyPMLz1<<<nblkz,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdz1, EyBdz1, nx, ny, nz);
@@ -482,16 +503,16 @@ int main(){
 
     updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //------------UPDATE E-----------
     if(saveField) {
-      getYZSlice(slice, Ex, Ey, Ez , nx, ny, nz, 150);
+      getXYSlice(slice, Ez, nx, ny, nz/2);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);
       plt.toVideo = ezvid;
-      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1, ("Ez,t="+to_string(i)).c_str());
-      getXYSlice(slice, Hx , nx, ny, 100);
+      plt.plotFloat(slice, REAL, 0, 10, "",0,0,1, ("Ez,t="+to_string(i)).c_str());
+      getXYSlice(slice, Hx , nx, ny, nz/2);
       plt.toVideo = hxvid;
-      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1,("Hx,t="+to_string(i)).c_str());
-      getXYSlice(slice, Hy , nx, ny, 100);
+      plt.plotFloat(slice, REAL, 0, 10, "",0,0,1,("Hx,t="+to_string(i)).c_str());
+      getXYSlice(slice, Hy , nx, ny, nz/2);
       plt.toVideo = hyvid;
-      plt.plotFloat(slice, REAL, 0, 1, "",0,0,1,("Hy,t="+to_string(i)).c_str());
+      plt.plotFloat(slice, REAL, 0, 100, "",0,0,1,("Hy,t="+to_string(i)).c_str());
     }
   }
   plt.saveVideo(ezvid);

@@ -8,7 +8,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from imageIO import writeFloat,readImage,writePng
 import numpy as np
-from torchvision.transforms import CenterCrop
+from torchvision.transforms import CenterCrop, Resize
 from UNet import UNet
 from unetDataLoader import unetDataLoader as ul
 #from torch.utils.tensorboard import SummaryWriter
@@ -19,8 +19,8 @@ net = UNet(1,4).cuda()
 optimizer = torch.optim.Adam(net.parameters(),lr = 0.01,betas = (0.9, 0.999))
 schedule = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=0.5e-6, eps=1e-8, threshold=1e-4)
 #loss_func = nn.BCELoss()
-#loss_func = nn.L1Loss()
-loss_func = nn.MSELoss()
+loss_func = nn.L1Loss()
+#loss_func = nn.MSELoss()
 trainsz = 256
 bs = 4
 data = ul("./traindb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
@@ -47,19 +47,21 @@ testimg, testlabel = next(iter(testloader))
 train_losses = []
 test_losses = []
 runExp = 0
+resize = Resize([trainsz,trainsz])
 if exists('broad_pattern.bin'):
     runExp = 1
-    image = readImage('broad_pattern.bin')
-    x0 = (trainsz - image.shape[0]) >> 1
-    y0 = (trainsz - image.shape[1]) >> 1
-    image = tensor(np.asarray(image))
-    if x0 > 0:
-        image = F.pad(image,(x0,x0,y0,y0),"constant",0)
-    elif x0 < 0:
-        crp = CenterCrop(trainsz)
-        image = crp(image)
+    image = tensor(np.asarray(readImage('broad_pattern.bin')))
+    print(image.shape)
+    #x0 = (trainsz - image.shape[0]) >> 1
+    #y0 = (trainsz - image.shape[1]) >> 1
+    #if x0 > 0:
+    image = F.pad(image,(100,100,100,100),"constant",0)
+    #elif x0 < 0:
+    #    crp = CenterCrop(trainsz)
+    #    image = crp(image)
     image = image.clone().detach()
-    image = image.view(1,1,trainsz,trainsz).to(device('cuda:0'))
+    image = image.view(1,1,image.shape[0], image.shape[1]).to(device('cuda:0'))
+    image = resize(image)
 lossfile = open(ModelSave+"/losses.txt", "a",)
 bestloss = 1e10
 for epoch in range(EPOCH):
@@ -69,7 +71,8 @@ for epoch in range(EPOCH):
     net.train()
     valout = 0
     for i,(img,label) in enumerate(dataloader):
-        loss = loss_func(net(img),label)
+        trainimg = net(img)
+        loss = loss_func(trainimg,label)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -92,7 +95,9 @@ for epoch in range(EPOCH):
     if avgvalloss < bestloss:
         bestloss = avgvalloss
         torch.save(net.state_dict(),ModelSave + '/Unet.pt')
-    writePng('Log_imgs/segimg_ep{}.png'.format(epoch),valout.cpu()[0][0].detach().numpy(),cache, 1)
+    writePng(f'Log_imgs/segimg_ep{epoch}.png',valout.cpu()[0][0].detach().numpy(),cache, 1)
+    writePng(f'Log_imgs/segimg_train_ep{epoch}.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
+    writePng('Log_imgs/segimg_train_lab.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
     net.eval()
     if runExp:
         out = net(image)
