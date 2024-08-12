@@ -49,10 +49,10 @@ __global__ void initV(Real* V, int cuda_row, int cuda_column, int cuda_height, R
   int &nx = cuda_row;
   int &ny = cuda_column;
   int &nz = cuda_height;
-  Real xmid = nx/2-0.5-2;
-  Real ymid = ny/2-0.5-1;
-  Real zmid = nz/2-0.5;
-  Real r2 = sq(x-xmid) + sq(y-ymid) + sq(z-zmid);
+  //Real xmid = nx/2-0.5-2;
+  //Real ymid = ny/2-0.5-1;
+  //Real zmid = nz/2-0.5;
+  //Real r2 = sq(x-xmid) + sq(y-ymid) + sq(z-zmid);
   //V[index] = -val/sqrt(r2);
   Real xmid1 = nx/3-0.5;
   Real ymid1 = ny/3-0.5;

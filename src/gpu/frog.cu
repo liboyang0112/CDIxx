@@ -27,12 +27,12 @@ cuFuncc(dgencTrace, (complexFormat* gate, complexFormat* E, complexFormat* fullt
 cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   cuda1Idx();
   int bias = index-cuda_row/2;
-  Real sigma = 5;
+  Real sigma = 50;
   Real midf = 0;
-  Real chirp = 2e-3;
+  Real chirp = 4e-4;
   Real CEP = M_PI;
   Real phase = 2*M_PI*midf*index + CEP + 2*M_PI*chirp*bias*bias;
-  Real envolope = (exp(-sq(bias-10)/(2*sq(sigma)))+0.5*exp(-sq(bias+10)/(2*sq(sigma))));
+  Real envolope = (exp(-sq(bias-100)/(2*sq(sigma)))+0.5*exp(-sq(bias+100)/(2*sq(sigma))));
   E[index].x = envolope*cos(phase);
   E[index].y = envolope*sin(phase);
 })
@@ -50,14 +50,22 @@ cuFuncc(convertFOy, (complexFormat* data),(cuComplex* data), ((cuComplex*)data),
   data[index] = data[index+cuda_column/2];
   data[index+cuda_column/2] = tmp;
 })
+cuFunc(convertFOy, (Real* data),(data), {
+  cuda1Idx();
+  int y = index%cuda_column;
+  if(y >= cuda_column/2) return;
+  Real tmp = data[index];
+  data[index] = data[index+cuda_column/2];
+  data[index+cuda_column/2] = tmp;
+})
 cuFuncc(updateGE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real delay, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delay, alpha), {
   cuda1Idx();
   int tidx = index - delay;
   if(tidx >= cuda_row || tidx < 0) return;
-  if(index < cuda_row/4 || index > 3*cuda_row/4) {
-    E[index].x = E[index].y = 0;
-    return;
-  }
+  //if(index < cuda_row/4 || index > 3*cuda_row/4) {
+  //  E[index].x = E[index].y = 0;
+  //  return;
+  //}
   cuComplex tmp = E[index];
   tmp.y = -tmp.y;
   tmp = cuCmulf(tmp,trace[index]);
@@ -94,7 +102,7 @@ cuFuncc(initE, (complexFormat* gate),(cuComplex* gate), ((cuComplex*)gate), {
 
 cuFuncc(removeHighFreq, (complexFormat* data),(cuComplex* data), ((cuComplex*)data), {
   cuda1Idx();
-  if(index >= cuda_row/4 && index < cuda_row/4*3){
+  if(index >= cuda_row/5*2 && index < cuda_row/5*3){
     data[index].x = 0;
     data[index].y = 0;
   }
@@ -129,22 +137,42 @@ cuFuncc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int
     }
     Real rat = target[index];
     if(rat > 0) rat = sqrt(rat);
-    else rat = 0;
-    if(mod==0) {
-    Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
-    source[index].x = rat*cos(randphase);
-    source[index].y = rat*sin(randphase);
-    return;
+    else {
+      source[index].x = source[index].y = 0;
+      return;
     }
-    rat /= mod;
+    if(abs(mod)<1e-5) {
+      if(rat > 1e-3) {
+        Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
+        source[index].x = rat*cos(randphase);
+        source[index].y = rat*sin(randphase);
+      }
+      return;
+    }
+    else rat /= mod;
     source[index].x *= rat;
     source[index].y *= rat;
     })
-cuFunc(downSample, (Real* out, Real* input, Real* colsel, int rowcut, int nfulldelay), (out, input, colsel, rowcut, nfulldelay), {
+cuFunc(downSample, (Real* out, Real* input, Real* colsel, int rowcut, int midplace), (out, input, colsel, rowcut, midplace), {
     cudaIdx();
-    if(y < rowcut || y > cuda_column - rowcut){
+    if(y < rowcut || y >= cuda_column - rowcut){
       out[index] = 0;
     }else{
-      out[index] = input[int(colsel[x]+nfulldelay/2)*cuda_column+y];
+      out[index] = input[int(colsel[x]+midplace)*cuda_column+y];
+    }
+    })
+cuFunc(traceLambdaToFreq, (Real* d_traceIntensity, Real* d_traceLambda, Real* d_freqs, int nspect, Real minfreq, Real maxfreq, Real freqspacing, int freqshift), (d_traceIntensity, d_traceLambda, d_freqs, nspect, minfreq, maxfreq, freqspacing, freqshift), {
+    cuda1Idx();
+    int idx = index*nspect;
+    Real c_freq = minfreq, freq1, freq2, a;
+    int cnt = 1;
+    while(freqshift < nspect){
+        while(d_freqs[nspect-cnt-1] < c_freq) cnt++;
+        freq1 = d_freqs[nspect-cnt];
+        freq2 = d_freqs[nspect-cnt-1];
+        a = (c_freq-freq1)/(freq2-freq1);
+        d_traceIntensity[idx+freqshift] = ((1-a)*d_traceLambda[idx+nspect-cnt-1] + a*d_traceLambda[idx+nspect-cnt])/sq(c_freq);
+        c_freq += freqspacing;
+        freqshift++;
     }
     })
