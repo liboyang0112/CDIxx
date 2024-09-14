@@ -7,6 +7,10 @@ using namespace std;
 
 int main(int argc, char** argv )
 {
+  if(argc < 2){
+    printf("Usage: zoom_run image.png");
+    exit(0);
+  }
   init_cuda_image();  //always needed
   int row, col;
   Real factor = 1.02;

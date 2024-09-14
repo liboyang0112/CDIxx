@@ -18,7 +18,7 @@ if(max < 1.2*STATS_max_y/STATS_mean_y) max = 1.2*STATS_max_y/STATS_mean_y
 set xlabel "Wavelength (nm)"
 set ylabel "Intensity (a.u.)"
 set yrange [0:max]
-set xrange [632:1000]
+set xrange [450:1000]
 set ytics 2
 set term pdf size 5,2 font ",16"
 set output "spectra.pdf"

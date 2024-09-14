@@ -24,10 +24,9 @@ struct Struct##name\
 };\
 Struct##name name;
 operatorStructT(sum_op, return a+b;);
-operatorStructT(sqsum_op, return a*a+b*b;);
-operatorStruct(max_op, Real, return (b > a) ? b : a;);
-operatorStruct(max_op_int, int, return (b > a) ? b : a;);
-operatorStruct(min_op_int, int, return (b < a) ? b : a;);
+operatorStructT(rootsumsq_op, return sqrtf(a*a+b*b););
+operatorStructT(max_op, return (b > a) ? b : a;);
+operatorStructT(min_op, return (b < a) ? b : a;);
 operatorStruct(sumcomplex_op, cuComplex, return {a.x+b.x, a.y+b.y};);
 operatorStruct(mod2max_op, cuComplex, 
       Real mod2a = a.x*a.x+a.y*a.y;
@@ -42,7 +41,7 @@ store(findMax);
 store(findMax_int);
 store(findMin_int);
 store(findSum);
-store(findSqSum);
+store(findRootSumSq);
 store(findSumComplex);
 store(findMod2Max);
 store(findSumReal);
@@ -58,7 +57,7 @@ void initCub(){
   initStore(findMax_int);
   initStore(findMin_int);
   initStore(findSum);
-  initStore(findSqSum);
+  initStore(findRootSumSq);
   initStore(findMod2Max);
   initStore(findSumReal);
   initStore(findSumComplex);
@@ -79,18 +78,18 @@ if (d_out) memMngr.returnCache(d_out);
 
 Real findMax(Real* d_in, int num)
 {
-  FUNC(Real, max_op, 0, store_findMax);
+  FUNC(Real, max_op, Real(0), store_findMax);
   return output;
 }
 
 int findMax(int* d_in, int num)
 {
-  FUNC(int, max_op_int, 0, store_findMax_int);
+  FUNC(int, max_op, 0, store_findMax_int);
   return output;
 }
 int findMin(int* d_in, int num)
 {
-  FUNC(int, min_op_int, 0, store_findMin_int);
+  FUNC(int, min_op, 0, store_findMin_int);
   return output;
 }
 
@@ -107,7 +106,7 @@ Real findSumReal(complexFormat* d_in, int num)
 {
   cuComplex tmp;
   tmp.x = 0;
-  FUNC(cuComplex, sumcomplex_op, tmp, store_findSumComplex);
+  FUNC(cuComplex, sumcomplex_op, tmp, store_findSumReal);
   return output.x;
 }
 
@@ -125,35 +124,35 @@ Real findSum(Real* d_in, int num, bool debug=false)
   return output;
 }
 
-Real findSqSum(Real* d_in, int num, bool debug=false)
+Real findRootSumSq(Real* d_in, int num, bool debug=false)
 {
-  FUNC(Real, sqsum_op, Real(0), store_findSqSum);
+  FUNC(Real, rootsumsq_op, Real(0), store_findRootSumSq);
   return output;
 }
 
 
 cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
-  cuda1Idx();
-  int x = index/cuda_column;
-  out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
-})
+    cuda1Idx();
+    int x = index/cuda_column;
+    out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
+    })
 
 cuFuncc(multiplyy,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
-  cuda1Idx();
-  int y = index%cuda_column;
-  out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
-})
+    cuda1Idx();
+    int y = index%cuda_column;
+    out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
+    })
 cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
-  cuda1Idx();
-  int x = index/cuda_column;
-  out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
-})
+    cuda1Idx();
+    int x = index/cuda_column;
+    out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
+    })
 
 cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
-  cuda1Idx()
-  int y = index%cuda_column;
-  out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
-})
+    cuda1Idx()
+    int y = index%cuda_column;
+    out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
+    })
 complexFormat findMiddle(complexFormat* d_in, int num){
   if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
   myCuDMalloc(Real, tmp, num);

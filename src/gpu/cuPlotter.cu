@@ -10,6 +10,7 @@ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
     unsigned char t = floor(V*(1-(1-f)*S)*255);
     unsigned char Vi = floor(V*255);
     switch(hi){
+        case -1:
         case 0:
           rgb[0] = Vi;
           rgb[1] = t;
@@ -36,11 +37,13 @@ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
           rgb[2] = Vi;
           break;
         case 5:
+        case 6:
           rgb[0] = Vi;
           rgb[1] = p;
           rgb[2] = q;
           break;
         default:
+          printf("WARNING: HSV not recognized: %f, %f, %f, %d\n", H, S, V, hi);
           rgb[0] = rgb[1] = rgb[2] = -1;
     }
 };
@@ -120,7 +123,7 @@ template<> void process<complexFormat>(void* cudaData, pixeltype* cache, mode m,
   processWrap<cuComplex><<<numBlocks, threadsPerBlock>>>(addVar(cudaData, cache, m, isFrequency, decay, islog, isFlip));
 }
 
-cuFunc(process_rgb,(void* cudaData, col_rgb* cache, mode m, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0),(cudaData, cache, m, isFrequency, decay, islog, isFlip),{
+cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0),(cudaData, cache, isFrequency, decay, islog, isFlip),{
   cudaIdx()
   int halfrow = cuda_row>>1;
   int halfcol = cuda_column>>1;
@@ -135,8 +138,8 @@ cuFunc(process_rgb,(void* cudaData, col_rgb* cache, mode m, bool isFrequency=0, 
   }
   cuComplex data = ((cuComplex*)cudaData)[index];
   Real mod = cuCabsf(data)*decay;
+  char* col = (char*)(&(cache[targetx*cuda_column+targety]));
   if(mod > 1) mod = 1;
   Real phase = atan2(data.y,data.x)/2/M_PI+0.5; //0-1
-  char* col = (char*)(&(cache[targetx*cuda_column+targety]));
   hsvToRGB(phase, 1, mod, col);
 })

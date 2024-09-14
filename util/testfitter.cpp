@@ -7,7 +7,7 @@ const int N = 2;
 Real innerProd(void* a, void* b, void* c){
   Real sum = 0;
   for(int i = 0; i < N; i++){
-    sum+=((Real*)a)[i]*((Real*)b)[i];
+    if(c && ((bool*)c)[i]) sum+=((Real*)a)[i]*((Real*)b)[i];
   }
   return sum;
 }

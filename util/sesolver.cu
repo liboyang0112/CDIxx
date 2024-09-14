@@ -5,16 +5,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
-#define n_PML 10
-#define k_PML 0.0035
-#define secondOrder
-#ifdef secondOrder
-#define fact1 1./24
-#define fact2 9./8
-#endif
 using namespace std;
-
-//const Real b_PML = 1-k_PML*n_PML;
 
 __global__ void Hpsifunc(Real* psi, Real* V, Real* Hpsi, int nx, int ny, int nz, Real Eshift)
 {
@@ -63,6 +54,7 @@ __global__ void initV(Real* V, int cuda_row, int cuda_column, int cuda_height, R
   Real r21 = sq(x-xmid1) + sq(y-ymid1) + sq(z-zmid1);
   Real r22 = sq(x-xmid2) + sq(y-ymid2) + sq(z-zmid2);
   V[index] += val/sqrt(r21) + val/sqrt(r22);
+  if(r21 < 0.5 || r22 < 0.5) printf("V=%f\n", V[index]);
 }
 cuFunc(getXYSlice,(Real* slice, Real* data, int nx, int ny, int iz), (slice, data, nx, ny, iz), {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -85,7 +77,8 @@ cuFunc(getYZSlice,(Real* slice, Real* data, int nx, int ny, int nz, int ix), (sl
   slice[index] = data[idx];
 })
 int main(){
-  int nsteps = 2000;
+  init_cuda_image();
+  int nsteps = 1000;
   const int nx = 200;
   const int ny = 200;
   const int nz = 200;
@@ -114,15 +107,14 @@ int main(){
   Real* V = (Real*)memMngr.borrowCleanCache(memsz);
   //select slice for visualization
   Real* slice = (Real*)memMngr.borrowCache(nx*ny*sizeof(Real));
-  Real beta = 0.2;
+  Real beta = 0.1;
   initV<<<nblk,nthd>>>(V, nx, ny, nz, -0.2);
   initV<<<nblk,nthd>>>(H2psi, nx, ny, nz, 1);
   resize_cuda_image(nx*ny,nz);
-  applyNorm(H2psi, 1./sqrt(findSqSum(H2psi)));
+  applyNorm(H2psi, 1./findRootSumSq(H2psi));
 
   resize_cuda_image(nx,ny);
   plt.init(nx,ny);
-  init_cuda_image();
   int psivid = plt.initVideo("psi.mp4", 24);
   plt.showVid = -1;//ezvid;
   for(int i = 0; i < nsteps; i++){
@@ -132,10 +124,7 @@ int main(){
     Hpsifunc<<<nblk,nthd>>>(psi, V, Hpsi, nx, ny, nz, -12);
     myMemcpyD2D(psi,H2psi,nx*ny*nz*sizeof(Real));
     Hpsifunc<<<nblk,nthd>>>(Hpsi, V, H2psi, nx, ny, nz, -12);
-    Real norm = findSqSum(H2psi);
-    //printf("norm=%f\n", norm);
-    if(norm!=norm) abort();
-    applyNorm(H2psi, 1./sqrt(norm));
+    applyNorm(H2psi, 1./findRootSumSq(H2psi));
     add(mom, H2psi, psi, -1);
     if(i%3==0) {
       resize_cuda_image(nx,ny);

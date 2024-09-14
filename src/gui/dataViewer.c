@@ -4,6 +4,7 @@
 
 struct _DataviewerApp{
   GtkApplication parent;
+  void* dummy;
 };
 G_DEFINE_TYPE(DataviewerApp, dataviewer_app, GTK_TYPE_APPLICATION);
 
@@ -27,6 +28,7 @@ static void dataviewer_app_open(GApplication* app, GFile** file, int nfile, cons
   for(int i = 0; i < nfile; i++)
     dataviewer_window_open (win, file[i]);
   gtk_window_present (GTK_WINDOW (win));
+  if(hint) printf("hint=%s", hint);
   //gtk_dataviewer_window_save(win);
 }
 
@@ -36,7 +38,9 @@ static void dataviewer_app_class_init (DataviewerAppClass *class)
   G_APPLICATION_CLASS (class)->activate = dataviewer_app_activate;
   G_APPLICATION_CLASS (class)->open = dataviewer_app_open;
 }
-static void dataviewer_app_init(DataviewerApp* app){}
+static void dataviewer_app_init(DataviewerApp* app){
+    app->dummy = 0;
+}
 
 DataviewerApp* dataviewer_app_new()
 {

@@ -14,24 +14,26 @@ using namespace std;
 
 void saveWave(const char* fname, Real *x, complexFormat* ccE, int n){
   std::ofstream file1(std::string(fname)+".txt", std::ios::out);
-  std::ofstream file2(std::string(fname)+"_short.txt", std::ios::out);
   for(int i = 0; i < n; i++){
     file1<< x[i] << " " << creal(ccE[i]) << " " << cimag(ccE[i]) << " " << sq(cabs(ccE[i])) << " " << carg(ccE[i])<<std::endl;
-    file2<< creal(ccE[i]) << " " << cimag(ccE[i]) << std::endl;
   }
   file1.close();
-  file2.close();
+}
+
+void saveWaveSimple(const char* fname, complexFormat* ccE, int n){
+  std::ofstream file1(std::string(fname)+".txt", std::ios::out);
+  for(int i = 0; i < n; i++){
+    file1<< creal(ccE[i]) << " " << cimag(ccE[i]) << std::endl;
+  }
+  file1.close();
 }
 
 void saveWave(const char* fname, complexFormat* ccE, int n){
   std::ofstream file1(std::string(fname)+".txt", std::ios::out);
-  std::ofstream file2(std::string(fname)+"_short.txt", std::ios::out);
   for(int i = 0; i < n; i++){
     file1<<i << " " << creal(ccE[i]) << " " << cimag(ccE[i]) << " " << sq(cabs(ccE[i])) << " " << carg(ccE[i])<<std::endl;
-    file2<< creal(ccE[i]) << " " << cimag(ccE[i]) << std::endl;
   }
   file1.close();
-  file2.close();
 }
 
 void readWave(const char* fname, complexFormat* ccE, int n){
@@ -52,7 +54,7 @@ void genTrace(complexFormat* E, complexFormat* gate, complexFormat* fulltrace, R
   if(nspectm) zeroEdgey(fulltrace, nspectm);
   convertFOy(fulltrace);
 }
-void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int nfulldelay, int singleplan, int nspectm, int nspect, int ndelay, Real* d_delays = 0){
+void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int singleplan, int nspectm, int nspect, int ndelay, Real* d_delays = 0){
   //myDMalloc(complexFormat, ccE, nspect);
   complexFormat* gate = trace+nspect;
   complexFormat* Eprime = gate+nspect;
@@ -177,18 +179,19 @@ void saveSpect(int nspect, complexFormat* d_cE, Real* d_spectrum, complexFormat*
 void computeDownsampledTrace(int izeroDelay, int ndelay, int nspect, int nspectm, Real* d_delays, Real* d_fulltraceIntensity, Real* d_traceIntensity, int noiseLevel){
   resize_cuda_image(ndelay,nspect);
   downSample(d_traceIntensity, d_fulltraceIntensity, d_delays, nspectm, izeroDelay);
-  //void* state = newRand(ndelay*nspect);
-  //initRand(state, time(NULL));
-  //ccdRecord(d_traceIntensity, d_traceIntensity, noiseLevel, state, 1);
+  void* state = newRand(ndelay*nspect);
+  initRand(state, time(NULL));
+  ccdRecord(d_traceIntensity, d_traceIntensity, noiseLevel, state, 1);
   plt.init(ndelay,nspect);
   plt.plotFloat(d_traceIntensity, MOD, 0, 1, "trace_sampled", 1, 0, 1);
 }
 
-int main(int argc, char** argv )
+//int main(int argc, char** argv )
+int main()
 {
   init_cuda_image();  //always needed
   bool runSim = 0;
-  bool restart = 1;
+  bool restart = 0;
   Real delay_spacing=0.6;
   Real midlambda =778;
   int noiseLevel = 20;
@@ -303,12 +306,17 @@ int main(int argc, char** argv )
     initE(d_cE);
   }
   init_fft(nspect,1,ndelay);
-  solveE(d_cE, d_traceIntensity, 0, d_traces, delays, nfulldelay, singleplan, nspectm, nspect, ndelay, d_delays); // spectrum is unknown
-  //solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, delays, nfulldelay, singleplan, nspectm); //spectrum is known
+  solveE(d_cE, d_traceIntensity, 0, d_traces, delays, singleplan, nspectm, nspect, ndelay, d_delays); // spectrum is unknown
+  //solveE(d_cE, d_traceIntensity, d_spectrum, d_traces, delays, singleplan, nspectm); //spectrum is known
 
   //save electric field to file
   myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
-  saveWave("output", ccE, nspect);
+  myDMalloc(Real, xaxis, nspect);
+  for(int i = 0; i < nspect; i++){
+    xaxis[i] = i*delay_spacing;
+  }
+  saveWave("output", xaxis, ccE, nspect);
+  saveWaveSimple("output_short", ccE, nspect);
   //save spectrum to file
   myFFTM(singleplan, d_cE, d_spect);
   resize_cuda_image(nspect,1);
@@ -316,17 +324,15 @@ int main(int argc, char** argv )
   cudaConvertFO(d_spect);
   convertFOPhase(d_spect);
   myMemcpyD2H(ccE, d_spect, sizeof(complexFormat)*nspect);
-  saveWave("outputSpect", ccE, nspect);
-  myDMalloc(Real, wavelengths, nspect);
   int nsavespect = 0;
   for(int i = 0; i < nspect; i++){
     Real freq = (i - Real(nspect)/4-Real(freqshift)/2)*freqspacing + minfreq/2;
     if(freq < minfreq/2) continue;
-    wavelengths[nsavespect] = 2*M_PI*c / freq;
+    xaxis[nsavespect] = 2*M_PI*c / freq;
     ccE[nsavespect] = ccE[i];
     nsavespect++;
   }
-  saveWave("outputSpect", wavelengths, ccE, nsavespect);
+  saveWave("outputSpect", xaxis, ccE, nsavespect);
   //calculate reconstructed complete trace
   init_fft(nspect,1,nfulldelay);
   resize_cuda_image(nfulldelay,nspect);

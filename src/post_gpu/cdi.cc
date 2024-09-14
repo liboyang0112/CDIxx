@@ -75,6 +75,11 @@ void CDI::readPattern(){
   }else{
     allocateMem();
     myMemcpyH2D(patternData, pattern, row*column*sizeof(Real));
+    Real maxs = findMax(patternData,row*column);
+    if(maxs < 1e-7 || maxs!=maxs){
+      printf("max = %f\n", maxs);
+      exit(0);
+    }
   }
   ccmemMngr.returnCache(pattern);
   //multiplySqy(patternData,patternData);
@@ -243,7 +248,7 @@ void CDI::saveState(){
   plt.init(row/oversampling_spt,column/oversampling_spt);
   plt.plotFloat(tmp1, MOD, 0, 1./max, ("recon_intensity_cropped"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(tmp, PHASE, 0, 1, ("recon_phase_cropped"+save_suffix).c_str(), 0, isFlip);
-  plt.plotComplexColor(tmp, MOD2, 0, 1, ("recon_wave"+save_suffix).c_str(), 0, isFlip);
+  plt.plotComplexColor(tmp, 0, 1, ("recon_wave"+save_suffix).c_str(), 0, isFlip);
   resize_cuda_image(row,column);
   plt.init(row,column);
   memMngr.returnCache(tmp);
@@ -296,12 +301,18 @@ void* CDI::phaseRetrieve(){
     if(ialgo == shrinkWrap){
       getMod2(cuda_objMod,cuda_gkp1);
       applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
-      setThreshold(findMax(support,row*column)*shrinkThreshold);
+      Real maxs = findMax(cuda_objMod,row*column);
+      setThreshold(maxs*shrinkThreshold);
+      if(fabs(maxs) < 1e-7 || maxs!=maxs) {
+        printf("max is %f\n", maxs);
+        plt.plotFloat(cuda_objMod, MOD, 0, 1, "debug", 1, 0, 1);
+      }
       if(gaussianSigma>1) {
         gaussianSigma*=0.99;
       }
       continue;
     }
+    gpuerr();
     if(simCCDbit) applyMod((complexFormat*)patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
     else applyModAbs((complexFormat*)patternWave,cuda_diff);
     myIFFT( (complexFormat*)patternWave, cuda_gkprime);
@@ -317,8 +328,8 @@ void* CDI::phaseRetrieve(){
     if(iter%100==0) {
       std::string iterstr = to_string(iter);
       if(saveIter){
-        plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
-        plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
+        plt.plotComplex(cuda_gkp1, PHASE, 0, row*column, ("recon_phase"+iterstr).c_str(), 0, isFlip);
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
       }
       if(0&&iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
@@ -333,6 +344,7 @@ void* CDI::phaseRetrieve(){
       }
     }
   }
+  gpuerr();
   applyNorm(cuda_gkp1, sqrt(row*column));
   if(saveVideoEveryIter) plt.saveVideo(vidhandle);
   if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
@@ -346,8 +358,10 @@ void* CDI::phaseRetrieve(){
   getMod2(cuda_objMod, cuda_objMod);
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
   initCub();
+  gpuerr();
   residual = findSum(cuda_objMod);
   printf("residual= %f\n",residual);
+  gpuerr();
 
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);

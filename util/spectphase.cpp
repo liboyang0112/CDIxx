@@ -9,6 +9,10 @@
 #include <time.h>
 
 int main(int argc, char* argv[]){
+  if(argc < 2){
+    printf("Usage: spectphase_run xxx.cfg");
+    exit(0);
+  }
   init_cuda_image();
   ToyMaterial mat;
   readConfig cfg(argv[1]);
@@ -16,13 +20,13 @@ int main(int argc, char* argv[]){
   double* lambdas, *spectra;
   int row = 512, col = 512;
 #if 1
-  Real lambdarange = 1.4;
+  Real lambdarange = 2;
   int nlambda = row*(lambdarange-1)/2;
   lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 2.*i/row;
-    spectra[i] = exp(-pow((i*2./nlambda-1)/0.3,2))/nlambda; //gaussian, -1,1 with sigma=1
+    spectra[i] = 1; //gaussian, -1,1 with sigma=1
   }
 #else
   const int nlambda = 5;
@@ -52,10 +56,10 @@ int main(int argc, char* argv[]){
     ccdRecord(d_pattern, d_pattern, cfg.noiseLevel, randstate, cfg.exposure);
     plt.plotFloat(d_pattern, MOD, 1, 1, "mergedlog", 1, 0, 1);
     plt.plotFloat(d_pattern, MOD, 1, 1, "merged", 0, 0, 0);
+    extendToComplex(d_pattern,d_wave);
+    myFFT(d_wave,d_wave);
+    plt.plotComplex(d_wave, MOD2, 1, 1./32, "autocorrelation_merged", 0, 0, 1);
     mwl.solvecSpectrum((Real*)d_pattern, 800);
   }
-  extendToComplex(d_pattern,d_wave);
-  myFFT(d_wave,d_wave);
-  plt.plotComplex(d_wave, MOD2, 1, 1, "autocorrelation_merged", 1, 0, 1);
   return 0;
 }

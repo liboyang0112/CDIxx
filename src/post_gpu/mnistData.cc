@@ -54,8 +54,8 @@ mnistData::~mnistData(){
 
 cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir), refinement(re), row(r), col(c), nmerge(nm){
   cuRaw = memMngr.borrowCache(rowraw*colraw*sizeof(Real));
-  rowrf = rowraw*nmerge*2/3;
-  colrf = colraw*nmerge*2/3;
+  rowrf = rowraw*nmerge;
+  colrf = colraw*nmerge;
   cuRefine = memMngr.borrowCache(rowrf*colrf*refinement*refinement*sizeof(Real));
   if(refinement!=1){
     createPlan(&handle, rowrf*refinement, colrf*refinement);
@@ -72,7 +72,7 @@ void cuMnist::cuRead(void* out){
   for(int i = 0; i < nmerge; i++){
     for(int j = 0; j < nmerge; j++){
       myMemcpyH2D(cuRaw, read(), rowraw*colraw*sizeof(Real));
-      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3-7, colraw*j*2/3-7);
+      paste( (Real*)media, (Real*)cuRaw, colrf, rowraw*i*2/3, colraw*j*2/3);
     }
   }
   if(refinement!=1){

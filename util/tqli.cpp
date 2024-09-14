@@ -2,11 +2,11 @@
 #include <string.h>
 #include <stdio.h>
 
-void tqli(Real *diag, Real *subdiag, int n, Real *eigenVectors) {
-    for(int l = 1; l < n; l++){
-        
-    }
-}
+//void tqli(Real *diag, Real *subdiag, int n, Real *eigenVectors) {
+//    for(int l = 1; l < n; l++){
+//        
+//    }
+//}
 int main() {
   const int n = 100;
   Real diagEle[n], subdiagEle[n], eigenVectors[n * n];
@@ -17,7 +17,7 @@ int main() {
     eigenVectors[i * n + i] = 1;
   }
   subdiagEle[n-1] = 0;
-  tqli(diagEle, subdiagEle, n, eigenVectors);
+//  tqli(diagEle, subdiagEle, n, eigenVectors);
   for (int i = 0; i < n; i++) {
     printf("%f", eigenVectors[i * n + n - 1]);
   }

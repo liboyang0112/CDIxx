@@ -49,7 +49,7 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
   double ccdmax = ccd_lambda.back();
   double ccd_rate_max = ccd_rate.back();
-  for(int i = 0; i < spectrum.size(); i++){
+  for(unsigned int i = 0; i < spectrum.size(); i++){
     lambda = spectrum_lambda[i];
     if(lambda<startLambda) continue;
     if(lambda>=endLambda) break;
@@ -109,7 +109,7 @@ int main(int argc, char** argv){
   if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
   int handle;
   bool training = 1;
-  int ntraining = 1;
+  int ntraining = 1000;
   int testingstart = ntraining;
   monoChromo mwl;
   CDI cdi(argv[1]);
@@ -118,7 +118,7 @@ int main(int argc, char** argv){
   int datamerge[] = {1};
   int datarefine[] ={3};
   const int nconfig = 1;
-  int ntesting = 10;
+  int ntesting = 100;
   cuMnist *mnist_dat[nconfig];
   int objrow;
   int objcol;
@@ -146,7 +146,8 @@ int main(int argc, char** argv){
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
       d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
-      pad(d_obj, d_input, objrow/cdi.oversampling, objcol/cdi.oversampling);
+        resize_cuda_image(objrow, objcol);
+      pad(d_input, d_obj,  objrow/cdi.oversampling, objcol/cdi.oversampling);
       memMngr.returnCache(d_input);
     }
   }else{
@@ -159,31 +160,35 @@ int main(int argc, char** argv){
   Real monoLambda = cdi.lambda;
   if(string(cdi.spectrum) == "gaussian"){
     int lambdarange = 6;
-    int nlambda = objrow*(lambdarange-1)/2;
+    int sigma = 1;
+    Real dlambda = 2./objrow;
+    Real midlambda = Real(lambdarange+1)/2;
+    int nlambda = (lambdarange-1)/dlambda;
     lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
     spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
     for(int i = 0; i < nlambda; i++){
-      lambdas[i] = 1 + 2.*i/objrow;
-      spectra[i] = exp(-pow(2*(i*2./nlambda-1),2))/nlambda; //gaussian, -1,1 with sigma=1
+      lambdas[i] = 1 + dlambda*i;
+      spectra[i] = exp(-pow((lambdas[i]-midlambda)/sigma,2)/2)/nlambda; //gaussian, -1,1 with sigma=1
     }
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   }
   else if(string(cdi.spectrum) == "comb"){
-    int maxh = 37;
-    int maxl = 6;
+    int maxh = 11;
+    int maxl = 3;
     int minh = ((maxh / maxl)>>1<<1) - 1 ;
     int nlambda = (maxh - minh)/2;
     myMalloc(double, lambdas, nlambda);
     myMalloc(double, spectra, nlambda);
     float spectsum = 0;
+    spectra[0] = 2, spectra[1] = 3, spectra[2] = 4, spectra[3] = 4, spectra[4] = 2;
     for(int i = 0; i < nlambda; i++){
       lambdas[i] = float(maxh)/(maxh-2*i);
         //spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2))*5; //gaussian, -1,1 with sigma=1
-      if(i < 4) spectra[i] = 0.03+i*0.03;
-      else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
-      else if(i == 5) spectra[i] = 0.6;
-      else if(i == 4) spectra[i] = 0.3;
-      else spectra[i] = 0.3+0.08*i;
+//      if(i < 4) spectra[i] = 0.03+i*0.03;
+//      else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
+//      else if(i == 5) spectra[i] = 0.6;
+//      else if(i == 4) spectra[i] = 0.3;
+//      else spectra[i] = 0.3+0.08*i;
       spectsum += spectra[i];
     }
     for(int i = 0; i < nlambda; i++){
@@ -221,9 +226,12 @@ int main(int argc, char** argv){
   void *devstates = newRand(mwl.column * mwl.row);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   initRand(devstates,seed);
-  mwl.devstates = 0;//devstates;
+  mwl.devstates = devstates;//devstates;
   Real maxmerged = 0;
   //mwl.writeSpectra("spectra.txt");
+  Real sumI = 0;
+  Real maxsingle = 0;
+  printf("start mwl!\n");
   for(int j = 0; j < (cdi.domnist? (training? ntraining:ntesting):1); j++){
     if(cdi.runSim){
       if(cdi.domnist) {
@@ -232,30 +240,36 @@ int main(int argc, char** argv){
         resize_cuda_image(mwl.row, mwl.column);
         plt.init(mwl.row, mwl.column);
         pad(d_input, d_obj, objrow/cdi.oversampling, objcol/cdi.oversampling);
+        if(j%2==0) rotate90(d_obj, d_obj, 1);
         if(j==0){
           plt.plotFloat(d_obj, MOD, 0, 1, ("input"+to_string(j)).c_str(), 0);
         }
       }
       mwl.generateMWL(d_obj, d_patternSum, d_solved);
-      if(maxmerged==0) maxmerged = findMax(d_patternSum);
-      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, 0);
+      if(j == 0) {
+        maxmerged = findMax(d_patternSum);
+        sumI = findSum(d_patternSum);
+      }
       //if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged);
+      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil*cdi.exposure/rcolor*cdi.photoncount/sumI, devstates, cdi.exposure/maxmerged, cdi.photoncount/sumI);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
-      plt.saveFloat(d_patternSum, "floatimage");
-      myMemcpyD2H(merged, d_patternSum, sz);
-      getMod( realcache, d_solved);
-      applyNorm( realcache, 1./findMax(realcache));
-      myMemcpyD2H(single, realcache, sz);
       if(cdi.domnist) {
         int key = j;
+        getMod( realcache, d_solved);
+        if(j == 0)
+          maxsingle = findMax(realcache);
+        applyNorm( realcache, cdi.exposure/maxsingle);
+        myMemcpyD2H(single, realcache, sz);
+        myMemcpyD2H(merged, d_patternSum, sz);
         void* ptrs[] = {merged, single};
         size_t sizes[] = {objrow*objcol*sizeof(float),objrow*objcol*sizeof(float)};
         fillLMDB(handle, &key, 2, ptrs, sizes);
       }
       if(j==0){
+        plt.saveFloat(d_patternSum, "floatimage");
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
-        plt.plotComplex(d_solved, MOD, 0, cdi.exposure/maxmerged, ("singlelog"+to_string(j)).c_str(), 1);
+        plt.plotComplex(d_solved, MOD, 0, cdi.exposure, ("singlelog"+to_string(j)).c_str(), 1, 0, 1);
       }
     }else{
       myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));

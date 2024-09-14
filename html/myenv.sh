@@ -1,1 +1,2 @@
-/home/boyang/myenv.sh
+source ~/myenv.sh
+init_nvhpc_247

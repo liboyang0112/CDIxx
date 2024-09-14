@@ -97,9 +97,9 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
     for(int j = 0; j < nlambda; j++){
       k += (sq(creal(cspectrum_step[j])) + sq(cimag(cspectrum_step[j])))*spectra[j];
     }
-    printf("residual = %f, sum = %f, ", residual, k);
+    //printf("residual = %f, sum = %f, ", residual, k);
     k = residual/(k+1e-3);
-    printf("k = %f\n", k);
+    //printf("k = %f\n", k);
     for(int j = 0; j < nlambda; j++){
       cspectrum[j] += k*step_size*cspectrum_step[j];
     }
@@ -126,10 +126,15 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
     int thisrow = rows[j];
     int thiscol = cols[j];
     Real rat = Real(thisrow)/row;
-    complexFormat amp = cexp(-thickness/matp->getExtinctionLength(rat)+1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
+    complexFormat amp = 1;
+    if(0) amp = cexp(1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
     file1<<j << " " << rat << " " << creal(amp) << " " << cimag(amp) << " " << cabs(amp) << " " << carg(amp)<<std::endl;
     resize_cuda_image(pixCount, 1);
     expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, amp);
+    resize_cuda_image(row, column);
+    plt.init(row, column);
+    plt.plotComplex(d_ref, MOD2, 1, 1., "debug", 0, 0, 0);
+    exit(0);
     resize_cuda_image(thisrow, thiscol);
     pad(d_ref, d_amp, row, column);
     myFFTM(locplan[j], d_amp, d_amp);

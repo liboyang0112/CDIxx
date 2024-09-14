@@ -116,16 +116,16 @@ void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequen
   myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
   return cv_data;
 };
-void* cuPlotter::processComplexColor(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip){
   if(!cuCache_data) {
     cuCache_data = (col_rgb*) memMngr.borrowCache(rows*cols*sizeof(col_rgb));
   }
-  process_rgb(cudaData, (col_rgb*)cuCache_data, m,isFrequency, decay, islog, isFlip);
+  process_rgb(cudaData, (col_rgb*)cuCache_data, isFrequency, decay, islog, isFlip);
   myMemcpyD2H(cv_cache, cuCache_data,rows*cols*sizeof(col_rgb));
   return cv_cache;
 };
-void cuPlotter::plotComplexColor(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
-  processComplexColor(cudaData,m,isFrequency,decay,islog,isFlip);
+void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  processComplexColor(cudaData,isFrequency,decay,islog,isFlip);
   writePng((std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){

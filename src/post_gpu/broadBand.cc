@@ -28,9 +28,9 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
     rows[i] = nearestEven(row*lambdas_[i]);
     cols[i] = nearestEven(column*lambdas_[i]);
     createPlan(locplan+i, rows[i], cols[i]);
-    file << lambdas_[i] << " " << 0 << endl;
+    //file << lambdas_[i] << " " << 0 << endl;
     file << lambdas_[i] << " " << spectra_[i]*nlambda << endl;
-    file << lambdas_[i] << " " << 0 << endl;
+    //file << lambdas_[i] << " " << 0 << endl;
   }
   file.close();
 }
@@ -218,6 +218,7 @@ void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
   myCuDMalloc(complexFormat, d_inputWave, row*column);
   resize_cuda_image(row, column);
   extendToComplex( (Real*)d_input, d_inputWave);
+  //applyRandomPhase(d_inputWave, 0, devstates);
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
     int thiscol = cols[i];

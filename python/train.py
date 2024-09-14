@@ -19,8 +19,8 @@ net = UNet(1,4).cuda()
 optimizer = torch.optim.Adam(net.parameters(),lr = 0.01,betas = (0.9, 0.999))
 schedule = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=0.5e-6, eps=1e-8, threshold=1e-4)
 #loss_func = nn.BCELoss()
-loss_func = nn.L1Loss()
-#loss_func = nn.MSELoss()
+#loss_func = nn.L1Loss()
+loss_func = nn.MSELoss()
 trainsz = 256
 bs = 4
 data = ul("./traindb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
@@ -52,13 +52,13 @@ if exists('broad_pattern.bin'):
     runExp = 1
     image = tensor(np.asarray(readImage('broad_pattern.bin')))
     print(image.shape)
-    #x0 = (trainsz - image.shape[0]) >> 1
-    #y0 = (trainsz - image.shape[1]) >> 1
+    x0 = (trainsz - image.shape[0]) >> 1
+    y0 = (trainsz - image.shape[1]) >> 1
     #if x0 > 0:
-    image = F.pad(image,(100,100,100,100),"constant",0)
+    #image = F.pad(image,(100,100,100,100),"constant",0)
     #elif x0 < 0:
-    #    crp = CenterCrop(trainsz)
-    #    image = crp(image)
+    crp = CenterCrop(trainsz)
+    image = crp(image)
     image = image.clone().detach()
     image = image.view(1,1,image.shape[0], image.shape[1]).to(device('cuda:0'))
     image = resize(image)

@@ -50,18 +50,35 @@ void setHoleArray(uint16_t* arr, int rows, int cols, int randstep) {
     }
   }
 };
-int main(int argc, char **argv) {
+void setrandomFTHArray(uint16_t* arr, int cols) {
+  auto seed = time(NULL);
+  std::default_random_engine generator(seed);
+  std::normal_distribution<double> distribution(0.0, rcolor);
+  for(int i = 128; i < 192; i++) for(int j = 128; j < 192; j++){
+    //arr[i*cols + j] = distribution(generator);
+    //arr[(rows-i-1)*cols + cols-j-1] = distribution(generator);
+    arr[(i)*cols + cols-j-1] = distribution(generator);
+  }
+};
+
+void setbars(uint16_t* arr, int cols) {
+  for(int i = 0 ; i < 52; i++){
+    for(int j = 0 ; j < 52; j++){
+      //if((j/10)%2 == 0) arr[i*cols+j] = maxpix;
+      if((j/10)%2 == 0) arr[(i)*cols+j] = maxpix;
+      if((i/5)%2 == 0 && i < 26 && j < 26) arr[(i+60)*cols+j] = maxpix;
+      if((j/3)%2 == 0 && i < 15 && j < 15) arr[(i+60)*cols+j+36] = maxpix;
+      //if((j/4)%2 == 0) arr[(i+60)*cols+j+60] = maxpix;
+    }
+  }
+};
+
+//int main(int argc, char **argv) {
+int main() {
   int rows = 128, cols = 128;
   myDMalloc(uint16_t, image, rows * cols);
   memset(image, 0, sizeof(uint16_t)*rows*cols);
-  //int idx = 0;
-  //for (int i = 0; i < rows; i++) {
-  //  for (int j = 0; j < cols; j++) {
-  //    image[idx] = setHole(i, j);
-  //    image[idx] = setHoleArray(i, j, 10);
-  //    idx++;
-  //  }
-  //}
-  setHoleArray(image, rows, cols, 0);
+  setbars(image, cols);
+  //setHoleArray(image, rows, cols, 0);
   writePng("mask.png", image, rows, cols, 16, 0);
 }

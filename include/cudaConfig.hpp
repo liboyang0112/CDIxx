@@ -105,7 +105,7 @@ void padinner(Real* src, Real* dest, int row, int col, Real norm);
 void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm);
 void createGauss(Real* data, int sz, Real sigma);
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size = 0);
-void ssimMap(Real* output, Real* mu1sq, Real* mu2sq, Real* mu1mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2);
+void ssimMap(Real* mu1, Real* mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2);
 void init_fft(int rows, int cols, int batch = 1);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 void zeroEdgey(complexFormat* a, int n);
@@ -161,7 +161,11 @@ void assignVal(T1* out, T2* input);
 template<typename T>
 void cudaConvertFO(T* data, T* out = 0);
 template<typename T>
+void rotate90(T* data, T* out = 0, bool clockwise=1);
+template<typename T>
 void transpose(T* data, T* out = 0);
+template<typename T>
+void flipx(T* data, T* out = 0);
 template<typename T>
 void createMask(Real* data, T* spt, bool isFrequency=0);
 template<typename T>

@@ -24,7 +24,7 @@ else()
 endif()
 
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
-add_compile_options(-Wall)
+add_compile_options(-Wall -Wextra)
 
 find_package(PkgConfig) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
@@ -39,7 +39,7 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package( Python COMPONENTS NumPy Interpreter) # pip install numpy
+find_package(Python 3.12 EXACT REQUIRED COMPONENTS Interpreter NumPy)
 if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
@@ -57,6 +57,8 @@ execute_process(
     OUTPUT_VARIABLE EXT_SUFFIX
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+message(${NUMPY_DIR})
+message(${Python_INCLUDE_DIRS})
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
 find_package ( Cython REQUIRED )
 include_directories(${NUMPY_DIR}) #libav* is in this directory on Fedora
@@ -83,7 +85,6 @@ file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} ${CUFFTLIB})
-set_target_properties( ${libname} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c ${PROJECT_SOURCE_DIR}/src/independant/*c)
 foreach( sourcefile ${APP_SOURCES})
@@ -103,6 +104,9 @@ foreach( sourcefile ${APP_SOURCES} )
   target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION) #suppress numpy warning
   SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "" SUFFIX ${EXT_SUFFIX}) #standard cpython library name
 endforeach( sourcefile ${APP_SOURCES} )
+target_link_libraries(cythonLoader cdilmdb_c)
+target_link_libraries(imageIO imgio_c)
+target_link_libraries(readHj FGA_cc)
 endif(Python_FOUND)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cu )
@@ -110,8 +114,7 @@ foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
   string( REPLACE ".cu" "_cu" exename ${libname} )
   add_executable( ${exename} ${sourcefile})
-  set_property(TARGET ${exename}
-    PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+  #set_property(TARGET ${exename} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endforeach( sourcefile ${APP_SOURCES} )
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )
@@ -156,11 +159,9 @@ target_link_libraries(imgio_c tiff png)
 target_link_libraries(imgio_cc imgio_c)
 target_link_libraries(cdi_cc experimentConfig_cc mnistData_cc FISTA_cc)
 target_link_libraries(holo_cc cdi_cc)
-target_link_libraries(cythonLoader cdilmdb_c)
-target_link_libraries(imageIO imgio_c)
-target_link_libraries(readHj FGA_cc)
 target_link_libraries(fdtd3d_cu cudaLibcommon_cu)
 target_link_libraries(fdtd2d_cu cudaLibcommon_cu)
+target_link_libraries(TG_run cudaLibcommon_cu)
 target_link_libraries(sesolver_cu cudaLibcommon_cu)
 target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
 target_link_libraries(cdi_run cdi_cc)
@@ -175,6 +176,7 @@ target_link_libraries(fftDemo_run cudaLibcommon_cu)
 target_link_libraries(zoom_run cudaLibcommon_cu)
 target_link_libraries(processimg_run cudaLibcommon_cu)
 target_link_libraries(takepsnr_run cudaLibcommon_cu)
+target_link_libraries(profile_run cudaLibcommon_cu)
 target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(mono_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(testFISTA_run cdi_cc)

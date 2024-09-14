@@ -1,6 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.12
 from os.path import exists
 from os import mkdir
+from imageIO import writeFloat,readImage,writePng
 import numpy as np
 import torch
 #from mUNet import mUNet
@@ -8,7 +9,6 @@ from torch import device, tensor
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torchvision.transforms import CenterCrop
-from imageIO import writeFloat,readImage,writePng
 from UNet import UNet
 from unetDataLoader import unetDataLoader as ul
 
@@ -21,7 +21,7 @@ net.load_state_dict(torch.load(ModelSave + '/Unet.pt'))
 mp = 'turbo'
 
 trainsz = 256
-runExp = 1
+runExp = 0
 if runExp:
     image = readImage('broad_pattern.bin')
     x0 = (trainsz - image.shape[0]) >> 1
@@ -40,10 +40,10 @@ if runExp:
     imgnp = out.cpu()[0][0].detach().numpy()
     writeFloat("pattern.bin",imgnp)
 
-data = ul("./traindb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
+data = ul("./testdb", 1, trainsz,trainsz, 1, trainsz,trainsz,device('cuda:0'))
 dataloader = DataLoader(data, batch_size = 4, shuffle = True,num_workers = 0,drop_last = True)
 cache = np.zeros((trainsz, trainsz, 3), np.dtype('int8'))
-for idx in range(0,10):
+for idx in range(0,1):
     img,label = data[idx]
     img = torch.unsqueeze(img,dim = 0)
     net.eval()

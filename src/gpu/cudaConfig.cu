@@ -150,6 +150,34 @@ template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat*
   cudaConvertFOWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
 }
 
+cuFuncTemplate(rotate90, (T* data, T* out, bool clockwise),(data,out==0?data:out,clockwise),{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if((index+1)*4 > (cuda_row*cuda_column)) return;
+    int rowp = cuda_row/2;
+    int x = index/rowp;
+    int y = index%rowp;
+    int index0 = x*cuda_column+y;
+    int indexp1 = y*cuda_column+cuda_column-x-1;
+    int indexp2 = (cuda_column-x-1)*cuda_column+cuda_column-y-1;
+    int indexp3 = (cuda_column-y-1)*cuda_column+x;
+    T tmp = data[index0];
+    if(clockwise){
+      out[index0]=data[indexp1];
+      out[indexp1]=data[indexp2];
+      out[indexp2]=data[indexp3];
+      out[indexp3]=tmp;
+    }else{
+      out[index0]=data[indexp3];
+      out[indexp3]=data[indexp2];
+      out[indexp2]=data[indexp1];
+      out[indexp1]=tmp;
+    }
+    })
+template void rotate90<Real>(Real*, Real*, bool);
+template<> void rotate90<complexFormat>(complexFormat* data, complexFormat* out, bool clockwise){
+  rotate90Wrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out), clockwise));
+}
+
 cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index >= (cuda_row*cuda_column)/2) return;
@@ -161,6 +189,19 @@ cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
 template void transpose<Real>(Real*, Real*);
 template<> void transpose<complexFormat>(complexFormat* data, complexFormat* out){
   transposeWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
+}
+
+cuFuncTemplate(flipx, (T* data, T* out),(data,out==0?data:out),{
+    cudaIdx()
+    if(index >= (cuda_row*cuda_column)/2) return;
+    int indexp = (cuda_row-x-1)*cuda_column + y;
+    T tmp = data[index];
+    out[index]=data[indexp];
+    out[indexp]=tmp;
+    })
+template void flipx<Real>(Real*, Real*);
+template<> void flipx<complexFormat>(complexFormat* data, complexFormat* out){
+  flipxWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
 }
 
 template <typename T1, typename T2>
@@ -257,7 +298,8 @@ void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int s
   if(size == 0) size = int(floor(sigma*6))>>1; // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
   int width = (size<<1)+1;
   createGauss(gaussMem, width, sigma);
-  applyConvolution((sq(width-1+16)+(width*width))*sizeof(Real), input, output, gaussMem, size, size);
+  int tilesize = (sq(width+15)+sq(width));
+  applyConvolution(tilesize*sizeof(Real), input, output, gaussMem, size, size);
 }
 
 cuFuncc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(cuComplex* data, cuComplex* dataout, Real factor),((cuComplex*)data,(cuComplex*)dataout,factor),{
@@ -288,10 +330,12 @@ cuFuncShared(applyConvolution,(Real *input, Real *output, Real* kernel, int kern
     int tilesize = tilewidth*tilewidth;
     int blocksize = blockDim.x*blockDim.y;
     for(int filltarget = blockindex; filltarget < tilesize; filltarget+=blocksize){
-    int fillx = x - threadIdx.x - kernelwidth + filltarget/tilewidth;
-    int filly = y - threadIdx.y - kernelwidth + filltarget%tilewidth;
-    if(fillx < 0 || filly < 0 || filly >= cuda_column || fillx >= cuda_row) tile[filltarget] = 0;
-    else tile[filltarget] = input[fillx*cuda_column+filly];
+      int fillx = x - threadIdx.x - kernelwidth + filltarget/tilewidth;
+      int filly = y - threadIdx.y - kernelwidth + filltarget%tilewidth;
+      if(fillx < 0 || filly < 0 || filly >= cuda_column || fillx >= cuda_row) tile[filltarget] = 0;
+      else {
+        tile[filltarget] = input[fillx*cuda_column+filly];
+      }
     }
     if(blockindex < (2*kernelwidth+1)*(2*kernelheight+1)) tile[tilesize+blockindex] = kernel[blockindex];
     if(x >= cuda_row || y >= cuda_column) return;
@@ -1231,10 +1275,10 @@ cuFuncc(zeroEdgey,(complexFormat* a, int n),(cuComplex* a, int n),((cuComplex*)a
     a[index] = cuComplex();
     })
 
-cuFunc(ssimMap,(Real* output, Real* mu1sq, Real* mu2sq, Real* mu1mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2),(output, mu1sq, mu2sq, mu1mu2, sigma1sq, sigma2sq, sigma12, C1, C2),{
+cuFunc(ssimMap,(Real* mu1, Real* mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2),(mu1, mu2, sigma1sq, sigma2sq, sigma12, C1, C2),{
     cuda1Idx()
-    output[index] = (2*mu1mu2[index]+C1)*(2*sigma12[index]+C2)/((mu1sq[index]+mu2sq[index]+C1)*(sigma1sq[index]+sigma2sq[index]+C2));
-    if(output[index] > 1) printf("output=(2*%f)*(2*%f)/(%f+%f)(%f+%f)=%f\n", mu1mu2[index], sigma12[index], mu1sq[index], mu2sq[index], sigma1sq[index], sigma2sq[index], output[index]);
+    Real mu12 = mu1[index]*mu2[index];
+    mu1[index] = (2*mu12+C1)*(2*sigma12[index]+C2)/((sq(mu1[index])+sq(mu2[index])+C1)*(sigma1sq[index]+sigma2sq[index]+C2));
     })
 
 cuFuncTemplate(pad,(T* src, T* dest, int row, int col, int shiftx, int shifty),(src, dest, row, col, shiftx, shifty),{

@@ -19,7 +19,9 @@ struct _CairoPainter {
   Real decay;
 };
 
-static void cairo_painter_class_init(CairoPainterClass *class) {}
+static void cairo_painter_class_init(CairoPainterClass *class) {
+  G_APPLICATION_CLASS (class)->startup = 0;
+}
 static void cairo_painter_init(CairoPainter *cp) {
   cp->img = g_object_new(GTK_TYPE_IMAGE, "pixel-size", 500, NULL);
   gtk_box_append(GTK_BOX(cp), GTK_WIDGET(cp->img));

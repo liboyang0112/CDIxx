@@ -11,7 +11,7 @@ const char* fontfile= "/usr/share/fonts/gsfonts/NimbusRoman-BoldItalic.otf";
 //const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
 static FT_Library    library;
 static FT_Face       face = 0;
-int putText(const char* text, int initx, int inity, int rows, int cols, void* data, char iscolor, void* rgb)
+int putText(const char* text, int initx, int inity, unsigned int rows, unsigned int cols, void* data, char iscolor, void* rgb)
 {
 
 
@@ -40,9 +40,9 @@ int putText(const char* text, int initx, int inity, int rows, int cols, void* da
     FT_Load_Char( face, text[n], FT_LOAD_RENDER );
     int y = inity-slot->bitmap_top;
     int x = slot->bitmap_left;
-    for (int q = 0; q < slot->bitmap.rows; q++ )
+    for (unsigned int q = 0; q < slot->bitmap.rows; q++ )
     {
-      for (int p = 0; p < slot->bitmap.width; p++ )
+      for (unsigned int p = 0; p < slot->bitmap.width; p++ )
       {
         if (p+x < 0 || q+y < 0 || p+x >= rows || q+y >= cols )
           continue;

@@ -45,7 +45,7 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
   double ccdmax = ccd_lambda.back();
   double ccd_rate_max = ccd_rate.back();
-  for(int i = 0; i < spectrum.size(); i++){
+  for(unsigned int i = 0; i < spectrum.size(); i++){
     lambda = spectrum_lambda[i];
     if(lambda<startLambda) continue;
     if(lambda>=endLambda) break;
@@ -102,6 +102,10 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 }
 
 int main(int argc, char** argv){
+  if(argc < 2) {
+    printf("Usage: mono_run xxx.cfg");
+    exit(0);
+  }
   int handle;
   char training = 1; //0: no DB generation, 1: trainging DB, 2: testing DB
   int ntraining = 1000;
@@ -168,29 +172,29 @@ int main(int argc, char** argv){
     }
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   }
-  else if(string(cdi.spectrum) == "comb"){
-    int maxh = 37;
-    int maxl = 6;
-    int minh = ((maxh / maxl)>>1<<1) - 1 ;
-    int nlambda = (maxh - minh)/2;
-    myMalloc(double, lambdas, nlambda);
-    myMalloc(double, spectra, nlambda);
-    float spectsum = 0;
-    for(int i = 0; i < nlambda; i++){
-      lambdas[i] = float(maxh)/(maxh-2*i);
-        //spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2))*5; //gaussian, -1,1 with sigma=1
-      if(i < 4) spectra[i] = 0.03+i*0.03;
-      else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
-      else if(i == 5) spectra[i] = 0.6;
-      else if(i == 4) spectra[i] = 0.3;
-      else spectra[i] = 0.3+0.08*i;
-      spectsum += spectra[i];
-    }
-    for(int i = 0; i < nlambda; i++){
-       spectra[i]/=spectsum;
-    }
-    mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  }
+  //else if(string(cdi.spectrum) == "comb"){
+  //  int maxh = 37;
+  //  int maxl = 6;
+  //  int minh = ((maxh / maxl)>>1<<1) - 1 ;
+  //  int nlambda = (maxh - minh)/2;
+  //  myMalloc(double, lambdas, nlambda);
+  //  myMalloc(double, spectra, nlambda);
+  //  float spectsum = 0;
+  //  for(int i = 0; i < nlambda; i++){
+  //    lambdas[i] = float(maxh)/(maxh-2*i);
+  //      //spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2))*5; //gaussian, -1,1 with sigma=1
+  //    if(i < 4) spectra[i] = 0.03+i*0.03;
+  //    else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
+  //    else if(i == 5) spectra[i] = 0.6;
+  //    else if(i == 4) spectra[i] = 0.3;
+  //    else spectra[i] = 0.3+0.08*i;
+  //    spectsum += spectra[i];
+  //  }
+  //  for(int i = 0; i < nlambda; i++){
+  //     spectra[i]/=spectsum;
+  //  }
+  //  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
+  //}
   else{
     Real startlambda = 500;
     Real endlambda = 1000;

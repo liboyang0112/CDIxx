@@ -8,6 +8,10 @@ using namespace std;
 
 int main(int argc, char** argv )
 {
+  if(argc < 2){
+    printf("Usage: propagatorDemo_run complex_image.bin");
+    exit(0);
+  }
   init_cuda_image();  //always needed
 
   Real s_over_lambda2 = (1./5.42)*1e-6;

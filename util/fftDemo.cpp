@@ -1,10 +1,15 @@
 #include "imgio.hpp"  //readImage
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
+#include <stdio.h>
 
 
 int main(int argc, char** argv )
 {
+  if(argc < 2) {
+    printf("Usage: fftDemo_run img.png");
+    return 0;
+  }
   init_cuda_image();  //always needed
   int oversampling = 3;
 

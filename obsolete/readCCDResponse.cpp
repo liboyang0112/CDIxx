@@ -20,6 +20,10 @@ bool onCurve(unsigned char *pixColor, unsigned char *curveColor, int tolerance){
 
 int main(int argc, char** argv )
 {
+  if(argc < 2){
+    printf("Usage: readCCDResponse_run image.png");
+    return 0;
+  }
   int start[] = {126,384};
   int end[] = {676,51};
   Real startlambda = 400;

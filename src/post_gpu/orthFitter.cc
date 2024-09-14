@@ -155,7 +155,7 @@ void runIter_fast(int n, int niter, double step_lambda, double* bi, double* out,
   }
 }
 
-void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm, void* param){
+void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void* param){
   double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // ATb
   double *matrix = (double*)ccmemMngr.borrowCleanCache(
 #ifdef useLapack

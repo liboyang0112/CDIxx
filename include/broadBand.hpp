@@ -35,7 +35,6 @@ class broadBand_constRatio : public broadBand_base{
     int nmiddle;
     int thisrow, thiscol, thisrowp, thiscolp;
     void init(int nrow, int ncol, double minlambda, double maxlambda);
-    void init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_){};
     Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray);
     broadBand_constRatio() : broadBand_base(){};
     char skipPattern();

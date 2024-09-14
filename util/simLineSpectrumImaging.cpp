@@ -4,8 +4,13 @@
 #include "readConfig.hpp"
 #include "spectImaging.hpp"
 #include "cuPlotter.hpp"
+#include <stdio.h>
 
 int main(int argc, char* argv[]){
+  if(argc < 2){
+    printf("Usage: simLineSpectrumImaging_run xxx.cfg\n");
+    return 0;
+  }
   ToyMaterial mat;
   readConfig cfg(argv[1]);
   //split reference and object support into two images.

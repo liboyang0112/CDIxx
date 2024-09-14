@@ -8,10 +8,10 @@ double ToyMaterial::getExtinctionLength(double lambda){
   return (1.1+sin(M_PI/2*lambda))*100;
 }
 double TabledMaterial::getRefractiveIndex(double lambda){
-  double idx = 0;
+  double idx = lambda;
   return idx;
 }
 double TabledMaterial::getExtinctionLength(double lambda){
-  double len = 0;
+  double len = lambda;
   return len;
 }
