@@ -13,7 +13,16 @@ static cufftHandle *plan = 0, *planR2C = 0;
 int3 cuda_imgsz = {0,0,1};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
+cuMemManager::cuMemManager():memManager(){cudaFree(0);}
 cuMemManager memMngr;
+void gpuAssert(int code, const char *file, int line)
+{
+  if (code != cudaSuccess)
+  {
+    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString((cudaError_t)code), file, line);
+    abort();
+  }
+}
 int getCudaRows(){
   return cuda_imgsz.x;
 }
@@ -32,12 +41,7 @@ void myMemcpyD2H(void* d, void* s, size_t sz){
 void clearCuMem(void* ptr, size_t sz){
   cudaMemset(ptr, 0, sz);
 }
-void resize_cuda_image(int rows, int cols){
-  cuda_imgsz.x = rows;
-  cuda_imgsz.y = cols;
-  numBlocks.x=(rows*cols-1)/threadsPerBlock.x+1;
-}
-void resize_cuda_volumn(int rows, int cols, int layers){
+void resize_cuda_image(int rows, int cols, int layers){
   cuda_imgsz.x = rows;
   cuda_imgsz.y = cols;
   cuda_imgsz.z = layers;
@@ -790,31 +794,6 @@ __device__ cuComplex getFact(Real phase, int l){
   }
   return nom;
 }
-cuFunc(stretch,(Real* src, Real* dest, Real rat, int prec),(src,dest,rat,prec),{
-    cudaIdx()
-    int targetx = Real(x-cuda_row/2)/rat+cuda_row/2;
-    int targety = Real(y-cuda_column/2)/rat+cuda_column/2;
-    Real f = cuda_row*cuda_column*rat*rat;
-    dest[index] = 0;
-    Real sum = 0;
-    Real sum1 = 0;
-    for(int tx = targetx - prec; tx < targetx+prec; tx++){
-    Real phase = 2*M_PI*(Real(x-cuda_row/2)/rat-tx+cuda_row/2)/cuda_row;
-    cuComplex factor1 = getFact(phase, cuda_row);
-    for(int ty = targety - prec; ty < targety+prec; ty++){
-    phase = 2*M_PI*(Real(y-cuda_column/2)/rat-ty+cuda_column/2)/cuda_column;
-    cuComplex factor2 = getFact(phase, cuda_row);
-    factor2 = cuCmulf(factor1,factor2);
-    if(x == 1 && y == 1) {
-    sum += factor2.x/f;
-    sum1 += factor2.y/f;
-    printf("%d, %d, %f, %f\n", tx, ty, factor2.x/f, factor2.y/f);
-    }
-    dest[index] += src[tx*cuda_row+ty]*factor2.x /f;
-    }
-    }
-    if(x == 1 && y == 1) printf("sum: %f, %f, %f\n", sum, sum1, sqSum(sum, sum1));
-})
 cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
     cudaIdx()
     int targetx = x >= cuda_row/2 ? x + row - cuda_row : x;
@@ -1099,20 +1078,6 @@ cuFuncc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b, int nois
     deltab[index].y = 0;
     })
 
-cuFuncc(multiplyPixelWeight, (complexFormat* img, Real* weights),(cuComplex* img, Real* weights),((cuComplex*)img, weights),{
-    cudaIdx();
-    int shift = max(abs(x+0.5-cuda_row/2), abs(y+0.5-cuda_column/2));
-    img[index].x *= weights[shift];
-    })
-cuFuncc(multiplyReal_inner,(complexFormat* a, complexFormat* b, Real* c, int d),(cuComplex* a, cuComplex* b, Real* c, int d),((cuComplex*)a,(cuComplex*)b,c,d),{
-    cudaIdx();
-    int removeCent = 50;
-    if(x < d || x >= cuda_row - d || y < d || y > cuda_column - d
-        ||(abs(x-cuda_row/2) < removeCent && abs(y-cuda_column/2) < removeCent)
-      )
-    c[index] = 0;
-    else c[index] = a[index].x*b[index].x;
-    })
 cuFuncc(assignRef_d, (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n), (cuComplex* wavefront, uint32_t* mmap, cuComplex* rf, int n),((cuComplex*)wavefront, mmap, (cuComplex*)rf, n), {
     cuda1Idx()
     if(index >= n) return;

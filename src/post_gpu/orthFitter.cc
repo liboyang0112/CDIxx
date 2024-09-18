@@ -1,4 +1,5 @@
 #include <string.h>
+#include "cudaConfig.hpp"
 #include "orthFitter.hpp"
 #include "memManager.hpp"
 #ifdef useLapack
@@ -8,6 +9,61 @@
 #endif
 #include <math.h>
 #include <stdio.h>
+
+void runIter_cu(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix){
+  int sz = n*sizeof(double);
+  myCuDMallocClean(double, lambdas, n); // lagrangian multiplier
+  myCuDMalloc(double, d_bi, n);
+  myCuDMalloc(double, d_prods, n);
+  int szmat = n*(n+1)/2;
+  myCuDMalloc(double, d_matrix, szmat);
+  myMemcpyH2D(d_bi,bi,sz);
+  myMemcpyH2D(d_prods,prods,sz);
+  myMemcpyH2D(d_matrix,matrix,szmat*sizeof(double));
+  resize_cuda_image(n,1);
+  for(int iter = 0; iter < niter; iter++){
+    calcLambdas(lambdas, step_lambda, d_matrix, d_bi, iter == niter - 1);
+    calcbs(d_bi, d_matrix, lambdas, d_prods);
+  }
+  myMemcpyD2H(bi,d_bi,sz);
+  memMngr.returnCache(lambdas);
+  memMngr.returnCache(d_bi);
+  memMngr.returnCache(d_prods);
+  memMngr.returnCache(d_matrix);
+}
+
+void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* matrix){
+  myCuDMallocClean(double, lambda, n); // lambdas
+  int szmat =
+#ifdef useLapack
+    n*(n+1)/2
+#else
+    n*n
+#endif
+    ;
+  myCuDMalloc(double, d_out, n);
+  myCuDMalloc(double, d_bi, n);
+  myCuDMalloc(double, d_matrix,szmat);
+  myMemcpyH2D(d_bi, out, n);
+  myMemcpyH2D(d_matrix, matrix, szmat*sizeof(double));
+  resize_cuda_image(n, n);
+#ifdef useLapack
+  myCuDMalloc(double, d_matrix_ext, n*n);
+  fillMatrix(d_matrix, d_matrix_ext);
+  memMngr.returnCache(d_matrix);
+  d_matrix = d_matrix_ext;
+#endif
+  resize_cuda_image(n, 1);
+  for(int iter = 0; iter < niter; iter++){
+    calcLambdas_fast(lambda, step_lambda, d_out);
+    calcas_fast(d_bi, d_matrix, lambda, d_out);
+  }
+  myMemcpyD2H(out,d_out,n*sizeof(double));
+  memMngr.returnCache(d_matrix);
+  memMngr.returnCache(d_bi);
+  memMngr.returnCache(d_out);
+  memMngr.returnCache(lambda);
+}
 
 void runIter(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix){
   double *lambdas = (double*)ccmemMngr.borrowCleanCache(n*sizeof(double)); // lagrangian multiplier

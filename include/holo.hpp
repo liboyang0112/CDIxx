@@ -19,3 +19,10 @@ class holo : public CDI{
     void iterate();
     void noniterative();
 };
+void applySupportBarHalf(complexFormat* img, Real* spt);
+void applySupportBar_Flip(complexFormat* img, Real* spt);
+void applySupport(complexFormat* img, Real* spt);
+void dillate (complexFormat* data, Real* support, int wid, int hit);
+void applyModCorr (complexFormat* obj, complexFormat* refer, Real* xcorrelation);
+void devideStar (complexFormat* obj, complexFormat* refer, complexFormat* xcorrelation);
+

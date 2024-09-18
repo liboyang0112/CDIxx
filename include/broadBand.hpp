@@ -1,4 +1,5 @@
 #include "format.hpp"
+#include<stdint.h>
 class broadBand_base{
   public:
     int *locplan;
@@ -43,3 +44,9 @@ class broadBand_constRatio : public broadBand_base{
     void applyA(complexFormat* src, complexFormat* dest, char zoomout = 0);
     void generateMWL(void* d_input, void* d_patternSum, void* single = 0);
 };
+void assignRef_d (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n);
+void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0);
+void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a);
+void saveRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, Real norm);
+void saveRef_Real (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm);
+

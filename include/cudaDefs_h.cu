@@ -44,7 +44,7 @@
   }
 #define cuda1Idx() \
   int index = blockIdx.x * blockDim.x + threadIdx.x;\
-  if(index >= cuda_row*cuda_column) return;
+  if(index >= cuda_row*cuda_column*cuda_height) return;
 #define cudaIdx() \
   int index = blockIdx.x * blockDim.x + threadIdx.x;\
   if(index >= cuda_row*cuda_column) return;\
@@ -68,14 +68,4 @@ struct cudaVars{
 extern cudaVars* cudaVar;
 extern cudaVars* cudaVarLocal;
 extern int3 cuda_imgsz;
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line)
-{
-  if (code != cudaSuccess)
-  {
-    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    abort();
-  }
-}
-
 #endif

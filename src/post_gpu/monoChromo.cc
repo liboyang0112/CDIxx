@@ -212,7 +212,6 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         myFFT(fbi, fbi);
         add((complexFormat*)patternstep, fbi, spectra[j]);
       }
-      //multiplyPixelWeight( patternstep, pixel_weight);
       if(beta1){
         //updateMomentum( patternstep, momentum, 2*beta1);
         add( momentum, patternstep, 2*beta1);

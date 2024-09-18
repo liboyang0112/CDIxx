@@ -12,3 +12,5 @@ class monoChromo_constRatio : public broadBand_constRatio{
     monoChromo_constRatio():broadBand_constRatio(){};
     void solveMWL(void* d_input, void* d_patternSum, int noiseLevel = 0, bool restart = 0, int nIter = 200, bool updateX = 1, bool updateY = 0);
 };
+void updateMomentum(complexFormat* force, complexFormat* mom, Real dx);
+void overExposureZeroGrad (complexFormat* deltab, complexFormat* b, int noiseLevel);
