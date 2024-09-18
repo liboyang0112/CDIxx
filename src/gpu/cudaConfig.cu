@@ -13,7 +13,7 @@ static cufftHandle *plan = 0, *planR2C = 0;
 int3 cuda_imgsz = {0,0,1};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
-cuMemManager::cuMemManager():memManager(){cudaFree(0);}
+cuMemManager::cuMemManager():memManager(){}
 cuMemManager memMngr;
 void gpuAssert(int code, const char *file, int line)
 {
@@ -50,6 +50,7 @@ void resize_cuda_image(int rows, int cols, int layers){
 void init_cuda_image(int rcolor, Real scale){
   const int sz = sizeof(cudaVars);
   if(!cudaVar){
+    cudaFree(0);
     cudaVar = (cudaVars*) memMngr.borrowCache(sz);
     myMalloc(cudaVars, cudaVarLocal, 1);
     cudaVarLocal->threshold = 0.5;
