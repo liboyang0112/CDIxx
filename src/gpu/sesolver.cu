@@ -18,7 +18,7 @@ cuFunc(initV,(Real* V, Real val), (V, val), {
   Real r21 = sq(x-xmid1) + sq(y-ymid1) + sq(z-zmid1);
   Real r22 = sq(x-xmid2) + sq(y-ymid2) + sq(z-zmid2);
   V[index] += val/sqrt(r21) + val/sqrt(r22);
-  if(r21 < 20 || r22 < 20) printf("V=%f\n", V[index]);
+  if(r21 < 0.5 || r22 < 0.5) printf("V=%f\n", V[index]);
 })
 
 cuFunc(Hpsifunc, (Real * psi, Real *V, Real *Hpsi, Real Eshift),

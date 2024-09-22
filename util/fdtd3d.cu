@@ -15,9 +15,6 @@ using namespace std;
 
 const Real b_PML = 1-k_PML*n_PML;
 
-__device__ Real sqSum3(Real a, Real b, Real c){
-  return a*a+b*b+c*c;
-}
 __device__ Real getmH(int x, int y, int z){
   Real ret = 0.4;
   return ret;
@@ -32,81 +29,67 @@ __device__ Real getmE(int x, int y, int z){
   return ret;
   //return 0.2;
 }
-__global__ void updateH(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= nx*ny*nz) return;
-  int x = index%nx;
-  int y = (index/nx)%ny;
-  int z = index/(nx*ny);
-  Real ismid = x>=3&&x<nx-3&&y>=3&&y<ny-3&&z>=3&&z<nz-3;
+cuFunc(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
+  cuda3Idx();
+  Real ismid = x>=3&&x<cuda_row-3&&y>=3&&y<cuda_column-3&&z>=3&&z<cuda_height-3;
   Real mH = getmH(x,y,z);
-  if(z < nz-1 && x > 0 && y < ny-1){
-    Real dH = Ez[index+nx]-Ez[index]-Ey[index+nx*ny]+Ey[index];
+  if(z < cuda_height-1 && x > 0 && y < cuda_column-1){
+    Real dH = Ez[index+cuda_row]-Ez[index]-Ey[index+cuda_row*cuda_column]+Ey[index];
 #ifdef secondOrder
     if(ismid)
-      dH = fact1*(Ez[index-nx]-Ez[index+2*nx]+Ey[index+2*nx*ny]-Ey[index-nx*ny]) + fact2*dH;
+      dH = fact1*(Ez[index-cuda_row]-Ez[index+2*cuda_row]+Ey[index+2*cuda_row*cuda_column]-Ey[index-cuda_row*cuda_column]) + fact2*dH;
 #endif
     Hx[index] -= mH*dH;
   }
-  if(z < nz-1 && x < nx-1 && y > 0){
-    Real dH = Ex[index+nx*ny]-Ex[index]-Ez[index+1]+Ez[index];
+  if(z < cuda_height-1 && x < cuda_row-1 && y > 0){
+    Real dH = Ex[index+cuda_row*cuda_column]-Ex[index]-Ez[index+1]+Ez[index];
 #ifdef secondOrder
     if(ismid)
-      dH = fact1*(Ex[index-nx*ny]-Ex[index+2*nx*ny]+Ez[index+2]-Ez[index-1]) + fact2*dH;
+      dH = fact1*(Ex[index-cuda_row*cuda_column]-Ex[index+2*cuda_row*cuda_column]+Ez[index+2]-Ez[index-1]) + fact2*dH;
 #endif
     Hy[index] -= mH*dH; //dEz/dy
   }
-  if(z > 0 && x < nx-1 && y < ny-1){
-    Real dH = Ey[index+1]-Ey[index]-Ex[index+nx]+Ex[index];
+  if(z > 0 && x < cuda_row-1 && y < cuda_column-1){
+    Real dH = Ey[index+1]-Ey[index]-Ex[index+cuda_row]+Ex[index];
 #ifdef secondOrder
     if(ismid)
-      dH = fact1*(Ey[index-1]-Ey[index+2]+Ex[index+2*nx]-Ex[index-nx]) + fact2*dH;
+      dH = fact1*(Ey[index-1]-Ey[index+2]+Ex[index+2*cuda_row]-Ex[index-cuda_row]) + fact2*dH;
 #endif
     Hz[index] -= mH*dH; //dEz/dx
   }
-}
-__global__ void updateE(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= nx*ny*nz) return;
-  int x = index%nx;
-  int y = (index/nx)%ny;
-  int z = index/(nx*ny);
+})
+cuFunc(updateE,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez),{
+  cuda3Idx();
   Real mE = getmE(x,y,z);
-  Real ismid = x>=3&&x<nx-3&&y>=3&&y<ny-3&&z>=3&&z<nz-3;
-  if(z > 0 && x < nx-1 && y > 0){
-    Real dE = Hz[index]-Hz[index-nx]-Hy[index]+Hy[index-nx*ny];
+  Real ismid = x>=3&&x<cuda_row-3&&y>=3&&y<cuda_column-3&&z>=3&&z<cuda_height-3;
+  if(z > 0 && x < cuda_row-1 && y > 0){
+    Real dE = Hz[index]-Hz[index-cuda_row]-Hy[index]+Hy[index-cuda_row*cuda_column];
 #ifdef secondOrder
     if(ismid)
-      dE = fact1*(Hz[index-2*nx]-Hz[index+nx]+Hy[index+nx*ny]-Hy[index-2*nx*ny]) + fact2*dE;
+      dE = fact1*(Hz[index-2*cuda_row]-Hz[index+cuda_row]+Hy[index+cuda_row*cuda_column]-Hy[index-2*cuda_row*cuda_column]) + fact2*dE;
 #endif
     Ex[index] += mE*dE; //dEz/dy
   }
   if(z > 0 && x > 0 && y > 0){
-    Real dE = Hx[index]-Hx[index-nx*ny]-Hz[index]+Hz[index-1];
+    Real dE = Hx[index]-Hx[index-cuda_row*cuda_column]-Hz[index]+Hz[index-1];
 #ifdef secondOrder
     if(ismid)
-      dE = fact1*(Hx[index-2*nx*ny]-Hx[index+nx*ny]+Hz[index+1]-Hz[index-2]) + fact2*dE;
+      dE = fact1*(Hx[index-2*cuda_row*cuda_column]-Hx[index+cuda_row*cuda_column]+Hz[index+1]-Hz[index-2]) + fact2*dE;
 #endif
     Ey[index] += mE*dE;
   }
-  if(z < nz-1 && x > 0 && y > 0){
-    Real dE = Hy[index]-Hy[index-1]-Hx[index]+Hx[index-nx];
+  if(z < cuda_height-1 && x > 0 && y > 0){
+    Real dE = Hy[index]-Hy[index-1]-Hx[index]+Hx[index-cuda_row];
 #ifdef secondOrder
     if(ismid)
-      dE = fact1*(Hy[index-2]-Hy[index+1]+Hx[index+nx]-Hx[index-2*nx]) + fact2*dE;
+      dE = fact1*(Hy[index-2]-Hy[index+1]+Hx[index+cuda_row]-Hx[index-2*cuda_row]) + fact2*dE;
 #endif
     Ez[index] += mE*dE;
   }
-}
-__global__ void applyPMLx0_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz){
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= nx*ny*n_PML) return;
-  int x = index%n_PML;
-  int y = (index/nx)%ny;
-  int z = index/(nx*ny);
-  index = x + 1 + nx*y + nx*ny*z;
+})
+cuFunc(applyPMLx0_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
+  cuda3Idx();
+  index = x + 1 + cuda_row*y + cuda_row*cuda_column*z;
   Real sf = b_PML+x*k_PML;
   Ez[index] *= sf;
   Ex[index] *= sf;
@@ -114,14 +97,10 @@ __global__ void applyPMLx0_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, R
   Hy[index] *= sf;
   Hx[index] *= sf;
   Hz[index] *= sf;
-}
-__global__ void applyPMLx1_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx, int ny, int nz){
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if(index >= nx*ny*n_PML) return;
-  int x = index%n_PML;
-  int y = (index/nx)%ny;
-  int z = index/(nx*ny);
-  index = nx-x-2 + nx*y + nx*ny*z;
+})
+cuFunc(applyPMLx1_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, nx), {
+  cuda3Idx();
+  index = nx-x-2 + nx*y + cuda_row*cuda_column*z;
   Real sf = b_PML+x*k_PML;
   Ez[index] *= sf;
   Ex[index] *= sf;
@@ -129,18 +108,18 @@ __global__ void applyPMLx1_d(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, R
   Hy[index] *= sf;
   Hx[index] *= sf;
   Hz[index] *= sf;
-}
+})
 __global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
-  int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  if(edgeIdx >= ny*nz-ny) return;
-  int y = edgeIdx%ny;
-  int z = edgeIdx/ny;
-  edgeIdx = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= ny*nz-ny) return;
+  int y = index%ny;
+  int z = index/ny;
+  index = z*nx*ny + y*nx + nx - 1;  //large stride, unavoidable
   Real mH = getmH(nx-1,y,z);
   Real mE = getmE(nx-1,y,z);
   Real rat = sqrt(mH/mE);
-  Real b = (Ex[edgeIdx-1+nx*ny] + Ex[edgeIdx-1] + ExBdx1[y+z*ny]+ExBdx1[y+(z+1)*ny])/4;
-  Real a = Ez[edgeIdx];
+  Real b = (Ex[index-1+nx*ny] + Ex[index-1] + ExBdx1[y+z*ny]+ExBdx1[y+(z+1)*ny])/4;
+  Real a = Ez[index];
   Real ratio = b/a;
   if(fabs(a) > 1e-7) ratio = sqrt(1./(1+ratio*ratio));
   else ratio = 1;
@@ -149,13 +128,13 @@ __global__ void applyPMLx1(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   char sgn = 0;
   if(dh < 0) sgn = -1;
   else if(dh > 0) sgn = 1;
-  Hy[edgeIdx-1] += sgn*sqrt(dh*dh + b*b);
+  Hy[index-1] += sgn*sqrt(dh*dh + b*b);
   EzBdx1[y+z*ny] = a;
-  Ez[edgeIdx] = 0;
-  a = Ey[edgeIdx];
-  Hz[edgeIdx-1] -= rat*(dt*EyBdx1[y+z*ny] + (1-dt)*a);
+  Ez[index] = 0;
+  a = Ey[index];
+  Hz[index-1] -= rat*(dt*EyBdx1[y+z*ny] + (1-dt)*a);
   EyBdx1[y+z*ny] = a;
-  Ey[edgeIdx] = 0;
+  Ey[index] = 0;
 }
 __global__ void applyPMLx1post(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx, int ny, int nz){
   int edgeIdx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -231,7 +210,7 @@ __global__ void applyPMLy0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Rea
   Ex[edgeIdx+nx] -= rat*(dt*HzBdy0[x+nx*z] + (1-dt)*a);
   HzBdy0[x+nx*z] = a;
   Hz[edgeIdx] = 0;
-  a = Hx[edgeIdx];  // change to Ez[index] in cr
+  a = Hx[edgeIdx];
   Ez[edgeIdx+nx] += rat*(dt*HxBdy0[x+nx*z] + (1-dt)*a);
   HxBdy0[x+nx*z] = a;
   Hx[edgeIdx] = 0;
@@ -482,7 +461,8 @@ int main(){
 
     applyPMLx1<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx, ny, nz);
     applyPMLx1post<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx, ny, nz);
-    applyPMLx1_d<<<nblkx_d,nthdx_d>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //do separately to speed up
+    resize_cuda_image(n_PML,ny,nz);
+    applyPMLx1_d(Hx, Hy, Hz, Ex, Ey, Ez, nx);  //do separately to speed up
     applyPMLy1<<<nblky,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdy1, EzBdy1, nx, ny, nz);
     applyPMLz1<<<nblkz,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, ExBdz1, EyBdz1, nx, ny, nz);
 
@@ -490,18 +470,23 @@ int main(){
     //applyPeriodicy_E<<<nblky, nthd2d>>>(Ex, Ey, Ez, nx, ny, nz);
     //applyPeriodicz_E<<<nblky, nthd2d>>>(Ex, Ey, Ez, nx, ny, nz);
 
-    updateH<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);    //------------UPDATE H-----------
+    resize_cuda_image(nx,ny,nz);
+    updateH(Hx, Hy, Hz, Ex, Ey, Ez);    //------------UPDATE H-----------
+    resize_cuda_image(nx,ny);
 
     //applyPeriodicx_H<<<nblkx, nthd2d>>>(Hx, Hy, Hz, nx, ny, nz);
     //applyPeriodicy_H<<<nblkx, nthd2d>>>(Hx, Hy, Hz, nx, ny, nz);
     //applyPeriodicz_H<<<nblkx, nthd2d>>>(Hx, Hy, Hz, nx, ny, nz);
 
     applyPMLx0<<<nblkx,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, HyBdx0, HzBdx0, nx, ny, nz);
-    applyPMLx0_d<<<nblkx_d,nthdx_d>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);
+    resize_cuda_image(nx, ny, n_PML);
+    applyPMLx0_d(Hx, Hy, Hz, Ex, Ey, Ez);
     applyPMLy0<<<nblky,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, HxBdy0, HzBdy0, nx, ny, nz);
     applyPMLz0<<<nblkz,nthd2d>>>(Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0, nx, ny, nz);
 
-    updateE<<<nblk,nthd>>>(Hx, Hy, Hz, Ex, Ey, Ez, nx, ny, nz);  //------------UPDATE E-----------
+    resize_cuda_image(nx,ny,nz);
+    updateE(Hx, Hy, Hz, Ex, Ey, Ez);  //------------UPDATE E-----------
+    resize_cuda_image(nx,ny);
     if(saveField) {
       getXYSlice(slice, Ez, nx, ny, nz/2);
       //getXZSlice(slice, Ey , nx, ny, nz, 100);
