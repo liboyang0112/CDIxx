@@ -44,22 +44,3 @@ cuFunc(Hpsifunc, (Real * psi, Real *V, Real *Hpsi, Real Eshift),
            Hpsi[index] -= psi[index - cuda_row];
          }
        });
-cuFunc(getXZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int iy),
-       (slice, data, nx, ny, nz, iy), {
-         int index = blockIdx.x * blockDim.x + threadIdx.x;
-         if (index >= nx * nz)
-           return;
-         int x = index % nx;
-         int z = index / nx;
-         slice[index] = data[x + nx * iy + nx * ny * z];
-       });
-cuFunc(getYZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int ix),
-       (slice, data, nx, ny, nz, ix), {
-         int index = blockIdx.x * blockDim.x + threadIdx.x;
-         if (index >= ny * nz)
-           return;
-         int y = index % ny;
-         int z = index / ny;
-         int idx = ix + nx * y + nx * ny * z;
-         slice[index] = data[idx];
-       })

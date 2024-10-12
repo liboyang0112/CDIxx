@@ -48,7 +48,7 @@ class UNet(nn.Module):
     def __init__(self, channels=1, level=7):
         super(UNet, self).__init__()
         self.nlevel = level
-        out_channels=[channels*2**(i+4) for i in range(self.nlevel+1)]
+        out_channels=[channels*2**(i+6) for i in range(self.nlevel+1)]
         self.d = []
         self.u = []
         self.c = []

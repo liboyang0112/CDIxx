@@ -7,8 +7,8 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-#set(CMAKE_CUDA_HOST_COMPILER /usr/lib/llvm14/bin/clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
-set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_CUDA_HOST_COMPILER /usr/lib/llvm14/bin/clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+#set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set(CMAKE_CUDA_FLAGS "--allow-unsupported-compiler")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
@@ -72,6 +72,8 @@ include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedor
 #    message( STATUS "include dir=${dir}" )
 #endforeach()
 #set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
@@ -144,8 +146,6 @@ foreach( sourcefile ${APP_SOURCES} )
   add_executable( ${exename} ${sourcefile})
   #set_property(TARGET ${exename} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endforeach( sourcefile ${APP_SOURCES} )
-target_link_libraries(fdtd3d_cu cuPlotter_cc)
-target_link_libraries(fdtd2d_cu cuPlotter_cc)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/*.cpp )
 foreach( sourcefile ${APP_SOURCES} )
@@ -154,6 +154,7 @@ foreach( sourcefile ${APP_SOURCES} )
   add_executable( ${exename} ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
+target_link_libraries(fdtd3d_run cuPlotter_cc)
 target_link_libraries(TG_run cuPlotter_cc)
 target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
 target_link_libraries(cdi_run cdi_cc)

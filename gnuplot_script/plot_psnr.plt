@@ -6,9 +6,9 @@ set xlabel "Photon counts"
 set ytics 0.1
 set logscale x
 set format x "10^{%L}"
-set term pdf size 6,3 font "Times New Roman, 29"
+set term pdf size 6,3 font "Times New Roman, 19"
 set output "noise.pdf"
-set key height 1 offset 0,0.8 column 2
+set key height 1 offset 0,0.8 column 3
 set xlabel offset 0,0.5
 set ylabel offset 1.5,0
 
@@ -17,7 +17,7 @@ Shadecolor2 = "#800000FF"
 Shadecolor3 = "#8000FF00"
 
 set xrange [4e6:2e9]
-set yrange [0.55:0.95]
+set yrange [0.55:0.88]
 plot \
 inputfile using 1:($4+$5):($4-$5) with filledcurve fc rgb Shadecolor1 title "Bkg = 25",\
 inputfile2 using 1:($4+$5):($4-$5) with filledcurve fc rgb Shadecolor2 title "Bkg = 50",\

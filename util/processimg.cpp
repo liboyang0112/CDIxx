@@ -91,13 +91,15 @@ int main(int argc, char** argv )
   mergePixel(d_sig, tmp, outrow, outcol, nmerge);
   plt.init(finsize, finsize);
   myCuDMalloc(complexFormat, xc, finsize*finsize);
+  rotate(d_sig, tmp, -1.8/180*M_PI);
   extendToComplex(d_sig,xc);
   init_fft(finsize,finsize);
   myFFT(xc, xc);
   plt.plotFloat(d_sig, MOD, 0, 1, "logimagemerged", 1, 0, 1);
+  plt.plotFloat(tmp, MOD, 0, 1, "rotated", 1, 0, 1);
   plt.plotFloat(d_stretched, MOD, 0, 4, "logimagemerged_str", 1, 0, 1);
   plt.plotComplex(xc, MOD2, 1, 1./finsize, "autocorrelation", 1, 0, 1);
-  plt.saveFloat(d_sig, argv[4]);
+  plt.saveFloat(tmp, argv[4]);
   return 0;
 }
 

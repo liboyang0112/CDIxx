@@ -7,11 +7,6 @@
 using namespace std;
 void initV(Real* V, Real val);
 void Hpsifunc (Real * psi, Real *V, Real *Hpsi, Real Eshift);
-void getXZSlice (Real * slice, Real *data, int nx, int ny, int nz, int iy);
-void getYZSlice (Real * slice, Real *data, int nx, int ny, int nz, int ix);
-void getXYSlice (Real * slice, Real *data, int nx, int ny, int iz){
-  myMemcpyD2D(slice, data+nx*ny*iz, nx*ny*sizeof(Real));
-};
 
 int main(){
   init_cuda_image();

@@ -92,9 +92,8 @@ for epoch in range(EPOCH):
     lossfile.write("%d %e %e\n"%(epoch, total_loss, avgvalloss))
     #if lr <= 1e-4:
     #    break
-    if avgvalloss < bestloss:
-        bestloss = avgvalloss
-        torch.save(net.state_dict(),ModelSave + '/Unet.pt')
+    bestloss = avgvalloss
+    torch.save(net.state_dict(),ModelSave + '/Unet.pt')
     writePng(f'Log_imgs/segimg_ep{epoch}.png',valout.cpu()[0][0].detach().numpy(),cache, 1)
     writePng(f'Log_imgs/segimg_train_ep{epoch}.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
     writePng('Log_imgs/segimg_train_lab.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
@@ -103,5 +102,6 @@ for epoch in range(EPOCH):
         out = net(image)
         imgnp = out.cpu()[0][0].detach().numpy()
         writeFloat("pattern.bin",imgnp)
+        writePng('Log_imgs/pattern.png',imgnp,cache, 1)
     print('第{}轮结束'.format(epoch))
 lossfile.close()

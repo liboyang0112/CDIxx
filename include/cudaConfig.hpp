@@ -124,6 +124,9 @@ void takeMod2Diff(complexFormat* a, Real* b, Real *output, Real *bs);
 void takeMod2Sum(complexFormat* a, Real* b);
 void applySupportOblique(complexFormat *gkp1, complexFormat *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1);
 void applySupport(void *gkp1, void *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0);
+void getXYSlice(Real* slice, Real* data, int nx, int ny, int iz);
+void getXZSlice(Real* slice, Real* data, int nx, int ny, int nz, int iy);
+void getYZSlice(Real* slice, Real *data, int nx, int ny, int nz, int ix);
 
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
@@ -137,6 +140,8 @@ template<typename T>
 void cudaConvertFO(T* data, T* out = 0);
 template<typename T>
 void rotate90(T* data, T* out = 0, bool clockwise=1);
+template<typename T>
+void rotate(T* data, T* out, Real angle);
 template<typename T>
 void transpose(T* data, T* out = 0);
 template<typename T>

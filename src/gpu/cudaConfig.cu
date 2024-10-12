@@ -183,6 +183,27 @@ template<> void rotate90<complexFormat>(complexFormat* data, complexFormat* out,
   rotate90Wrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out), clockwise));
 }
 
+cuFuncTemplate(rotate, (T* data, T* out, Real angle),(data,out,angle),{
+    cudaIdx();
+    Real xp, yp;
+    xp = cos(angle)*(x-cuda_row/2)-sin(angle)*(y-cuda_column/2) + cuda_row/2;
+    yp = cos(angle)*(y-cuda_column/2)+sin(angle)*(x-cuda_row/2) + cuda_column/2;
+    int xpi = floor(xp);
+    int ypi = floor(yp);
+    if(xp < 0 || yp < 0 || xp >= cuda_row || yp >= cuda_column) {
+      out[index] = 0;
+      return;
+    }
+    xp -= xpi;
+    yp -= ypi;
+    int indexp = xpi*cuda_column + ypi;
+    out[index] = data[indexp]*(1-xp)*(1-yp) + data[indexp+1]*(1-xp)*yp + data[indexp+cuda_column]*xp*(1-yp) + data[indexp+cuda_column+1]*xp*yp;
+    })
+template void rotate<Real>(Real*, Real*, Real);
+template<> void rotate<complexFormat>(complexFormat* data, complexFormat* out, Real clockwise){
+  rotate90Wrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out), clockwise));
+}
+
 cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index >= (cuda_row*cuda_column)/2) return;
@@ -866,6 +887,28 @@ cuFuncc(paste, (complexFormat* out, complexFormat* in, int colout, int posx, int
     }
     out[tidx] = data;
     })
+void getXYSlice (Real * slice, Real *data, int nx, int ny, int iz){
+  myMemcpyD2D(slice, data+nx*ny*iz, nx*ny*sizeof(Real));
+};
+cuFunc(getXZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int iy),
+       (slice, data, nx, ny, nz, iy), {
+         int index = blockIdx.x * blockDim.x + threadIdx.x;
+         if (index >= nx * nz)
+           return;
+         int x = index % nx;
+         int z = index / nx;
+         slice[index] = data[x + nx * iy + nx * ny * z];
+       });
+cuFunc(getYZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int ix),
+       (slice, data, nx, ny, nz, ix), {
+         int index = blockIdx.x * blockDim.x + threadIdx.x;
+         if (index >= ny * nz)
+           return;
+         int y = index % ny;
+         int z = index / ny;
+         int idx = ix + nx * y + nx * ny * z;
+         slice[index] = data[idx];
+       })
 //-------experimentConfig.cc-begin
 // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
 cuFuncc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda),((cuComplex*)amp,r_d_lambda,d_r_lambda),{
