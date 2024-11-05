@@ -38,19 +38,19 @@ int main(){
 
   //unsigned char* material_map = (unsigned char*)memMngr.borrowCleanCache(nnode);  //supports 255 kinds of materials
   //record boundaries for PML
-  Real* EzBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
-  Real* ExBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
-  Real* EyBdx1 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
-  Real* EzBdy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
-  Real* ExBdy1 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
-  Real* ExBdz1 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
-  Real* EyBdz1 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
-  Real* HzBdx0 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
-  Real* HyBdx0 = (Real*)memMngr.borrowCleanCache(ny*nz*sizeof(Real));
-  Real* HzBdy0 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
-  Real* HxBdy0 = (Real*)memMngr.borrowCleanCache(nz*nx*sizeof(Real));
-  Real* HxBdz0 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
-  Real* HyBdz0 = (Real*)memMngr.borrowCleanCache(nx*ny*sizeof(Real));
+  myCuDMallocClean(Real, EzBdx1, ny*nz);
+  myCuDMallocClean(Real, ExBdx1, ny*nz);
+  myCuDMallocClean(Real, EyBdx1, ny*nz);
+  myCuDMallocClean(Real, EzBdy1, nz*nx);
+  myCuDMallocClean(Real, ExBdy1, nz*nx);
+  myCuDMallocClean(Real, ExBdz1, nx*ny);
+  myCuDMallocClean(Real, EyBdz1, nx*ny);
+  myCuDMallocClean(Real, HzBdx0, ny*nz);
+  myCuDMallocClean(Real, HyBdx0, ny*nz);
+  myCuDMallocClean(Real, HzBdy0, nz*nx);
+  myCuDMallocClean(Real, HxBdy0, nz*nx);
+  myCuDMallocClean(Real, HxBdz0, nx*ny);
+  myCuDMallocClean(Real, HyBdz0, nx*ny);
   //select slice for visualization
   Real* slice = (Real*)memMngr.borrowCache(nx*ny*sizeof(Real));
 

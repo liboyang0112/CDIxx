@@ -8,6 +8,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 
 Real *readFromCDIRecon(const char* fname, int &row, int &col){
   imageFile fdata;

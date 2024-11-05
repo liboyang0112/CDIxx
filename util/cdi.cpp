@@ -6,9 +6,11 @@
 #include "cuPlotter.hpp"
 #include "cdi.hpp"
 #include <bits/stdc++.h>
+//#include <tracy/Tracy.hpp>
 using namespace std;
 int main(int argc, char** argv )
 {
+  //ZoneScoped;
   CDI setups(argv[1]);
   if(argc < 2){
     printf("please feed the object intensity and phase image\n");
@@ -39,7 +41,7 @@ int main(int argc, char** argv )
       for(int i = 0; i < setups.mnistN; i++){
         setups.save_suffix = to_string(i);
         setups.prepareIter();
-        setups.phaseRetrieve(); 
+        setups.phaseRetrieve();
       }
     }else{
       setups.prepareIter();
@@ -59,7 +61,7 @@ int main(int argc, char** argv )
   setups.checkAutoCorrelation();
 
   //Now let's do pupil
-  if(setups.dopupil){ 
+  if(setups.dopupil){
     Real* cuda_pupilmod;
     cuda_pupilmod = (Real*)memMngr.borrowCache(sz/2);
     cuda_pupilAmp_SIM = (complexFormat*)memMngr.borrowCache(sz);

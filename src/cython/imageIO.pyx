@@ -15,6 +15,7 @@ cdef extern from "imgio.hpp":
     float *readImage_c(const char* name, imageFile* f, void* funcptr);
     void plotPng(const char* label, float* data, char* cache, int rows, int cols, char iscolor);
     void cvtLog(float* data, int nele);
+    int writePng(const char* png_file_name, void* data , int height, int width, int bit_depth, char colored);
 
 np.import_array()
 
@@ -33,13 +34,15 @@ def writeFloat(path, array):
         print("data type not known:", array.dtype);
         exit();
 
-def writePng(path, array, cache, iscolor, islog = 1):
+def writePNG(path, array, cache, iscolor, islog = 1):
     fn = path.encode("utf8");
     cdef char* fname = fn;
     if islog:
         cvtLog(<float*>np.PyArray_BYTES(array), array.size);
     if array.dtype == np.single or array.dtype == np.double:
         plotPng(fname, <float*>np.PyArray_BYTES(array), np.PyArray_BYTES(cache), array.shape[0], array.shape[1], iscolor);
+    if array.dtype == np.uint16:
+        writePng(fname, <void*>np.PyArray_BYTES(array), array.shape[0], array.shape[1], 16, 0);
 
 def readImage(path):
     fn = path.encode("utf8");

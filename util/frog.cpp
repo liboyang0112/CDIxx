@@ -6,6 +6,7 @@
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 #include "frog.hpp"
 #include "imgio.hpp"
 #define c 300

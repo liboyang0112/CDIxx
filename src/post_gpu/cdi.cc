@@ -12,6 +12,7 @@
 #include "tvFilter.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 #include "cdi.hpp"
 #include <complex.h>
 using namespace std;
@@ -144,7 +145,6 @@ void CDI::prepareIter(){
       memMngr.returnCache(intensity);
       if(phaseModulation) memMngr.returnCache(phase);
     }
-    gpuerr();
     if(isFresnel) multiplyFresnelPhase(objectWave, d);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
@@ -312,7 +312,6 @@ void* CDI::phaseRetrieve(){
       }
       continue;
     }
-    gpuerr();
     if(simCCDbit) applyMod((complexFormat*)patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
     else applyModAbs((complexFormat*)patternWave,cuda_diff);
     myIFFT( (complexFormat*)patternWave, cuda_gkprime);
@@ -325,14 +324,15 @@ void* CDI::phaseRetrieve(){
       plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
       plt.toVideo = -1;
     }
-    if(iter%100==0) {
-      std::string iterstr = to_string(iter);
-      if(saveIter){
+    if(saveIter){
+      if(iter%100==0) {
+        std::string iterstr = to_string(iter);
         plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+iterstr).c_str(), 0, isFlip);
         plt.plotComplex(cuda_gkp1, PHASE, 0, row*column, ("recon_phase"+iterstr).c_str(), 0, isFlip);
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
       }
-      if(0&&iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
+#if 0
+      if(iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
         takeMod2Diff((complexFormat*)patternWave,patternData, cuda_diff, useBS? beamstop:0);
         cudaConvertFO(cuda_diff);
         FISTA(cuda_diff, cuda_diff, 0.01, 80, 0);
@@ -342,9 +342,9 @@ void* CDI::phaseRetrieve(){
         takeMod2Sum((complexFormat*)patternWave, cuda_diff);
         //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("smoothed"+iterstr).c_str(), 1);
       }
+#endif
     }
   }
-  gpuerr();
   applyNorm(cuda_gkp1, sqrt(row*column));
   if(saveVideoEveryIter) plt.saveVideo(vidhandle);
   if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
@@ -358,10 +358,8 @@ void* CDI::phaseRetrieve(){
   getMod2(cuda_objMod, cuda_objMod);
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
   initCub();
-  gpuerr();
   residual = findSum(cuda_objMod);
   printf("residual= %f\n",residual);
-  gpuerr();
 
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);

@@ -104,9 +104,7 @@ Real findMod2Max(complexFormat* d_in, int num)
 
 Real findSumReal(complexFormat* d_in, int num)
 {
-  cuComplex tmp;
-  tmp.x = 0;
-  FUNC(cuComplex, sumcomplex_op, tmp, store_findSumReal);
+  FUNC(cuComplex, sumcomplex_op, cuComplex(), store_findSumReal);
   return output.x;
 }
 
@@ -115,7 +113,7 @@ complexFormat findSum(complexFormat* d_in, int num, bool debug)
   cuComplex tmp;
   tmp.x = tmp.y = 0;
   FUNC(cuComplex, sumcomplex_op, tmp, store_findSumComplex);
-  return {output.x, output.y};
+  return (*(complexFormat*)&output);
 }
 
 Real findSum(Real* d_in, int num, bool debug=false)
@@ -131,51 +129,3 @@ Real findRootSumSq(Real* d_in, int num, bool debug=false)
 }
 
 
-cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
-    cuda1Idx();
-    int x = index/cuda_column;
-    out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
-    })
-
-cuFuncc(multiplyy,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
-    cuda1Idx();
-    int y = index%cuda_column;
-    out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
-    })
-cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
-    cuda1Idx();
-    int x = index/cuda_column;
-    out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
-    })
-
-cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
-    cuda1Idx()
-    int y = index%cuda_column;
-    out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
-    })
-complexFormat findMiddle(complexFormat* d_in, int num){
-  if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
-  myCuDMalloc(Real, tmp, num);
-  getMod(tmp,d_in);
-  Real norm = findSum(tmp, num);
-  multiplyx(d_in,tmp);
-  complexFormat mid;
-  mid = findSum(tmp, num)/norm;
-  multiplyy(d_in,tmp);
-  mid += findSum(tmp, num)/norm*1.0i;
-  memMngr.returnCache(tmp);
-  return mid;
-};
-complexFormat findMiddle(Real* d_in, int num){
-  int num_items = memMngr.getSize(d_in);
-  Real* tmp = (Real*) memMngr.borrowCache(num_items);
-  num_items/=sizeof(Real);
-  Real norm = findSum(d_in, num_items);
-  multiplyx(d_in,tmp);
-  complexFormat mid;
-  mid = findSum(tmp, num_items)/norm;
-  multiplyy(d_in,tmp);
-  mid += findSum(tmp, num_items)/norm*1.0iF;
-  memMngr.returnCache(tmp);
-  return mid;
-};

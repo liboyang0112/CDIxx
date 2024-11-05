@@ -57,6 +57,7 @@ void extendToComplex(Real* a, complexFormat* b);
 void applyNorm(complexFormat* data, Real factor);
 void ceiling(complexFormat* data, Real ceilval);
 void applyNorm(Real* data, Real factor);
+void rotateToReal(complexFormat* data);
 void interpolate(Real* out, Real* data0, Real* data1, Real dx);
 void interpolate(complexFormat* out, complexFormat* data0, complexFormat* data1, Real dx);
 void adamUpdateV(Real* v, Real* grad, Real beta2);
@@ -66,9 +67,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0, Real phaseFactor = 0);
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
-void shiftWave(complexFormat* wave, Real shiftx, Real shifty);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
-void shiftMiddle(complexFormat* wave);
 void getMod(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
 void assignReal(Real* mod, complexFormat* amp);
@@ -107,7 +106,6 @@ void cropinner(complexFormat* src, complexFormat* dest, int row, int col, Real n
 void padinner(Real* src, Real* dest, int row, int col, Real norm);
 void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm);
 void createGauss(Real* data, int sz, Real sigma);
-void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size = 0);
 void ssimMap(Real* mu1, Real* mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
 void zeroEdgey(complexFormat* a, int n);
@@ -127,6 +125,10 @@ void applySupport(void *gkp1, void *gkprime, int algo, Real *spt, int iter = 0, 
 void getXYSlice(Real* slice, Real* data, int nx, int ny, int iz);
 void getXZSlice(Real* slice, Real* data, int nx, int ny, int nz, int iy);
 void getYZSlice(Real* slice, Real *data, int nx, int ny, int nz, int ix);
+void multiplyx(complexFormat* object, Real* out);
+void multiplyy(complexFormat* object, Real* out);
+void multiplyx(Real* object, Real* out);
+void multiplyy(Real* object, Real* out);
 
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);

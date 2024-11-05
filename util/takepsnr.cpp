@@ -1,13 +1,12 @@
 #include <complex>
-#include <fstream>
 #include <stdio.h>
 #include <stdio.h>
 #include "imgio.hpp"
 #include <string.h>
-#include <iostream>
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 
 Real* ssim_map(Real* img1, Real* img2, int row, int col, Real sigma){
   Real C1=1e-4, C2=1e-3;

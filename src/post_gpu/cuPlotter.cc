@@ -150,6 +150,13 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
   myMemcpyD2H(cv_float_data, cudaData, rows*cols*sizeof(Real));
   writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
+void cuPlotter::videoFrame(void* cudaData){
+  if(!cv_float_data){
+    cv_float_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real));
+  }
+  myMemcpyD2H(cv_float_data, cudaData, rows*cols*sizeof(Real));
+  flushVideo_float(videoWriterVec[toVideo], cv_float_data);
+}
 void* cuPlotter::cvtTurbo(void* icache){
   char* cache = (char*)(icache?icache:cv_cache);
   for(int i = 0 ; i < rows*cols; i++){
@@ -178,8 +185,10 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
       flushVideo(videoWriterVec[toVideo], cv_cache);
       return;
     }
-    else
+    else if(std::string(fname).find(".png")!=std::string::npos)
       writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
+    else if(std::string(fname).find(".jpg")!=std::string::npos)
+      writeJPEG(fname.c_str(), cv_cache, rows, cols, 25);
   }else{
     pixeltype color = -1;
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);

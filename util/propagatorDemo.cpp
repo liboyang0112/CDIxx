@@ -2,6 +2,7 @@
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 #include <complex>
 using namespace std;
 

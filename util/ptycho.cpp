@@ -6,6 +6,7 @@
 #include "experimentConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 #include "ptycho.hpp"
 
 

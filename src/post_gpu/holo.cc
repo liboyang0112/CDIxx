@@ -1,9 +1,10 @@
+#include <math.h>
 #include "holo.hpp"
 #include "imgio.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
 #include "cudaConfig.hpp"
-#include <math.h>
+#include "misc.hpp"
 
 
 holo::holo(const char* configfile) : CDI(configfile){}

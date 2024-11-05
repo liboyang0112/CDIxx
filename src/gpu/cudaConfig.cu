@@ -1,6 +1,5 @@
 #include "cudaConfig.hpp"
 #include "cudaDefs_h.cu"
-#include "imgio.hpp"
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
@@ -71,7 +70,7 @@ size_t getGPUFreeMem(){
     return freeBytes >> 20;
 }
 void setThreshold(Real val){
-  cudaMemcpy(&cudaVar->threshold, &val, sizeof(cudaVarLocal->threshold),cudaMemcpyHostToDevice);
+  myMemcpyH2D(&cudaVar->threshold, &val, sizeof(cudaVarLocal->threshold));
 }
 void* newRand(size_t sz){
   return memMngr.borrowCache(sz * sizeof(curandStateMRG32k3a));
@@ -81,7 +80,6 @@ void gpuerr(){
   gpuErrchk(cudaGetLastError());
 }
 
-using namespace std;
 static int rows_fft, cols_fft, batch_fft;
 __device__ __host__ bool rect::isInside(int x, int y){
   if(x > startx && x <= endx && y > starty && y <= endy) return true;
@@ -279,55 +277,23 @@ cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
     data[index]*=factor;
     })
 
-void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
-  myFFT(wave, wave);
-  cudaConvertFO(wave);
-  multiplyShift(wave, shiftx, shifty);
-  cudaConvertFO(wave);
-  applyNorm(wave, 1./(cuda_imgsz.x*cuda_imgsz.y));
-  myIFFT(wave, wave);
-}
-
 cuFuncc(rotateToReal,(complexFormat* data),(cuComplex* data),((cuComplex*)data),{
     cuda1Idx();
     data[index].x = cuCabsf(data[index]);
     data[index].y = 0;
     })
 
-cuFuncc(removeImag,(complexFormat* data),(cuComplex* data),((cuComplex*)data),{
-    cuda1Idx();
-    data[index].y = 0;
-    })
-
-void shiftMiddle(complexFormat* wave){
-  cudaConvertFO(wave);
-  myFFT(wave, wave);
-  rotateToReal(wave);
-  applyNorm(wave, 1./(cuda_imgsz.x*cuda_imgsz.y));
-  myIFFT(wave, wave);
-  cudaConvertFO(wave);
-}
-
 __global__ void createGaussKernel(Real* data, int sz, Real sigma){
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if(idx >= sz*sz) return;
   int dx = idx/sz-(sz>>1);
   int dy = (idx%sz)-(sz>>1);
-  data[idx] = exp(-Real(dx*dx+dy*dy)/(sigma*sigma));
+  data[idx] = 1./(2*M_PI*sigma*sigma)*exp(-Real(dx*dx+dy*dy)/(2*sigma*sigma));
 }
 
 void createGauss(Real* data, int sz, Real sigma){
   createGaussKernel<<<(sz*sz-1)/threadsPerBlock.x+1,threadsPerBlock>>>(data, sz, sigma);
-  applyNormWrap<<<(sz*sz-1)/threadsPerBlock.x+1,threadsPerBlock>>> (addVar(data, Real(1./findSum(data))));
 }
-void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size){
-  if(size == 0) size = int(floor(sigma*6))>>1; // r=3 sigma to ensure the contribution outside kernel is negligible (0.01 of the maximum)
-  int width = (size<<1)+1;
-  createGauss(gaussMem, width, sigma);
-  int tilesize = (sq(width+15)+sq(width));
-  applyConvolution(tilesize*sizeof(Real), input, output, gaussMem, size, size);
-}
-
 cuFuncc(fillRedundantR2C,(complexFormat* data, complexFormat* dataout, Real factor),(cuComplex* data, cuComplex* dataout, Real factor),((cuComplex*)data,(cuComplex*)dataout,factor),{
     cudaIdx()
     int targetIndex = x*(cuda_column/2+1)+y;
@@ -524,44 +490,6 @@ cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* object
     }
 })
 
-void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol){
-  size_t sz = 0;
-  if(intensityFile) {
-    Real* intensity = readImage(intensityFile, objrow, objcol);
-    sz = objrow*objcol*sizeof(Real);
-    if(!d_intensity) d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
-    cudaMemcpy(d_intensity, intensity, sz, cudaMemcpyHostToDevice);
-    ccmemMngr.returnCache(intensity);
-  }
-  if(phaseFile) {
-    int tmprow,tmpcol;
-    Real* phase = readImage(phaseFile, tmprow,tmpcol);
-    if(!intensityFile) {
-      sz = tmprow*tmpcol*sizeof(Real);
-      objrow = tmprow;
-      objcol = tmpcol;
-    }
-    if(!d_phase) d_phase = (Real*)memMngr.borrowCache(sz);
-    size_t tmpsz = tmprow*tmpcol*sizeof(Real);
-    if(tmpsz!=sz){
-      Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
-      gpuErrchk(cudaMemcpy(d_phasetmp,phase,tmpsz,cudaMemcpyHostToDevice));
-      resize_cuda_image(objrow, objcol);
-      if(tmpsz > sz){
-        crop(d_phasetmp, d_phase, tmprow, tmpcol);
-      }else{
-        pad(d_phasetmp, d_phase, tmprow, tmpcol);
-      }
-      memMngr.returnCache(d_phasetmp);
-    }
-    else {
-      gpuErrchk(cudaMemcpy(d_phase,phase,sz,cudaMemcpyHostToDevice));
-    }
-
-    ccmemMngr.returnCache(phase);
-  }
-  gpuErrchk(cudaGetLastError());
-}
 cuFunc(initRand,(void* state, unsigned long long seed),(state,seed),{
     cuda1Idx()
     curand_init(seed,index,0,(curandStateMRG32k3a*)state+index);
@@ -1321,3 +1249,26 @@ cuFuncTemplate(refine,(T* src, T* dest, int refinement),(src,dest,refinement),{
     +((y<cuda_column-refinement&&x<cuda_row-refinement)?src[indexrd]*dx*dy:0);
     })
 template void refine<Real>(Real*, Real*, int);
+
+cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
+    cuda1Idx();
+    int x = index/cuda_column;
+    out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
+    })
+
+cuFuncc(multiplyy,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
+    cuda1Idx();
+    int y = index%cuda_column;
+    out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
+    })
+cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
+    cuda1Idx();
+    int x = index/cuda_column;
+    out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
+    })
+
+cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
+    cuda1Idx()
+    int y = index%cuda_column;
+    out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
+    })

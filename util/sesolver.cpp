@@ -48,6 +48,8 @@ int main(){
       getXYSlice(slice, H2psi , nx, ny, nz/2);
       plt.toVideo = psivid;
       plt.plotFloat(slice, MOD2, 0, 5e4, "",1,0,1,("psi,iter="+to_string(i)).c_str());
+      //applyNorm(slice, 1./findMax(slice));
+      //plt.videoFrame(slice);
     }
   }
   plt.saveVideo(psivid);

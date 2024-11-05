@@ -25,6 +25,7 @@ class cuPlotter
   void init(int rows_, int cols_);
   void* getCache(){return cv_cache;}
   int initVideo(const char* filename, int fps = 24);
+  void videoFrame(void* cudaData);
   void saveVideo(int handle = 0);
   void freeMem();
   void* cvtTurbo(void* cache = 0);

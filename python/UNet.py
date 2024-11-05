@@ -1,10 +1,8 @@
-#optimized based on https://blog.csdn.net/kobayashi_/article/details/108951993
-
 from torch import nn
 import torch
 class DownsampleLayer(nn.Module):
     def __init__(self,in_ch,out_ch):
-        super(DownsampleLayer, self).__init__()
+        super().__init__()
         self.downsample=nn.Sequential(
             nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=2,padding=1),
             nn.BatchNorm2d(out_ch),
@@ -14,7 +12,7 @@ class DownsampleLayer(nn.Module):
         return self.downsample(x)
 class convLayer(nn.Module):
     def __init__(self,in_ch, out_ch):
-        super(convLayer, self).__init__()
+        super().__init__()
         self.Conv_BN_ReLU_2=nn.Sequential(
             nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1,padding=1),
             nn.BatchNorm2d(out_ch),
@@ -27,7 +25,7 @@ class convLayer(nn.Module):
         return self.Conv_BN_ReLU_2(x)
 class UpSampleLayer(nn.Module):
     def __init__(self,in_ch,out_ch):
-        super(UpSampleLayer, self).__init__()
+        super().__init__()
         self.Conv_BN_ReLU_2 = nn.Sequential(
             nn.Conv2d(in_channels=in_ch, out_channels=in_ch, kernel_size=3, stride=1,padding=1),
             nn.BatchNorm2d(in_ch),
@@ -46,7 +44,7 @@ class UpSampleLayer(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self, channels=1, level=7):
-        super(UNet, self).__init__()
+        super().__init__()
         self.nlevel = level
         out_channels=[channels*2**(i+6) for i in range(self.nlevel+1)]
         self.d = []

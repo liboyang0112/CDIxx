@@ -5,6 +5,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "misc.hpp"
 
 int main(int argc, char** argv )
 {
