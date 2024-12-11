@@ -1,4 +1,5 @@
 #cython:language_level=3
+#We don't want to import pytorch here for compilation performance.
 import os
 cimport numpy as np
 np.import_array()
@@ -6,37 +7,43 @@ np.import_array()
 cdef extern from "cdilmdb.hpp":
     int initLMDB(int* handle, const char*)
     void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *keyval);
+    int fillLMDB(int handle, int *keyval, int ndata, void** data, size_t* data_size);
+    void saveLMDB(int handle);
 
 class cythonLoader:
-    def __init__(self, db_path, chan, row, col, chanl, rowl ,coll):
-        self.row = row;
-        self.col = col;
-        self.rowl = rowl;
-        self.coll = coll;
-        self.chan = chan;
-        self.chanl = chanl;
-        self.len = self.row*self.col*self.chan
-        self.lenl = self.rowl*self.coll*self.chanl
-        self.pystr = db_path.encode("utf8")
-        cdef char* path = self.pystr
-        cdef int handle = 1;
+    def __init__(self, db_path):
+        pystr = db_path.encode("utf8")
+        cdef char* path = pystr
+        cdef int handle = 0;
         self.length = initLMDB(&handle, path)
         self.handle = handle;
-        print("Imported dataset:", db_path, ", containing ", self.length, " samples")
-    def __getitem__(self, index):
-        cdef np.npy_intp len = self.len
-        cdef np.npy_intp lenl = self.lenl
+        print("Imported dataset @", os.getpid(), " :", db_path, ", containing ", self.length, " samples")
+    def read(self, index):
         cdef handle = self.handle;
-        cdef int key = index
-        cdef int ndata = 1;
-        cdef size_t init_size = self.chan*self.row*self.col*sizeof(float);
-        cdef size_t *data_size = &init_size;
+        cdef int key = index;
+        cdef int ndata = 0;
+        cdef size_t *data_size[2];
         cdef void **data = NULL;
-        readLMDB(handle, &ndata, &data, &data_size, &key);
+        readLMDB(handle, &ndata, &data, data_size, &key);
+        cdef np.npy_intp len = int(data_size[0][0] / sizeof(float));
+        cdef np.npy_intp lenl = int(data_size[1][0] / sizeof(float));
         imgnp = np.PyArray_SimpleNewFromData(1, &len, np.NPY_FLOAT, data[0]);
         labnp = np.PyArray_SimpleNewFromData(1, &lenl, np.NPY_FLOAT, data[1]);
         return imgnp, labnp
-    def __len__(self):
-        return self.length
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' + self.pystr.decode("utf8") + ')'
+    def fill(self, index, datas):
+        cdef handle = self.handle;
+        cdef int key = index
+        cdef size_t data_size[2];
+        cdef void *data[2];
+        img = datas[0].astype(np.dtype("float32"));
+        lab = datas[1].astype(np.dtype("float32"));
+        data[0] = np.PyArray_BYTES(img);
+        data[1] = np.PyArray_BYTES(lab);
+        data_size[0] = img.nbytes
+        data_size[1] = lab.nbytes
+        fillLMDB(handle, &key, 2, data, data_size);
+    def commit(self):
+        cdef handle = self.handle;
+        saveLMDB(handle)
+
+

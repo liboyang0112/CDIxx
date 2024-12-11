@@ -683,8 +683,8 @@ cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int
       val += tolerance;
     }
     val = sqrt(val/srcmod2);
-    source[index].x = (0.+val)/1.*sourcedata.x;
-    source[index].y = (0.+val)/1.*sourcedata.y;
+    source[index].x = val*sourcedata.x;
+    source[index].y = val*sourcedata.y;
     })
 cuFuncc(add,(complexFormat* a, complexFormat* b, Real c ),(cuComplex* a, cuComplex* b, Real c ),((cuComplex*)a,(cuComplex*)b,c),{
     cuda1Idx()

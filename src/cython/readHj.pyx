@@ -2,7 +2,6 @@
 import ctypes
 cimport numpy as np
 import numpy as np
-from libc.stdlib cimport malloc, free
 from numpy import log2
 
 cdef extern from "FGA.hpp":

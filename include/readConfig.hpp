@@ -3,9 +3,6 @@
  * @brief A config file header.
  * @author Boyang Li
  */
-/**
- * @brief 	CDIxxinXsys Library.
- */
 
 #ifndef __CDIxxCONFIG
 #define __CDIxxCONFIG

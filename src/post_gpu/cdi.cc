@@ -273,7 +273,7 @@ void* CDI::phaseRetrieve(){
   //Real beta = -1;
   //Real gammas = -1./beta;
   //Real gammam = 1./beta;
-  Real gaussianSigma = 2.5;
+  Real gaussianSigma = 1;
 
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *cuda_gkp1 = (complexFormat*)objectWave;

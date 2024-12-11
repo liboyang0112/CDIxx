@@ -6,7 +6,7 @@ import torch
 from torch import device, tensor, nn, _dynamo
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-from imageIO import writeFloat,readImage,writePng
+from imageIO import writeFloat,readImage,writePNG
 import numpy as np
 from torchvision.transforms import CenterCrop, Resize
 from UNet import UNet
@@ -41,7 +41,7 @@ if exists(ModelSave + '/Unet.pt'):
 print('load success')
 imgval,label = datatest[testIdx]
 cache = np.zeros((label.shape))
-writePng("Log_imgs/seglab.png", label.cpu()[0].numpy(), cache, 1, 1)
+writePNG("Log_imgs/seglab.png", label.cpu()[0].numpy(), cache, 1, 1)
 imgtest = torch.unsqueeze(imgval,dim = 0)
 testimg, testlabel = next(iter(testloader))
 train_losses = []
@@ -94,14 +94,14 @@ for epoch in range(EPOCH):
     #    break
     bestloss = avgvalloss
     torch.save(net.state_dict(),ModelSave + '/Unet.pt')
-    writePng(f'Log_imgs/segimg_ep{epoch}.png',valout.cpu()[0][0].detach().numpy(),cache, 1)
-    writePng(f'Log_imgs/segimg_train_ep{epoch}.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
-    writePng('Log_imgs/segimg_train_lab.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
+    writePNG(f'Log_imgs/segimg_ep{epoch}.png',valout.cpu()[0][0].detach().numpy(),cache, 1)
+    writePNG(f'Log_imgs/segimg_train_ep{epoch}.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
+    writePNG('Log_imgs/segimg_train_lab.png',trainimg.cpu()[0][0].detach().numpy(),cache, 1)
     net.eval()
     if runExp:
         out = net(image)
         imgnp = out.cpu()[0][0].detach().numpy()
         writeFloat("pattern.bin",imgnp)
-        writePng('Log_imgs/pattern.png',imgnp,cache, 1)
+        writePNG('Log_imgs/pattern.png',imgnp,cache, 1)
     print('第{}轮结束'.format(epoch))
 lossfile.close()

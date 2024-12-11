@@ -2,7 +2,6 @@
 import ctypes
 cimport numpy as np
 import numpy as np
-from libc.stdlib cimport malloc, free
 from numpy import log2
 
 cdef extern from "imageFile.hpp":
@@ -32,7 +31,6 @@ def writeFloat(path, array):
         writeComplexImage(fname, np.PyArray_BYTES(array), array.shape[0],array.shape[1]);
     else:
         print("data type not known:", array.dtype);
-        exit();
 
 def writePNG(path, array, cache, iscolor, islog = 1):
     fn = path.encode("utf8");
@@ -40,6 +38,7 @@ def writePNG(path, array, cache, iscolor, islog = 1):
     if islog:
         cvtLog(<float*>np.PyArray_BYTES(array), array.size);
     if array.dtype == np.single or array.dtype == np.double:
+        print("save type:", array.dtype)
         plotPng(fname, <float*>np.PyArray_BYTES(array), np.PyArray_BYTES(cache), array.shape[0], array.shape[1], iscolor);
     if array.dtype == np.uint16:
         writePng(fname, <void*>np.PyArray_BYTES(array), array.shape[0], array.shape[1], 16, 0);

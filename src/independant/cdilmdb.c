@@ -11,6 +11,7 @@
 #define CHECK(test, msg) ((test) ? (void)0 : ((void)fprintf(stderr, \
         "%s:%d: %s: %s\n", __FILE__, __LINE__, msg, mdb_strerror(rc)), abort()))
 
+//data structure: ndata, data_size[0], data_size[1], ..., data[0], data[1], ...
 int rc;
 struct lmdbds{
   MDB_env *env;
@@ -125,14 +126,13 @@ void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *key
     fprintf(stderr,"data read failed with EC %d\n",rc);
     exit(0);
   }
-  if(ds->data_cache_size == 0) {
-    ds->data_cache_size = **data_size;
-    free(ds->data_cache);
-    ds->data_cache = malloc(ds->data_cache_size);
-  }
   int err;
   void* dataptr = ds->data_LMDB.mv_data;
   if(ds->compress){
+    if(ds->data_cache_size == 0) {
+      ds->data_cache_size = ds->data_LMDB.mv_size;
+      ds->data_cache = malloc(ds->data_cache_size);
+    }
     while((err = uncompress(ds->data_cache, &ds->data_cache_size, ds->data_LMDB.mv_data, ds->data_LMDB.mv_size)) != Z_OK){
       if(err != Z_BUF_ERROR) {
         fprintf(stderr,"zip error: %d\n", err);
@@ -145,11 +145,12 @@ void readLMDB(int handle, int *ndata, void*** data, size_t** data_size, int *key
     dataptr = ds->data_cache;
   }
   *ndata = *(int*)dataptr;
+  dataptr += sizeof(int);
   *data = (void**)malloc(sizeof(void**)*(*ndata));
-  *data_size = dataptr + sizeof(int);
-  size_t shift = sizeof(int) + *ndata*sizeof(size_t);
+  size_t shift = *ndata*sizeof(size_t);
   for(int i = 0; i < *ndata; i++){
     (*data)[i] = dataptr+shift;
-    shift+=(*data_size)[i];
+    data_size[i] = dataptr + i*sizeof(size_t);
+    shift+=*(data_size[i]);
   }
 }
