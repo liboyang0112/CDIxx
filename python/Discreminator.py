@@ -10,16 +10,17 @@ def init_weight(m):
     if isinstance(m,nn.Linear) or isinstance(m, nn.Conv2d):
         nn.init.xavier_uniform_(m.weight) 
 class myDataloader(utils.data.Dataset):
-    def __init__(self, db_path, row, col, transform=None):
+    def __init__(self, db_path, row, col, nchs, transform=None):
         self.loader = cldr(db_path)
         self.path = db_path
         self.row = row
         self.col = col
         self.rowl = row
         self.transform = transform
+        self.nchs = nchs
     def __getitem__(self, index):
         imgnp, labnp = self.loader.read(index)
-        img = torch.tensor(imgnp).reshape([-1, self.row, self.col])[0:5]
+        img = torch.tensor(imgnp).reshape([-1, self.row, self.col])[0:self.nchs]
         if self.transform is not None:
             img = self.transform(img)
         return img,labnp[0]
@@ -59,11 +60,11 @@ class Discreminator(LightningModule):
         self.nlevel = level
         out_channels=[channels*4**(i+1) for i in range(self.nlevel+1)]
         maxch = out_channels[-1]
-        self.nhead = 4
+        self.nhead = 10
         self.down = []
         self.conv = []
-        self.loss_func = nn.MSELoss()
-        #self.loss_func = nn.BCELoss()
+        #self.loss_func = nn.MSELoss()
+        self.loss_func = nn.BCELoss()
         #loss_func = nn.L1Loss()
         self.conv = nn.ModuleList()
         self.down = nn.ModuleList()
@@ -72,10 +73,12 @@ class Discreminator(LightningModule):
             self.down.append(DownsampleLayer(out_channels[x],out_channels[x+1]))
             self.conv.append(convLayer(out_channels[x+1],out_channels[x+1]))
         #self.a = torch.nn.MultiheadAttention(maxch,1)
-        self.head=nn.Sequential(
-            nn.Linear(maxch, int(maxch/self.nhead)),
-            nn.LayerNorm(int(maxch/self.nhead))
-        )
+        self.head = nn.ModuleList()
+        for x in range(self.nhead):
+            self.head.append(nn.Sequential(
+                nn.Linear(maxch, int(maxch)),
+                nn.LayerNorm(int(maxch))
+            ))
         self.output=nn.Sequential(
             nn.Linear(self.nhead, 1),
             nn.Sigmoid()
@@ -94,23 +97,24 @@ class Discreminator(LightningModule):
         chs = chs.view([nch,nbatch,-1]).transpose(1,0)
         output = torch.Tensor().cuda()
         for h in range(self.nhead):
-            head = self.head(chs)
+            head = self.head[h](chs)
             prod = head @ head.transpose(1,2)
             correlation = prod.sum(dim=(1,2))/(torch.vmap(torch.trace)(prod)*(nch-1))-1
             output = torch.concatenate((output,correlation))
-        output = self.output(output.view(self.nhead, -1).transpose(0,1)/self.nhead)  # -> nbatch, nhead
+        print(output)
+        output = self.output(output.view(self.nhead, nbatch).transpose(0,1)/self.nhead)  # -> nbatch, nhead
         return output.flatten()
 
     def train_dataloader(self):
         trainsz = 31
         bs = 10
-        data = myDataloader("./traindb", trainsz,trainsz)
+        data = myDataloader("./traindb", trainsz,trainsz, 5)
         return DataLoader(data, batch_size = bs, shuffle = False,num_workers = 0,drop_last = True)
 
     def val_dataloader(self):
         trainsz = 31
         bs = 10
-        data = myDataloader("./testdb", trainsz,trainsz)
+        data = myDataloader("./testdb", trainsz,trainsz, 3)
         return DataLoader(data, batch_size = bs, shuffle = True,num_workers = 0, drop_last = True)
 
     def configure_optimizers(self):

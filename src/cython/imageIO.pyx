@@ -32,16 +32,21 @@ def writeFloat(path, array):
     else:
         print("data type not known:", array.dtype);
 
-def writePNG(path, array, cache, iscolor, islog = 1):
+def writePNG(path, array, cache = None, iscolor = 0, islog = 0):
     fn = path.encode("utf8");
     cdef char* fname = fn;
     if islog:
         cvtLog(<float*>np.PyArray_BYTES(array), array.size);
     if array.dtype == np.single or array.dtype == np.double:
-        print("save type:", array.dtype)
+        if cache is None:
+            print("save type:", array.dtype)
+            raise ValueError('Please feed a cache for type conversion!')
         plotPng(fname, <float*>np.PyArray_BYTES(array), np.PyArray_BYTES(cache), array.shape[0], array.shape[1], iscolor);
     if array.dtype == np.uint16:
         writePng(fname, <void*>np.PyArray_BYTES(array), array.shape[0], array.shape[1], 16, 0);
+    if array.dtype == np.uint8:
+        bytes = <unsigned char*>np.PyArray_BYTES(array)
+        writePng(fname, bytes, array.shape[0], array.shape[1], 8, 1);
 
 def readImage(path):
     fn = path.encode("utf8");
