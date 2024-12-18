@@ -20,6 +20,10 @@ mnistData::mnistData(const char* dir){
   std::string filename = "/train-images-idx3-ubyte";
   filename = dir+filename;
   ifstream *file = new ifstream(filename, ios::binary);
+  if(file->fail()) {
+    fprintf(stderr, "File open failed: %s, check if it exists!", filename.c_str());
+    abort();
+  }
   dataset = file;
   int magic_number = 0;
   int number_of_images = 0;

@@ -3,9 +3,9 @@
 float bandwidthtest(int GB){
   size_t sz = 1024*1024;
   sz*= 1024*GB;
-  void* memory = malloc(sz); //3G
+  void* memory = malloc(sz);
   void* memorydev;
-  cudaMalloc(&memorydev, sz); //3G
+  cudaMalloc(&memorydev, sz);
   time_t current_time = time(NULL);
   cudaMemcpy(memorydev, memory, sz, cudaMemcpyHostToDevice);
   cudaMemcpy(memory, memorydev, sz, cudaMemcpyDeviceToHost);
