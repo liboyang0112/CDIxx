@@ -43,10 +43,10 @@ class UpSampleLayer(nn.Module):
 
 
 class UNet(LightningModule):
-    def __init__(self, channels=1, level=4):
+    def __init__(self, channels=2, level=4):
         super().__init__()
         self.nlevel = level
-        out_channels=[channels*2**(i+6) for i in range(self.nlevel+1)]
+        out_channels=[channels*2**(i+2) for i in range(self.nlevel+1)]
         self.d = []
         self.u = []
         self.c = []
@@ -70,7 +70,7 @@ class UNet(LightningModule):
             nn.Conv2d(out_channels[0], out_channels[0], kernel_size=3, stride=1),
             nn.BatchNorm2d(out_channels[0]),
             nn.LeakyReLU(inplace=True),
-            nn.Conv2d(out_channels[0],1,3,1,1),
+            nn.Conv2d(out_channels[0],2,kernel_size=3,stride=1,padding=1),
             nn.Sigmoid(),
         )
     def forward(self,out):

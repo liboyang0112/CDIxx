@@ -42,10 +42,10 @@ class convLayer(nn.Module):
     def __init__(self,in_ch, out_ch):
         super().__init__()
         self.Conv_BN_ReLU_2=nn.Sequential(
-            nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1, padding=1),
+            nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True),
-            nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, stride=1),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True)
         )
@@ -54,9 +54,10 @@ class convLayer(nn.Module):
         return self.Conv_BN_ReLU_2(x)
 
 class Discreminator(LightningModule):
-    def __init__(self, channels=2, level=4):
+    def __init__(self, channels=2, level=4, imgsz = 43):
         super().__init__()
         self.nlevel = level
+        self.imgsz = imgsz
         out_channels=[channels*2*2**(i+1) for i in range(self.nlevel+1)]
         maxch = out_channels[-1]
         #self.loss_func = nn.MSELoss()
@@ -88,15 +89,13 @@ class Discreminator(LightningModule):
         return score
 
     def train_dataloader(self):
-        trainsz = 31
-        bs = 128
-        data = myDataloader("./traindb", trainsz,trainsz, 5)
+        bs = 1024
+        data = myDataloader("./traindb", self.imgsz,self.imgsz, 5)
         return DataLoader(data, batch_size = bs, shuffle = True,num_workers = 15,drop_last = True)
 
     def val_dataloader(self):
-        trainsz = 31
         bs = 100
-        data = myDataloader("./testdb", trainsz,trainsz, 3)
+        data = myDataloader("./testdb", self.imgsz,self.imgsz, 3)
         return DataLoader(data, batch_size = bs, shuffle = False,num_workers = 15, drop_last = True)
 
     def configure_optimizers(self):
