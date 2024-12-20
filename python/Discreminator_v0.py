@@ -12,6 +12,7 @@ def init_weight(m):
 class myDataloader(utils.data.Dataset):
     def __init__(self, db_path, row, col, nchs, transform=None):
         self.loader = cldr(db_path)
+        self.path = db_path
         self.row = row
         self.col = col
         self.rowl = row
@@ -54,11 +55,14 @@ class convLayer(nn.Module):
         return self.Conv_BN_ReLU_2(x)
 
 class Discreminator(LightningModule):
-    def __init__(self, channels=2, level=4):
+    def __init__(self, channels=1, level=4):
         super().__init__()
         self.nlevel = level
-        out_channels=[channels*2*2**(i+1) for i in range(self.nlevel+1)]
+        out_channels=[channels*4**(i+1) for i in range(self.nlevel+1)]
         maxch = out_channels[-1]
+        self.nhead = 10
+        self.down = []
+        self.conv = []
         #self.loss_func = nn.MSELoss()
         self.loss_func = nn.BCELoss()
         #loss_func = nn.L1Loss()
@@ -68,36 +72,50 @@ class Discreminator(LightningModule):
         for x in range(self.nlevel):
             self.down.append(DownsampleLayer(out_channels[x],out_channels[x+1]))
             self.conv.append(convLayer(out_channels[x+1],out_channels[x+1]))
+        #self.a = torch.nn.MultiheadAttention(maxch,1)
+        self.head = nn.ModuleList()
+        for x in range(self.nhead):
+            self.head.append(nn.Sequential(
+                nn.Linear(maxch, int(maxch)),
+                nn.LayerNorm(int(maxch))
+            ))
         self.output=nn.Sequential(
-            nn.Linear(maxch, 1),
+            nn.Linear(self.nhead, 1),
             nn.Sigmoid()
         )
         self.output.apply(init_weight)
     def forward(self,input):
         nbatch = input.shape[0]
         nch = input.shape[1]
-        score = torch.zeros(nbatch).cuda()
+        chs = torch.Tensor().cuda()
         for ich in range(nch):
-            for jch in range(ich+1, nch):
-                out = input[:,[ich,jch],:,:]
-                for x in range(self.nlevel):
-                    out = self.conv[x](out)
-                    out = self.down[x](out)
-                score += self.output(out.view(nbatch, -1)).flatten()
-        score/=nch*(nch-1)/2
-        return score
+            out = input[:,[ich],:,:]
+            for x in range(self.nlevel):
+                out = self.conv[x](out)
+                out = self.down[x](out)
+            chs = torch.concatenate((chs,out.flatten()))
+        chs = chs.view([nch,nbatch,-1]).transpose(1,0)
+        output = torch.Tensor().cuda()
+        for h in range(self.nhead):
+            head = self.head[h](chs)
+            prod = head @ head.transpose(1,2)
+            correlation = prod.sum(dim=(1,2))/(torch.vmap(torch.trace)(prod)*(nch-1))-1
+            output = torch.concatenate((output,correlation))
+        print(output)
+        output = self.output(output.view(self.nhead, nbatch).transpose(0,1)/self.nhead)  # -> nbatch, nhead
+        return output.flatten()
 
     def train_dataloader(self):
         trainsz = 31
-        bs = 128
+        bs = 10
         data = myDataloader("./traindb", trainsz,trainsz, 5)
-        return DataLoader(data, batch_size = bs, shuffle = True,num_workers = 15,drop_last = True)
+        return DataLoader(data, batch_size = bs, shuffle = False,num_workers = 0,drop_last = True)
 
     def val_dataloader(self):
         trainsz = 31
-        bs = 100
+        bs = 10
         data = myDataloader("./testdb", trainsz,trainsz, 3)
-        return DataLoader(data, batch_size = bs, shuffle = False,num_workers = 15, drop_last = True)
+        return DataLoader(data, batch_size = bs, shuffle = True,num_workers = 0, drop_last = True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(),lr = 0.01,betas = (0.9, 0.999))
