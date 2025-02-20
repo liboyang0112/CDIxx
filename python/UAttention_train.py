@@ -59,7 +59,7 @@ class UAttention_l(LightningModule):
         return metrics
 def main():
     model = UAttention_l(2,3,43)
-    trainer = Trainer(max_epochs=30, callbacks=[callbacks.ModelCheckpoint(save_top_k=3, monitor='loss',enable_version_counter=False, every_n_epochs=10)])
+    trainer = Trainer(max_epochs=30, callbacks=[callbacks.ModelCheckpoint(save_top_k=3, monitor='g_loss',enable_version_counter=False, every_n_epochs=10)])
     trainer.fit(model)
 
 if __name__ == '__main__':

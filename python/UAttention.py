@@ -91,8 +91,7 @@ class UAttention(nn.Module):
             for jch in range(ich+1,nch):
                 outij = input[:,[ich,jch],:,:]
                 outij = self.__UNetForward(outij)
-                out[:,ich,:,:] += outij[:,0,:,:]
-                out[:,jch,:,:] += outij[:,1,:,:]
+                out[:,[ich,jch],:,:] += outij
         out /= nch
         return input + out
 

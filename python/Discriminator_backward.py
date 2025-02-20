@@ -7,7 +7,7 @@ from imageIO import writePNG
 from Discreminator import Discreminator
 set_float32_matmul_precision('high')
 def toint8(data):
-    return np.uint8(((data[0].transpose(0,2).flatten().view(31,31,3).detach().cpu().numpy()+4)/8)*255)
+    return np.uint8(((data[0].transpose(0,2).flatten().view(43,43,3).detach().cpu().numpy()+4)/8)*255)
 def tofloat(data):
     return (data[0].detach().cpu().numpy()+4)/8
 def main():
@@ -15,7 +15,7 @@ def main():
     model.eval()
     dataloader = cldr("testdb")
     data, label = dataloader.read(24)
-    data = Tensor(data.reshape([1,-1,31,31])[:,0:3,:,:]).cuda()
+    data = Tensor(data.reshape([1,-1,43,43])[:,0:3,:,:]).cuda()
     data.requires_grad=True
     cache = np.zeros((data.shape[2],data.shape[3],3), np.int8)
     print(model(data), label)
