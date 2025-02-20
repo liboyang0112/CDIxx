@@ -1,5 +1,6 @@
 #include "cudaConfig.hpp"
 #include "cudaDefs_h.cu"
+#include <complex.h>
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
@@ -1062,7 +1063,8 @@ cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int r
     int y = idx%col0 + (col-col0)/2;
     amp[x*col+y] = rf[index];
     })
-cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, *((cuComplex*)&a)),{
+cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, {crealf(a),cimagf(a)}),{
+//cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, *((cuComplex*)&a)),{
     cuda1Idx()
     int idx = mmap[index];
     int x = idx/col0 + (row-row0)/2;

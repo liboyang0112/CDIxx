@@ -7,8 +7,8 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_HOST_COMPILER /usr/lib/llvm14/bin/clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
-#set(CMAKE_CUDA_HOST_COMPILER clang++-16) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+#set(CMAKE_CUDA_HOST_COMPILER /usr/lib/llvm14/bin/clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
+set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
 set(CMAKE_CUDA_FLAGS "--allow-unsupported-compiler")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
@@ -24,6 +24,7 @@ else()
   set(CUFFTLIB NVHPC::MATH)
 endif()
 
+set(CMAKE_CUDA_ARCHITECTURES 75)
 set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
 add_compile_options(-Wall -Wextra)
 
@@ -44,7 +45,7 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package(Python 3.12 EXACT REQUIRED COMPONENTS Interpreter NumPy)
+find_package(Python3 REQUIRED COMPONENTS Interpreter NumPy)
 if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
@@ -75,10 +76,10 @@ include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedor
 #foreach( dir ${dirs} )
 #    message( STATUS "include dir=${dir}" )
 #endforeach()
-set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
-#set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)

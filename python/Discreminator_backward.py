@@ -11,7 +11,7 @@ def toint8(data):
 def tofloat(data):
     return (data[0].detach().cpu().numpy()+4)/8
 def main():
-    model = Discreminator.load_from_checkpoint(checkpoint_path="lightning_logs/version_9/checkpoints/epoch=9-step=390.ckpt")
+    model = Discreminator.load_from_checkpoint(checkpoint_path="lightning_logs/version_1/checkpoints/epoch=39-step=160.ckpt")
     model.eval()
     dataloader = cldr("testdb")
     data, label = dataloader.read(24)
@@ -32,7 +32,7 @@ def main():
     myoptimizer = optim.Adam([data12],lr = 0.01,betas = (0.9, 0.999))
     for i in range(3):
         writePNG(f"out{i}_orig.png", fdata[i],cache, 0)
-    for iter in range(10):
+    for iter in range(100):
         data01 = torch.concatenate([data12[:,[0],:,:], data0], 1)
         data02 = torch.concatenate([data12[:,[1],:,:], data0], 1)
         y = 2-model(data01)-model(data02)

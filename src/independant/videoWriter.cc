@@ -55,7 +55,7 @@ void* createVideo(const char* filename, int row, int col, int fps){
   thisvid->stream_thread = 0;
   if(!pkt) pkt = av_packet_alloc();
   //if(!codec) codec = avcodec_find_encoder_by_name("libx265");
-  if(!codec) codec = avcodec_find_encoder_by_name("libx265");
+  if(!codec) codec = avcodec_find_encoder_by_name("hevc_nvenc");
   if (!codec) {
     fprintf(stderr, "Codec libx265 not found\n");
     exit(1);

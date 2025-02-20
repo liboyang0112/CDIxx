@@ -108,21 +108,22 @@ Real findSumReal(complexFormat* d_in, int num)
   return output.x;
 }
 
-complexFormat findSum(complexFormat* d_in, int num, bool debug)
+complexFormat findSum(complexFormat* d_in, int num)
 {
   cuComplex tmp;
   tmp.x = tmp.y = 0;
   FUNC(cuComplex, sumcomplex_op, tmp, store_findSumComplex);
-  return (*(complexFormat*)&output);
+  //return (*(complexFormat*)&output);
+  return {output.x, output.y};
 }
 
-Real findSum(Real* d_in, int num, bool debug=false)
+Real findSum(Real* d_in, int num)
 {
   FUNC(Real, sum_op, Real(0), store_findSum);
   return output;
 }
 
-Real findRootSumSq(Real* d_in, int num, bool debug=false)
+Real findRootSumSq(Real* d_in, int num)
 {
   FUNC(Real, rootsumsq_op, Real(0), store_findRootSumSq);
   return output;
