@@ -90,7 +90,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     if(step_a<=0 || step_a!=step_a) abort();
     momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
   }
-  complexFormat *fbi;
+  complexFormat *fbi = 0;
   if(!updateX) {
     myIFFT((complexFormat*)d_output, fftb);
     cudaConvertFO(fftb);
@@ -134,8 +134,9 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         }
       }
       if(gs){
+        if(j==monoidx) fbi = (complexFormat*)d_output;
         for(int i = 0; i < min(j+1,nmem); i++){
-          matrix[i+j*nlambda] = innerProd(j==monoidx?d_output:fbi, gs[i], sptimg);
+          matrix[i+j*nlambda] = innerProd(fbi, gs[i], sptimg);
         }
         right[j] = innerProd(fbi, d_input, sptimg);
       }
@@ -392,6 +393,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
         matfile << endl;
       }
       Fit_fast_matrix(spectra, nlambda, matrix, right);
+      resize_cuda_image(row, column);
       //spectra[nlambda-2] = spectra[nlambda-1] = 0;
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;

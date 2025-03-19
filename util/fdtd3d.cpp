@@ -10,9 +10,9 @@ using namespace std;
 
 int main(){
   int nsteps = 1000;
-  const int nx = 200;
-  const int ny = 200;
-  const int nz = 200;
+  const int nx = 150;
+  const int ny = 150;
+  const int nz = 150;
   dim3 nblkx,nblky,nblkz, nthd2d;
   //---------inner dimensions--------
   //-----boundary dimensions---------
@@ -39,7 +39,6 @@ int main(){
   //unsigned char* material_map = (unsigned char*)memMngr.borrowCleanCache(nnode);  //supports 255 kinds of materials
   //record boundaries for PML
   myCuDMallocClean(Real, EzBdx1, ny*nz);
-  myCuDMallocClean(Real, ExBdx1, ny*nz);
   myCuDMallocClean(Real, EyBdx1, ny*nz);
   myCuDMallocClean(Real, EzBdy1, nz*nx);
   myCuDMallocClean(Real, ExBdy1, nz*nx);
@@ -67,17 +66,17 @@ int main(){
     saveField = i%5==0;
     //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30)));
     if(i < 280) {
-      applySource(Ez, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
-      applySource(Hx, sourcePos, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
-      applySource(Hx, sourcePos+1, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
-      applySource(Hx, sourcePos-1, 500*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      applySource(Ez, sourcePos, 30*exp(-sq((i-140.)/70))*(sin(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
+      applySource(Hx, sourcePos, 30*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      applySource(Hx, sourcePos+1, 30*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
+      applySource(Hx, sourcePos-1, 30*exp(-sq((i-140.)/70))*(sin(M_PI/35*i))*(0.4/0.5)/3);//50*exp(-sq(double(i-100)/30,2)));
       //applySource<<<1,1>>>(Ey, sourcePos, 500*exp(-sq((i-140.)/70))*(cos(M_PI/35*i)));//50*exp(-sq(double(i-100)/30,2)));
     }//get circular polarized source!
     //applySourceV<<<nblkx,nthd2d>>>(Ez, nx, ny, nz, 100, 5*sin(M_PI/30*i));
 
     resize_cuda_image(ny,nz);
-    applyPMLx1(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx);
-    applyPMLx1post(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx);
+    applyPMLx1(Hx, Hy, Hz, Ex, Ey, Ez, EyBdx1, EzBdx1, nx);
+    //applyPMLx1post(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx);
     resize_cuda_image(n_PML,ny,nz);
     applyPMLx1_d(Hx, Hy, Hz, Ex, Ey, Ez, nx);  //do separately to speed up
     resize_cuda_image(nx,nz);

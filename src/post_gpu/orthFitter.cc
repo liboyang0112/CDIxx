@@ -44,7 +44,7 @@ void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* 
   myCuDMalloc(double, d_out, n);
   myCuDMalloc(double, d_bi, n);
   myCuDMalloc(double, d_matrix,szmat);
-  myMemcpyH2D(d_bi, out, n);
+  myMemcpyH2D(d_bi, out, n*sizeof(double));
   myMemcpyH2D(d_matrix, matrix, szmat*sizeof(double));
   resize_cuda_image(n, n);
 #ifdef useLapack
@@ -286,8 +286,8 @@ void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
     }
     if(maxval < val) maxval = val;
   }
-  double step_lambda = 1./maxval;
+  double step_lambda = 0.001/maxval;
   printf("maxval = %f\n", maxval);
-  int niter = 60000;
+  int niter = 10000;
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
 }

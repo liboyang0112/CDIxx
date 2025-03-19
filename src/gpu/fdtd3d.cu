@@ -21,7 +21,9 @@ __device__ Real getmE(int x, int y, int z){
 }
 cuFunc(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
   cuda3Idx();
+#ifdef secondOrder
   Real ismid = x>=3&&x<cuda_row-3&&y>=3&&y<cuda_column-3&&z>=3&&z<cuda_height-3;
+#endif
   Real mH = getmH(x,y,z);
   if(z < cuda_height-1 && x > 0 && y < cuda_column-1){
     Real dH = Ez[index+cuda_row]-Ez[index]-Ey[index+cuda_row*cuda_column]+Ey[index];
@@ -51,7 +53,9 @@ cuFunc(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx
 cuFunc(updateE,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez),{
   cuda3Idx();
   Real mE = getmE(x,y,z);
+#ifdef secondOrder
   Real ismid = x>=3&&x<cuda_row-3&&y>=3&&y<cuda_column-3&&z>=3&&z<cuda_height-3;
+#endif
   if(z > 0 && x < cuda_row-1 && y > 0){
     Real dE = Hz[index]-Hz[index-cuda_row]-Hy[index]+Hy[index-cuda_row*cuda_column];
 #ifdef secondOrder
@@ -99,36 +103,23 @@ cuFunc(applyPMLx1_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez
   Hx[index] *= sf;
   Hz[index] *= sf;
 })
-cuFunc(applyPMLx1, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx),(Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx),
+cuFunc(applyPMLx1, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* EyBdx1, Real* EzBdx1, int nx),(Hx, Hy, Hz, Ex, Ey, Ez, EyBdx1, EzBdx1, nx),
 {
   cudaIdx()
-  if(index >= cuda_row*(cuda_column-1)) return;
-  index = x*nx*cuda_row + y*nx + nx - 1;  //large stride, unavoidable
+  if(y < cuda_column*2/3) return;
+  index = x*nx*cuda_row + y*nx + nx - 50;  //large stride, unavoidable
   Real mH = getmH(nx-1,y,x);
   Real mE = getmE(nx-1,y,x);
   Real rat = sqrt(mH/mE);
-  Real b = (Ex[index-1+nx*cuda_row] + Ex[index-1] + ExBdx1[y+x*cuda_row]+ExBdx1[y+(x+1)*cuda_row])/4;
   Real a = Ez[index];
-  Real ratio = b/a;
-  if(fabs(a) > 1e-7) ratio = sqrt(1./(1+ratio*ratio));
-  else ratio = 1;
-  Real dt = 0.5/(mE*rat)*ratio-0.5;
-  Real dh = rat*(dt*EzBdx1[y+x*cuda_row] + (1-dt)*a);
-  char sgn = 0;
-  if(dh < 0) sgn = -1;
-  else if(dh > 0) sgn = 1;
-  Hy[index-1] += sgn*sqrt(dh*dh + b*b);
+  Real dt = 0.5/(mE*rat)-0.5;
+  Hy[index-1] += rat*(dt*EzBdx1[y+x*cuda_row] + (1-dt)*a);
   EzBdx1[y+x*cuda_row] = a;
   Ez[index] = 0;
   a = Ey[index];
   Hz[index-1] -= rat*(dt*EyBdx1[y+x*cuda_row] + (1-dt)*a);
   EyBdx1[y+x*cuda_row] = a;
   Ey[index] = 0;
-})
-cuFunc(applyPMLx1post, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdx1, Real* EyBdx1, Real* EzBdx1, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, ExBdx1, EyBdx1, EzBdx1, nx), {
-  cudaIdx()
-  index = x*nx*cuda_row + y*nx + nx - 1;  //large stride, unavoidable
-  ExBdx1[y+x*cuda_row] = Ex[index-1];
   Ex[index-1] = 0;
 })
 cuFunc( applyPMLx0, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HyBdx0, Real* HzBdx0, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, HyBdx0, HzBdx0, nx), {

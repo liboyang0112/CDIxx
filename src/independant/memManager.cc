@@ -31,8 +31,7 @@ void* memManager::borrowCache(size_t sz){
   }else{
     c_malloc(ret, sz);
   }
-  void* bb = ret;
-  rentBook[bb] = sz;
+  rentBook[ret] = sz;
   return ret;
 }
 
@@ -64,8 +63,7 @@ void* memManager::borrowSame(void* mem){
     printf("This pointer %p, is not found in the rentBook, please check if the memory is managed by memManager or returned already.\n", mem);
     abort();
   }
-  int siz = iter->second;
-  return borrowCache(siz);
+  return borrowCache(iter->second);
 }
 
 size_t memManager::getSize(void* mem){

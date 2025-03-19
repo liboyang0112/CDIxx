@@ -153,6 +153,7 @@ void CDI::prepareIter(){
     convertFOPhase( (complexFormat*)patternWave);
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
     getMod2(patternData, (complexFormat*)patternWave);
+    if(useBS) applyMaskBar(patternData, beamstop);
     if(simCCDbit){
       verbose(4,printf("Applying Poisson noise\n"));
       plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern", 0);
@@ -190,8 +191,7 @@ void CDI::prepareIter(){
       printf("Restart file size mismatch: %d!=%d || %d!=%d\n", fdata.rows, row, fdata.cols, column);
       restart = 0;
     }
-  }
-  if(!restart){
+  }else{
     createWaveFront(patternData, 0, (complexFormat*)patternWave, 1);
     applyRandomPhase((complexFormat*)patternWave, useBS?beamstop:0, devstates);
   }
@@ -273,47 +273,40 @@ void* CDI::phaseRetrieve(){
   //Real beta = -1;
   //Real gammas = -1./beta;
   //Real gammam = 1./beta;
-  Real gaussianSigma = 1;
 
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
 
   complexFormat *cuda_gkprime;
-  Real *cuda_diff;
-  Real *cuda_objMod;
-  cuda_diff = (Real*) memMngr.borrowCache(sz/2);
   cuda_gkprime = (complexFormat*)memMngr.borrowCache(sz);
-  cuda_objMod = (Real*)memMngr.borrowCache(sz/2);
-  myMemcpyD2D(cuda_diff, patternData, sz/2);
 
-  //cudaConvertFO( cuda_diff);
-  //FISTA(cuda_diff, cuda_diff, 0.01, 80, 0);
-  //cudaConvertFO( cuda_diff);
-  //plt.plotFloat(cuda_diff, MOD, 1, exposure, "smoothed_pattern",1);
   AlgoParser algo(algorithm);
-  int size = int(floor(gaussianSigma*6)) | 1;
-  Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
   applyNorm(cuda_gkp1, 1./sqrt(row*column));
+  Real gaussianSigma = 3;
+  Real avg = 0;
   for(int iter = 0; ; iter++){
     int ialgo = algo.next();
     if(ialgo<0) break;
     //start iteration
     if(ialgo == shrinkWrap){
-      getMod2(cuda_objMod,cuda_gkp1);
-      applyGaussConv(cuda_objMod, support, d_gaussianKernel, gaussianSigma);
-      Real maxs = findMax(cuda_objMod,row*column);
+      applyGaussMult((complexFormat*)patternWave, cuda_gkprime, Real(row>>2)/gaussianSigma, 1); //multiply a gaussian in frequency domain, equivalent to convolution in spatial domain.
+      myIFFT(cuda_gkprime, cuda_gkprime);
+      getMod2(support,cuda_gkprime);
+      Real maxs = findMax(support,row*column);
+      if(avg == 0) avg = findSum(support,row*column)*4/row/column;
+      if(avg*10 < maxs) maxs = avg*10;
       setThreshold(maxs*shrinkThreshold);
       if(fabs(maxs) < 1e-7 || maxs!=maxs) {
         printf("max is %f\n", maxs);
-        plt.plotFloat(cuda_objMod, MOD, 0, 1, "debug", 1, 0, 1);
+        plt.plotFloat(support, MOD, 1, 1./row/column, "debug", 1, 0, 1);
       }
-      if(gaussianSigma>1) {
+      if(gaussianSigma>2) {
         gaussianSigma*=0.99;
       }
       continue;
     }
-    if(simCCDbit) applyMod((complexFormat*)patternWave,cuda_diff, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
-    else applyModAbs((complexFormat*)patternWave,cuda_diff);
+    if(simCCDbit) applyMod((complexFormat*)patternWave,patternData, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
+    else applyModAbs((complexFormat*)patternWave,patternData);
     myIFFT( (complexFormat*)patternWave, cuda_gkprime);
     applyNorm(cuda_gkprime, 1./(row*column));
     if(costheta == 1) applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
@@ -347,12 +340,12 @@ void* CDI::phaseRetrieve(){
   }
   applyNorm(cuda_gkp1, sqrt(row*column));
   if(saveVideoEveryIter) plt.saveVideo(vidhandle);
-  if(d_gaussianKernel) memMngr.returnCache(d_gaussianKernel);
   if(verbose >= 4){
     cudaConvertFO(cuda_gkp1, cuda_gkprime);
     propagate(cuda_gkprime, cuda_gkprime, 1);
     plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
   }
+  Real *cuda_objMod = (Real*)memMngr.borrowCache(sz/2);
   getMod2(cuda_objMod, (complexFormat*)patternWave);
   addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
   getMod2(cuda_objMod, cuda_objMod);
@@ -363,7 +356,6 @@ void* CDI::phaseRetrieve(){
 
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
-  memMngr.returnCache(cuda_diff);
 
   return patternWave;
 }

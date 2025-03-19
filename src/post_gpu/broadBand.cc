@@ -335,7 +335,6 @@ char broadBand_constRatio::skipPattern(){
   return 1;
 }
 void broadBand_constRatio::generateMWL(void* d_input, void* d_patternSum, void* single){
-  myCuDMalloc(complexFormat, cache, thisrow*thiscol);
   myCuDMalloc(complexFormat, d_inputWave, row*column);
   resize_cuda_image(row, column);
   extendToComplex( (Real*)d_input, d_inputWave);
@@ -350,6 +349,5 @@ void broadBand_constRatio::generateMWL(void* d_input, void* d_patternSum, void* 
     applyA(d_inputWave, d_inputWave);
     addReal((Real*)d_patternSum, d_inputWave, spectra[i]);
   }
-  myCuFree(cache);
   myCuFree(d_inputWave);
 }

@@ -137,6 +137,7 @@ int main(int argc, char** argv){
       d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
     }
     else {
+      training = 0;
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
       d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
       myMemcpyH2D(d_input, intensity, objrow*objcol*sizeof(Real));
@@ -162,7 +163,7 @@ int main(int argc, char** argv){
   mwl.skip = 0;
   Real monoLambda = cdi.lambda;
   if(string(cdi.spectrum) == "gaussian"){
-    int lambdarange = 6;
+    int lambdarange = 4;
     int nlambda = objrow*(lambdarange-1)/2;
     lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
     spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
@@ -249,7 +250,7 @@ int main(int argc, char** argv){
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "broad_pattern");
       myMemcpyD2H(merged, d_patternSum, sz);
-      getMod( realcache, d_solved);
+      getReal( realcache, d_solved);
       plt.saveFloat(realcache, "hene_pattern");
       applyNorm( realcache, 1./findMax(realcache));
       myMemcpyD2H(single, realcache, sz);
@@ -262,9 +263,8 @@ int main(int argc, char** argv){
       if(j<nconfig){
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
         plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
-        plt.plotComplex(d_solved, MOD, 0, 1, ("singlelog"+to_string(j)).c_str(), 1, 0, 1);
+        plt.plotComplex(d_solved, REAL, 0, 1, ("singlelog"+to_string(j)).c_str(), 1, 0, 1);
       }
-      clearCuMem(d_solved,sz*2);
     }else{
       myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));
       ccmemMngr.returnCache(intensity);
@@ -284,6 +284,7 @@ int main(int argc, char** argv){
     if(cdi.doIteration){
       extendToComplex(d_patternSum, d_CpatternSum);
       if(!cdi.solveSpectrum) {
+        clearCuMem(d_solved,sz*2);
         mwl.solveMWL(d_CpatternSum, d_solved, cdi.noiseLevel, 0, cdi.nIter, 1, 0);
         getMod(d_patternSum, d_solved);
         plt.saveFloat(d_patternSum, "pattern");

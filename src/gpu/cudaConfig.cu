@@ -268,6 +268,23 @@ cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuCompl
     object[index] = cuCmulf(object[index],tmp);
     })
 
+cuFuncc(applyGaussMult,(complexFormat* input, complexFormat *output, Real sigma, bool isFreq),(cuComplex* input, cuComplex* output, Real sigma, bool isFreq),((cuComplex*)input,(cuComplex*)output, sigma,isFreq),{
+    cudaIdx()
+    Real xrel, yrel;
+    if(isFreq){
+      if(x>=cuda_row/2) xrel=x-cuda_row;
+      else xrel=x;
+      if(y>=cuda_column/2) yrel=y-cuda_column;
+      else yrel=y;
+    }else{
+      xrel = x - cuda_row/2;
+      yrel = y - cuda_column/2;
+    }
+    Real factor = exp(-(xrel*xrel+yrel*yrel)/(2*sigma*sigma));
+    output[index].x=factor*input[index].x;
+    output[index].y=factor*input[index].y;
+    })
+
 cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
     cuda1Idx()
     data[index].x*=factor;

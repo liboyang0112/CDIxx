@@ -159,7 +159,7 @@ int main(int argc, char** argv){
   mwl.skip = mwl.jump/2;
   Real monoLambda = cdi.lambda;
   if(string(cdi.spectrum) == "gaussian"){
-    int lambdarange = 6;
+    int lambdarange = 4;
     int sigma = 1;
     Real dlambda = 2./objrow;
     Real midlambda = Real(lambdarange+1)/2;

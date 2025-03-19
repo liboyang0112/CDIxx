@@ -67,6 +67,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave, int row, int col, int shiftx = 0, int shifty = 0, Real phaseFactor = 0);
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
+void applyGaussMult(complexFormat* input, complexFormat* output, Real sigma, bool isFreq);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void getMod(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
