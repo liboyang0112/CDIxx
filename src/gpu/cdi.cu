@@ -4,7 +4,7 @@ cuFuncc(applyESWSupport,(complexFormat* ESW, complexFormat* ISW, complexFormat* 
   cuda1Idx()
     auto tmp = ISW[index];
   auto tmp2 = ESWP[index];
-  auto sum = cuCaddf(tmp,ESWP[index]);
+  //auto sum = cuCaddf(tmp,ESWP[index]);
   //these are for amplitude modulation only
   Real prod = tmp.x*tmp2.x+tmp.y*tmp2.y;
   if(prod>0) prod=0;

@@ -4,13 +4,22 @@
 #include <fstream>
 #include <gsl/gsl_spline.h>
 #include <math.h>
-#include <string.h>
 
 using namespace std;
 
 
 int inline nearestEven(Real x){
   return round(x/2)*2;
+}
+
+void broadBand_base::plotAutoCorr(const char* filename, Real* pattern, Real weight){
+  complexFormat* cache = padding_cache;
+  extendToComplex(pattern, cache);
+  cudaConvertFO(cache);
+  init_fft(row, column);
+  myIFFT(cache, cache);
+  resize_cuda_image(row, column);
+  plt.plotComplexColor(cache, 1, weight, filename, 0, 0);
 }
 
 void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_){
@@ -33,6 +42,7 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
     //file << lambdas_[i] << " " << 0 << endl;
   }
   file.close();
+  padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
 }
 void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;
@@ -53,6 +63,7 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
     printf("%d: (%d,%d)\n",i, rows[i],cols[i]);
     createPlan(locplan+i, rows[i], cols[i]);
   }
+  padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
 }
 void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;
@@ -89,6 +100,44 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
   createPlan(locplan, thisrow, thiscol);
   myCuMalloc(complexFormat, cache, thisrow*thiscol);
 }
+
+void broadBand_base::applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, int plan, char freq){
+  complexFormat* cache = padding_cache;
+  if(trow == row && tcol == column) {
+    myMemcpyD2D(output, image, row*column*sizeof(complexFormat));
+    return;
+  }
+  resize_cuda_image(trow, tcol);
+  if(trow > row) {
+    if((freq & 1) == 0)
+      pad(image, cache, row, column);
+    else
+      padinner(image, cache, row, column);
+  }
+  else {
+    if((freq & 1) == 0)
+      crop(image, cache, row, column);
+    else
+      cropinner(image, cache, row, column);
+  }
+  myIFFTM(plan, cache, cache);
+  resize_cuda_image(row, column);
+  if(trow > row) {
+    if((freq & 2) == 0)
+      crop(cache, output, trow, tcol);
+    else
+      cropinner(cache, output, trow, tcol);
+  }
+  else {
+    if((freq & 2) == 0)
+      padinner(cache, output, trow, tcol);
+    else
+      pad(cache, output, trow, tcol);
+  }
+  applyNorm(output, 1./(row*column));
+  myFFT(output, output);
+}
+
 Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
   row = nrow;
   column = ncol;

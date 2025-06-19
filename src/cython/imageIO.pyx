@@ -6,8 +6,11 @@ from numpy import log2
 
 cdef extern from "imageFile.hpp":
     struct imageFile:
+        char type;
         int rows;
         int cols;
+        int nchann;
+        int typesize;
 cdef extern from "imgio.hpp":
     void writeComplexImage(const char* name, void* data, int row, int column);
     void writeFloatImage(const char* name, void* data, int row, int col);
@@ -56,5 +59,8 @@ def readImage(path):
     cdef np.npy_intp len[2];
     len[0] = f.rows;
     len[1] = f.cols;
-    img = np.PyArray_SimpleNewFromData(2, len, np.NPY_FLOAT, data);
+    if f.type == 4:
+        img = np.PyArray_SimpleNewFromData(2, len, np.NPY_CFLOAT, data);
+    else:
+        img = np.PyArray_SimpleNewFromData(2, len, np.NPY_FLOAT, data);
     return img;

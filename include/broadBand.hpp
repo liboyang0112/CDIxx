@@ -11,9 +11,12 @@ class broadBand_base{
     int row;
     int column;
     void *devstates = 0;
+    complexFormat* padding_cache = 0;
     broadBand_base(){};
     void writeSpectra(const char* filename, Real scale = 1);
     void resetSpectra();
+    void plotAutoCorr(const char* filename, Real* pattern, Real weight = 1);
+    void applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, int plan, char freq = 0b10);
 };
 class broadBand : public broadBand_base{
   public:

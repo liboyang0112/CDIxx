@@ -23,7 +23,7 @@ void myMemcpyD2H(void*, void*, size_t sz);
 void resize_cuda_image(int row, int col, int hei = 1);
 void init_cuda_image(int rcolor=0, Real scale=0);
 void initRand(void *state,unsigned long long seed);
-void init_fft(int rows, int cols, int batch = 1);
+void randMask(char* mask, void* state, Real ratio = .5);
 void* newRand(size_t sz);
 void clearCuMem(void*, size_t);
 void setThreshold(Real);
@@ -37,6 +37,13 @@ class cuMemManager : public memManager{
   cuMemManager();
 };
 extern cuMemManager memMngr;
+
+int svd_init(int M, int N);
+int svd_execute(int handle, const float *d_A_input);
+int svd_destroy(int handle);
+const char* svd_get_last_error();
+
+void init_fft(int rows, int cols, int batch = 1);
 void myFFT(void* in, void* out);
 void myIFFT(void* in, void* out);
 void myFFTM(int handle, void* in, void* out);
@@ -49,6 +56,9 @@ void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
 void add(Real* store, Real* a, Real* b, Real c = 1);
+void add(complexFormat* a, complexFormat* b, Real c = 1);
+void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
+void normAdd(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1, Real d = 1);
 void addRemoveOE(Real* src, Real* sub, Real mult);
 void bitMap(Real* store, Real* data, Real threshold = 0);
 void bitMap(Real* store, complexFormat* data, Real threshold = 0);
@@ -91,21 +101,17 @@ void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, i
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);
 void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
-void add(complexFormat* a, complexFormat* b, Real c = 1);
-void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
 void applyRandomPhase(complexFormat* wave, Real* beamstop, void *state);
-void multiply(complexFormat* source, complexFormat* target);
+template <typename T1, typename T2>
+void multiply(T1* store, T1* source, T2* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
-void multiply(complexFormat* store, complexFormat* source, complexFormat* target);
-void multiply(Real* store, Real* source, Real* target);
-void multiply(complexFormat* src, Real* target);
-void multiplyConj(complexFormat* src, complexFormat* target);
+void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
 void convertFOPhase(complexFormat* data);
 void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
 void cropinner(Real* src, Real* dest, int row, int col, Real norm);
 void cropinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm = 1);
-void padinner(Real* src, Real* dest, int row, int col, Real norm);
-void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm);
+void padinner(Real* src, Real* dest, int row, int col, Real norm = 1);
+void padinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm = 1);
 void createGauss(Real* data, int sz, Real sigma);
 void ssimMap(Real* mu1, Real* mu2, Real* sigma1sq, Real* sigma2sq, Real* sigma12, Real C1, Real C2);
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol);
@@ -117,7 +123,8 @@ void applyMaskBar(Real* data, Real* mask, Real threshold = 0.5);
 void applyMaskBar(Real* data, complexFormat* mask, Real threshold = 0.5);
 void applyMask(complexFormat* data, Real* mask, Real threshold = 0.5);
 void applyMask(Real* data, Real* mask, Real threshold = 0.5);
-void paste(Real* out, Real* in, int colout, int posx, int posy, bool replace = 0);
+void applyMask(Real* data, char* mask);
+void paste(Real* out, Real* in, int colout, int posx, int posy, bool replace = 0, Real norm = 1);
 void paste(complexFormat* out, complexFormat* in, int colout, int posx, int posy, bool replace = 0);
 void takeMod2Diff(complexFormat* a, Real* b, Real *output, Real *bs);
 void takeMod2Sum(complexFormat* a, Real* b);
@@ -126,6 +133,7 @@ void applySupport(void *gkp1, void *gkprime, int algo, Real *spt, int iter = 0, 
 void getXYSlice(Real* slice, Real* data, int nx, int ny, int iz);
 void getXZSlice(Real* slice, Real* data, int nx, int ny, int nz, int iy);
 void getYZSlice(Real* slice, Real *data, int nx, int ny, int nz, int ix);
+void createColorbar(complexFormat* output);
 void multiplyx(complexFormat* object, Real* out);
 void multiplyy(complexFormat* object, Real* out);
 void multiplyx(Real* object, Real* out);
@@ -137,10 +145,16 @@ template<typename T>
 void refine(T* src, T* dest, int refinement);
 template<typename T>
 void pad(T* src, T* dest, int row, int col, int shiftx = 0, int shifty = 0);
+template<typename T>
+void randZero(T* src, T* dest, void* state, Real ratio = 0.5, char step = 1);
+template<typename T>
+void resize(const T* input, T* output, int in_width, int in_height);
 template <typename T1, typename T2>
 void assignVal(T1* out, T2* input);
 template<typename T>
 void cudaConvertFO(T* data, T* out = 0);
+template<typename T>
+void getWindow(T* object, int shiftx, int shifty, int objrow, int objcol, T *window, bool replace = 0, Real norm = 1);
 template<typename T>
 void rotate90(T* data, T* out = 0, bool clockwise=1);
 template<typename T>
@@ -160,13 +174,33 @@ class rect{
     int starty;
     int endx;
     int endy;
+#ifdef __CUDADEFS_H__
+    __device__ __host__ bool isInside(int x, int y);
+#else
     bool isInside(int x, int y);
+#endif // CUDACC
 };
 class C_circle{
   public:
     int x0;
     int y0;
     Real r;
+#ifdef __CUDADEFS_H__
+    __device__ __host__ bool isInside(int x, int y);
+#else
     bool isInside(int x, int y);
+#endif // CUDACC
+};
+class diamond{
+  public:
+    int startx;
+    int starty;
+    int width;
+    int height;
+#ifdef __CUDADEFS_H__
+    __device__ __host__ bool isInside(int x, int y);
+#else
+    bool isInside(int x, int y);
+#endif // CUDACC
 };
 #endif

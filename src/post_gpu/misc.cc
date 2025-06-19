@@ -90,3 +90,22 @@ void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
   myIFFT(wave, wave);
 }
 
+uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow, int mcol, int shiftx, int shifty){
+  //==create reference mask and it's map: d_maskMap, allocate refs==
+  pixCount = 0;
+  for(int idx = 0; idx < mrow*mcol ; idx++){
+    if(refMask[idx] > 0.5) pixCount++;
+  }
+  uint32_t* maskMap = (uint32_t*)ccmemMngr.borrowCache(pixCount*sizeof(uint32_t));
+  int idx = 0, ic = 0;
+  for(int x = 0; x < mrow ; x++){
+    for(int y = 0; y < mcol ; y++){
+      if(refMask[idx] > 0.5) {
+        maskMap[ic] = (x+(row-mrow)/2+shiftx)*row + y+(col-mcol)/2 + shifty; //put mask in the middle
+        ic++;
+      }
+      idx++;
+    }
+  }
+  return maskMap;
+}

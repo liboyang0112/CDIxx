@@ -1,14 +1,17 @@
 #include "spectImaging.hpp"
 #include "cudaConfig.hpp"
+#include "tvFilter.hpp"
+#include "memManager.hpp"
+#include "misc.hpp"
+#include <cstdint>
 #include <time.h>
 #include "cub_wrap.hpp"
 #include <math.h>
 #include "cuPlotter.hpp"
 #include <string>
-#include "imgio.hpp"
 using namespace std;
-void spectImaging::assignRef(void* wavefront, int i){
-  assignRef_d((complexFormat*)wavefront, (uint32_t*)d_maskMap, (complexFormat*)(refs[i]), pixCount);
+void spectImaging::assignRef(void* wavefront, int i){ //wavefront has to be of the size row, column
+  assignRef_d((complexFormat*)wavefront, d_maskMap, (complexFormat*)(refs[i]), pixCount);
 }
 void spectImaging::assignRef(void* wavefront){
   assignRef(wavefront, 0);
@@ -16,25 +19,29 @@ void spectImaging::assignRef(void* wavefront){
     myMemcpyD2D(refs[i], refs[0], pixCount*sizeof(complexFormat));
 }
 
-void spectImaging::initRefs(const char* maskFile){  //mask file, full image size,
-  //==create reference mask and it's map: d_maskMap, allocate refs==
-  int mrow, mcol;
-  Real* refMask = readImage(maskFile, mrow, mcol);
-  pixCount = 0;
-  for(int idx = 0; idx < mrow*mcol ; idx++){
-    if(refMask[idx] > 0.5) pixCount++;
+void spectImaging::saveHSI(const char* name, Real* support){
+  //int vid = plt.initVideo((name + string("_mod.mp4")).c_str(), 8);
+  //plt.toVideo = vid;
+  resize_cuda_image(imrow, imcol);
+  plt.init(imrow,imcol);
+  for (int i = 0; i < nlambda; i++) {
+    if(support) multiply((complexFormat*)padding_cache, (complexFormat*)spectImages[i], support);
+    plt.plotComplexColor(padding_cache, 0, 1, (name + std::to_string(i)).c_str());  
   }
-  uint32_t* maskMap = (uint32_t*)ccmemMngr.borrowCache(pixCount*sizeof(uint32_t));
-  int idx = 0, ic = 0;
-  for(int x = 0; x < mrow ; x++){
-  for(int y = 0; y < mcol ; y++){
-    if(refMask[idx] > 0.5) {
-      maskMap[ic] = (x+(row-mrow)/2)*row + y+(column-mcol)/2;
-      ic++;
-    }
-    idx++;
+  //plt.saveVideo(vid);
+}
+
+void spectImaging::initHSI(int _row, int _col){  //mask file, this is not to init refs, this is for init image coding masks
+  imrow = _row;
+  imcol = _col;
+  myMalloc(void*, spectImages, nlambda);
+  for (int i = 0; i < nlambda; i++) {
+    myCuMalloc(complexFormat, spectImages[i], _row*_col);
   }
-  }
+}
+
+void spectImaging::initRefs(Real* refMask, int mrow, int mcol, int shiftx, int shifty){  //mask file, this is to init refs
+  uint32_t* maskMap = createMaskMap(refMask, pixCount, row, column, mrow, mcol, shiftx, shifty);
   d_maskMap = (uint32_t*)memMngr.borrowCache(pixCount*sizeof(uint32_t));
   myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
   myFree(maskMap);
@@ -45,6 +52,79 @@ void spectImaging::initRefs(const char* maskFile){  //mask file, full image size
   }
   printf("mask has %d pixels\n", pixCount);
 }
+void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this is to init refs
+  pixCount = npoints;
+  myDMalloc(uint32_t, maskMap, pixCount);
+  for (int i = 0; i < npoints; i++) {
+    maskMap[i] = xs[i]*column + ys[i];
+  }
+  printf("%d, %d\n", maskMap[0],maskMap[1]);
+  myCuMalloc(uint32_t, d_maskMap, pixCount);
+  myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
+  refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
+  for(int i = 0; i < nlambda; i++){
+    refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
+  }
+  myDMalloc(complexFormat, d_ref, pixCount);
+  for (int i = 0; i < pixCount; i++) {
+    d_ref[i] = 100;
+  }
+  for (int i = 0; i < nlambda; i++) {
+    myMemcpyH2D(refs[i], d_ref, pixCount*sizeof(complexFormat));
+  }
+  printf("mask has %d pixels\n", pixCount);
+}
+void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask){
+  complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
+  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+  Real *d_pattern= (Real*)memMngr.borrowCleanCache(row*column*sizeof(Real));
+  complexFormat* masked = 0;
+  if(mask) myCuMalloc(complexFormat, masked, imrow*imcol);
+  for(int i = 0; i < nlambda; i++){
+    int thisrow = rows[i];
+    int thiscol = cols[i];
+    if(mask) {
+      resize_cuda_image(imrow,imcol);
+      multiply(masked, (complexFormat*)spectImages[i], mask);
+      resize_cuda_image(thisrow, thiscol);
+      pad(masked, amp, imrow, imcol);
+    }else{
+      resize_cuda_image(thisrow, thiscol);
+      pad((complexFormat*)spectImages[i], amp, imrow, imcol);
+    }
+    resize_cuda_image(pixCount, 1);
+    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column);
+    resize_cuda_image(row, column);
+    if(debug && i == 0){
+      resize_cuda_image(thisrow, thiscol);
+      plt.init(thisrow, thiscol);
+      plt.plotComplexColor(amp, 0, 5, "object_mono", 1, 0);
+      myFFTM(locplan[i], amp, amp);
+      plt.plotComplex(amp, MOD2, 1, spectra[i]/(thiscol*thisrow), "pattern_mono", 1, 0, 1);
+    }else
+      myFFTM(locplan[i], amp, amp);
+    cropinner(amp,camp,thisrow,thiscol, sqrt(spectra[i]/(thiscol*thisrow)));
+    cudaConvertFO(camp);
+    if(i==0) {
+      getMod2((Real*)d_patternSum, camp);
+      if(debug){
+        extendToComplex((Real*)d_patternSum, camp);
+        cudaConvertFO(camp);
+        myIFFTM(locplan[i],camp, camp);
+        plt.plotComplexColor(camp, 1, 1, "hologram_mono", 1, 0);
+      }
+    }else{
+      getMod2(d_pattern, camp);
+      add((Real*)d_patternSum, (Real*)d_pattern, 1);
+    }
+    clearCuMem(amp,  thisrow*thiscol*sizeof(complexFormat));
+  }
+  resize_cuda_image(row,column);
+  plt.init(row,column);
+  myCuFree(amp);
+  myCuFree(camp);
+  myCuFree(d_pattern);
+}
 void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
   complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
   complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
@@ -54,7 +134,7 @@ void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
     int thisrow = rows[i];
     int thiscol = cols[i];
     resize_cuda_image(pixCount, 1);
-    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column);
+    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column);
     resize_cuda_image(row, column);
     myFFTM(locplan[i], amp, amp);
     if(debug && i == 1){
@@ -76,6 +156,107 @@ void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
   myCuFree(amp);
   myCuFree(camp);
   myCuFree(d_pattern);
+}
+void spectImaging::clearHSI(){
+  for (int i = 0; i < nlambda; i++) {
+    clearCuMem(spectImages[i], imrow*imcol*sizeof(complexFormat));
+  }
+}
+
+void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
+  Real stepsize = 0.1;
+  Real normf = 1./(row*column);
+  //--create mask to block quadratic term--
+  diamond acdmasks;
+  acdmasks.startx = (row - (imrow*2))/2;
+  acdmasks.starty = (column - (imcol*2))/2;
+  acdmasks.width = imrow*2;
+  acdmasks.height = imcol*2;
+  rect acrmasks;
+  acrmasks.startx = 0;
+  acrmasks.endx = row;
+  acrmasks.starty =  (column >> 1) - 30;
+  acrmasks.endy = (column >> 1) + 30;
+  myCuDMalloc(Real, acmask, row*column);
+  myCuDMalloc(Real, acrmask, row*column);
+  resize_cuda_image(row, column);
+  plt.init(row,column);
+  createMaskBar(acmask, &acdmasks, 1);
+  createMaskBar(acrmask, &acrmasks, 1);
+  multiply(acmask, acmask, acrmask);
+  myCuFree(acrmask);
+  plt.plotFloat(acmask, MOD, 1, 1, "acmask", 0, 0, 0);
+
+  myCuDMalloc(Real, residual, row*column);
+  myCuDMalloc(complexFormat, autocorr, row*column);
+  myCuDMalloc(complexFormat, step, row*column);
+  myCuDMalloc(complexFormat, Ritilder, row*column);
+
+  init_fft(row, column);
+  myDMalloc(complexFormat*, spectImages_prev, nlambda);
+  myCuDMalloc(complexFormat, twist_cache, imrow*imcol);
+  for (int i = 0 ; i < nlambda; i++) {
+    myCuMalloc(complexFormat, spectImages_prev[i], imrow*imcol);
+    clearCuMem(spectImages_prev[i], imrow*imcol*sizeof(complexFormat));
+  }
+  Real alpha = 1.92, beta = 3.96, norm = 0.15/(nlambda*2);
+  bool runAP = 0;
+  complexFormat** tmp;
+  for(int iter = 0; iter < 500; iter ++){
+    generateMWLPattern(residual, 0, mask);
+    add(residual, (Real*)d_patternSum, residual,  -1.);
+    //plt.plotFloat(residual, MOD, 0, 1, "residual", 1, 0, 1);
+    extendToComplex(residual, autocorr);
+    cudaConvertFO(autocorr);
+    myIFFT(autocorr,autocorr);
+    multiply(autocorr, autocorr, acmask);
+    //plt.plotComplexColor(autocorr, 1, 1, "residual_autocorr");
+    applyNorm(autocorr, 1./sqrt(row*column));
+    if(!runAP){
+      tmp = spectImages_prev;
+      spectImages_prev = (complexFormat**)spectImages;
+      spectImages = (void**)tmp;
+    }
+    myFFT(autocorr,autocorr);
+    for (int i = 0; i < nlambda; i++) {
+      applyAT(autocorr, step, rows[i], cols[i], locplan[i], 0b11);
+      resize_cuda_image(pixCount, 1);
+      clearCuMem(Ritilder, row*column*sizeof(complexFormat));
+      expandRef((complexFormat*)refs[i], Ritilder, d_maskMap, row, column, row, column);
+      resize_cuda_image(row, column);
+      myFFT(Ritilder, Ritilder);
+      multiply(Ritilder, step, Ritilder);
+      myIFFT(Ritilder, Ritilder);
+      applyNorm(Ritilder, normf);
+      resize_cuda_image(imrow, imcol);
+      crop(Ritilder, step, row, column);
+      applyMask(step, mask);
+      if(runAP){
+        //--alternating projection--
+        add((complexFormat*)spectImages[i], step, stepsize);
+        FISTA((complexFormat*)spectImages[i], (complexFormat*)spectImages[i], 1e-1, 1, 0);
+      }else{
+      //--TwIST--
+      //recon_imgs[i] = (1-alpha)*recon_imgs[i] + (alpha-beta)*recon_imgs_prev[i] +
+      //beta*FISTA(recon_imgs_prev[i] + norm*step,1e-5,1,list_FISTA)
+        add(twist_cache, spectImages_prev[i], step, norm);
+        FISTA(twist_cache, twist_cache, 1e-4, 1, 0);
+        normAdd((complexFormat*)spectImages[i],(complexFormat*)spectImages[i], twist_cache, 1-alpha, beta);
+        add((complexFormat*)spectImages[i], spectImages_prev[i], alpha-beta);
+      }
+    }
+    //if(iter == 100){
+    //  runAP = 0;
+    //  for (int i = 0 ; i < nlambda ; i++) {
+    //    myMemcpyD2D(spectImages_prev[i], spectImages[i], imrow*imcol*sizeof(complexFormat));
+    //  }
+    //  //break;
+    //}
+  }
+  myCuFree(residual);
+  myCuFree(autocorr);
+  myCuFree(step);
+  myCuFree(Ritilder);
 }
 void spectImaging::clearRefs(){
   for(int i = 0; i < nlambda; i++) clearCuMem(refs[i],  pixCount*sizeof(complexFormat));
@@ -116,7 +297,7 @@ void spectImaging::reconRefs(void* d_patternSum){
       Real normi = 1./(thiscol*thisrow);
       for(int it = 0; it < 5; it++){
         clearCuMem(amp,  thisrow*thiscol*sizeof(complexFormat));
-        expandRef(it == 0? (complexFormat*)(refs[i]) : reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column);
+        expandRef(it == 0? (complexFormat*)(refs[i]) : reftmp, (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column);
         resize_cuda_image(row,column);
         myFFTM(locplan[i], amp, amp);
         if(it == 0) {
@@ -134,7 +315,7 @@ void spectImaging::reconRefs(void* d_patternSum){
         //}
         myIFFTM(locplan[i], amp, amp);
         resize_cuda_image(pixCount, 1);
-        saveRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column, normi);
+        saveRef(reftmp, (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column, normi);
       }
       //add(campm, residual, -stepsize*spectra[i]);  //previous intensity
       //add(campm, residual, -stepsize);  //previous intensity
@@ -142,7 +323,7 @@ void spectImaging::reconRefs(void* d_patternSum){
       add(campm, residual, -stepsize/spectra[i]);  //previous intensity
       clearCuMem(amp,  thisrow*thiscol*sizeof(complexFormat));
       resize_cuda_image(pixCount, 1);
-      expandRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column);
+      expandRef(reftmp, (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column);
       resize_cuda_image(row,column);
       myFFTM(locplan[i], amp, amp);
       cropinner(amp,camp,thisrow,thiscol,sqrt(normi));
@@ -159,40 +340,40 @@ void spectImaging::reconRefs(void* d_patternSum){
       applyModAbsinner(amp,campm, thisrow,thiscol, 1./normi, devstates);
       myIFFTM(locplan[i], amp, amp);
       resize_cuda_image(pixCount, 1);
-      saveRef(reftmp, (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column, normi);
+      saveRef(reftmp, (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column, normi);
       resize_cuda_image(row,column);
       getMod2((Real*)camp, residual);
       resize_cuda_image(pixCount, 1);
       //printf("residual=%f\n", findSum((Real*)camp));
       for(int it = 0; it < 5; it++){
         clearCuMem(amp,  thisrow*thiscol*sizeof(complexFormat));
-        expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column);
+        expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column);
         resize_cuda_image(row,column);
         myFFTM(locplan[i], amp, amp);
         Real normi = 1./(thiscol*thisrow);
         applyModAbsinner(amp,campm, thisrow,thiscol, 1./normi, devstates);
         myIFFTM( locplan[i], amp, amp);
         resize_cuda_image(pixCount, 1);
-        saveRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, thisrow, thiscol, row, column, normi);
+        saveRef((complexFormat*)(refs[i]), (complexFormat*)amp, d_maskMap, thisrow, thiscol, row, column, normi);
       }
     }
     /*
-    resize_cuda_image(pixCount, 1);
-    for(int i = 1; i < nlambda; i++) {
-      add((complexFormat*)(refs[0]), (complexFormat*)(refs[i]));
-    }
-    applyNorm((complexFormat*)(refs[0]),1./nlambda);
-    for(int i = 1; i < nlambda; i++) {
-      myMemcpyD2D((complexFormat*)(refs[i]),(complexFormat*)(refs[0]),pixCount*sizeof(complexFormat));
-    }
-    resize_cuda_image(row, column);
-    */
+       resize_cuda_image(pixCount, 1);
+       for(int i = 1; i < nlambda; i++) {
+       add((complexFormat*)(refs[0]), (complexFormat*)(refs[i]));
+       }
+       applyNorm((complexFormat*)(refs[0]),1./nlambda);
+       for(int i = 1; i < nlambda; i++) {
+       myMemcpyD2D((complexFormat*)(refs[i]),(complexFormat*)(refs[0]),pixCount*sizeof(complexFormat));
+       }
+       resize_cuda_image(row, column);
+       */
   }
   resize_cuda_image(row, column);
   for(int i = 0; i < nlambda; i++) {
     clearCuMem(amp,  rows[i]*cols[i]*sizeof(complexFormat));
     resize_cuda_image(pixCount, 1);
-    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, (uint32_t*)d_maskMap, rows[i], cols[i], row, column);
+    expandRef((complexFormat*)(refs[i]), (complexFormat*)amp, d_maskMap, rows[i], cols[i], row, column);
     resize_cuda_image(row,column);
     crop(amp,camp,rows[i],cols[i]);
     plt.plotComplex(camp, MOD2, 0, 1, (string("recon")+char(i+'0')).c_str(), 0, 0, 0);

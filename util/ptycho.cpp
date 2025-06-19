@@ -166,8 +166,8 @@ class ptycho : public experimentConfig{
       cudaConvertFO(cachey);
       propagate(cachex, cachex, 0);
       propagate(cachey, cachey, 0);
-      multiply(cachex, probe);
-      multiply(cachey, probe);
+      multiply(cachex, cachex, probe);
+      multiply(cachey, cachey, probe);
       propagate(cachex, cachex, 1);
       propagate(cachey, cachey, 1);
       calcPartial(cachex, Fn, pattern, beamstop);

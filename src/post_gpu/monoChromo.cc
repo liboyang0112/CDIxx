@@ -75,7 +75,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   if(beta2) {
     adamv = (Real*)memMngr.borrowCleanCache(sz/2);
   }
-  complexFormat *padded = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
+  complexFormat *padded = padding_cache;
   complexFormat *patternstep = (complexFormat*)memMngr.borrowCache(sz);
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
   Real *momentum_a = 0;
@@ -172,6 +172,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       }
     }
     if(writeResidual) {
+      resize_cuda_image(row, column);
       getMod2(multiplied, deltab);
       fresidual<<i<<" "<<findSum(multiplied)<<endl;
     }

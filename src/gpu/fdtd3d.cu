@@ -1,9 +1,6 @@
-#include <fstream>
 #include <cstring>
 #include <math.h>
 #include "cudaDefs_h.cu"
-#include "cudaConfig.hpp"
-#include "cuPlotter.hpp"
 #include "fdtd3d.hpp"
 __device__ Real getmH(int x, int y, int z){
   Real ret = 0.4;

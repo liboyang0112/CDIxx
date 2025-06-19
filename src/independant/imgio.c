@@ -36,7 +36,7 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     size_t datasz = row*col*typeSizes[(int)fdata->type];
     ret = (Real*) cmalloc(datasz);
     if(!fread(ret, datasz, 1, fin)){
-      printf("Warning: image is empty!\n");
+      //printf("Warning: image is empty!\n");
     }
     if(fdata->type != REALIDX && fdata->type != COMPLEXIDX){  //only save floats with bin;
       fprintf(stderr, "ERROR: FILETYPE unrecognized: %d\n", fdata->type);

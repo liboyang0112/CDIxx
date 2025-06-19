@@ -86,8 +86,8 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
       resize_cuda_image(row, column);
       cropinner(d_amp, d_obj, thisrow, thiscol, 1./N);
 
-      multiplyConj(img0, d_obj);
-      multiply(img0, d_pattern);
+      multiplyConj(img0, img0, d_obj);
+      multiply(img0, img0, d_pattern);
       complexFormat step = findSum(img0);
       cspectrum_step[j] = step;
     }

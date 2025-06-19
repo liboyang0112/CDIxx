@@ -1,6 +1,6 @@
 #include "orthFitter.hpp"
-#include <string.h>
 #include "memManager.hpp"
+#include <cstring>
 #include <stdio.h>
 const int N = 2;
 

@@ -126,7 +126,12 @@ void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real deca
 };
 void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
   processComplexColor(cudaData,isFrequency,decay,islog,isFlip);
-  writePng((std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
+  char color[3] = {-1,0,0};
+  if(label) putText(label, 0, rows-1, rows, cols, cv_cache, 1, color);
+  if(toVideo>=0) {
+    flushVideo(videoWriterVec[toVideo], cv_cache);
+  }else
+    writePng((std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);

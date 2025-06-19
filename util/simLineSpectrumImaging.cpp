@@ -1,4 +1,5 @@
 #include "cudaConfig.hpp"
+#include "imgio.hpp"
 #include "material.hpp"
 #include "cub_wrap.hpp"
 #include "readConfig.hpp"
@@ -29,7 +30,9 @@ int main(int argc, char* argv[]){
   resize_cuda_image(row, col);
   createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave, objrow, objcol);
   mwl.init(row, col, nlambda, lambdas, spectra);
-  mwl.initRefs("mask.png");
+  int mrow, mcol;
+  Real* refMask = readImage("mask.png", mrow, mcol);
+  mwl.initRefs(refMask, mrow, mcol);
   plt.plotComplex(objectWave, PHASE, 0, 1, "objp", 0, 0, 0);
   plt.plotComplex(objectWave, MOD2, 0, 1, "obj", 0, 0, 0);
   init_fft(row, col);

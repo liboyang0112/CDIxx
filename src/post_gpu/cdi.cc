@@ -3,6 +3,7 @@
 #include <time.h>
 #include <chrono>
 #include <stdio.h>
+#include "cudaDefs_h.cu"
 #include "imgio.hpp"
 #include "imageFile.hpp"
 #include <ctime>
@@ -146,6 +147,7 @@ void CDI::prepareIter(){
       if(phaseModulation) memMngr.returnCache(phase);
     }
     if(isFresnel) multiplyFresnelPhase(objectWave, d);
+    //applyRandomPhase((complexFormat*)objectWave, 0, devstates);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
     verbose(4,printf("Generating diffraction pattern\n"));
@@ -154,10 +156,10 @@ void CDI::prepareIter(){
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
     getMod2(patternData, (complexFormat*)patternWave);
     if(useBS) applyMaskBar(patternData, beamstop);
+    plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern", 0);
+    plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern_log", 1);
     if(simCCDbit){
       verbose(4,printf("Applying Poisson noise\n"));
-      plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern", 0);
-      plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern_log", 1);
       auto img = readImage("theory_pattern.png", row, column);
       myMemcpyH2D(patternData, img, row*column*sizeof(Real));
       ccmemMngr.returnCache(img);

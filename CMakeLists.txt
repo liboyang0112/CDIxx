@@ -7,30 +7,20 @@ project(CDIxx LANGUAGES CXX C)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_HOST_COMPILER clang++) #compiler, gcc can be alteratives, or install it by `apt install llvm-15` (Higher version is not supported by cuda 12.3)
-set(CMAKE_CUDA_FLAGS "--allow-unsupported-compiler")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
-
-enable_language(CUDA) #CUDA is required for GPU algorithms, consult nvidia webpage for installation
-find_package(NVHPC COMPONENTS CUDA MATH)
-if(NOT NVHPC_FOUND)
-  find_package ( CUDAToolkit REQUIRED ) #You have this if you installed CUDA, needed for cufft library
-  set(CUFFTLIB CUDA::cufft)
-else()
-  set(NVHPC_CUDA_VERSION 12.2)
-  set(CUFFTLIB NVHPC::MATH)
-endif()
-
-set(CMAKE_CUDA_ARCHITECTURES 75)
-set(CMAKE_CUDA_COMPILER nvcc) #You have this if you installed CUDA
+set(CMAKE_CUDA_COMPILER_FORCED TRUE)
+set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
+include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 add_compile_options(-Wall -Wextra)
 
 find_package(PkgConfig) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
 if(PkgConfig_FOUND)
-  pkg_check_modules(GTK gtk4 tracy)
+  pkg_check_modules(GTK gtk4)
+  pkg_check_modules(TRACY tracy)
 endif(PkgConfig_FOUND)
 if(GTK_FOUND)
 include_directories (${GTK_INCLUDE_DIRS})
@@ -44,7 +34,7 @@ find_package(Freetype REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package(Python3 REQUIRED COMPONENTS Interpreter NumPy)
+find_package(Python REQUIRED COMPONENTS Interpreter NumPy)
 if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
@@ -95,12 +85,13 @@ foreach( sourcefile ${APP_SOURCES})
   add_library( ${libname} SHARED ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}  -Xptxas=-O3 --diag-suppress 20040")
+#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --cuda-gpu-arch=sm_80")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
+set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_80")
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} ${CUFFTLIB})
-target_link_libraries(cudaLibcommon_cu memManager_cc imgio_cc)
+target_link_libraries(cudaLibcommon_cu memManager_cc imgio_cc cudart cufft cusolver)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c)
 foreach( sourcefile ${APP_SOURCES})
@@ -113,7 +104,7 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 target_link_libraries(cuPlotter_cc videoWriter_cc freetype_c)
 target_link_libraries(broadBand_cc gsl gslcblas memManager_cc cuPlotter_cc)
-target_link_libraries(spectImaging_cc broadBand_cc cuPlotter_cc)
+target_link_libraries(spectImaging_cc broadBand_cc cuPlotter_cc misc_cc FISTA_cc)
 target_link_libraries(spectPhase_cc broadBand_cc cuPlotter_cc misc_cc)
 target_link_libraries(monoChromo_cc broadBand_cc orthFitter_cc FISTA_cc cuPlotter_cc)
 target_link_libraries(FGA_cc monoChromo_cc cuPlotter_cc)
@@ -160,6 +151,8 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 target_link_libraries(fdtd3d_run cuPlotter_cc)
 target_link_libraries(TG_run cuPlotter_cc)
+target_link_libraries(colorbar_run cuPlotter_cc)
+target_link_libraries(testSVD_run cudaLibcommon_cu)
 target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
 target_link_libraries(cdi_run cdi_cc)
 target_link_libraries(ptycho_run experimentConfig_cc cuPlotter_cc misc_cc)
@@ -179,9 +172,12 @@ target_link_libraries(pulseGen_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(mono_run cdilmdb_c monoChromo_cc cdi_cc)
 target_link_libraries(testFISTA_run cdi_cc cuPlotter_cc)
 target_link_libraries(simLineSpectrumImaging_run cdi_cc spectImaging_cc material_cc)
+target_link_libraries(spectImaging_run cudaLibcommon_cu spectImaging_cc material_cc)
+target_link_libraries(spectImaging_point_run cudaLibcommon_cu spectImaging_cc material_cc)
 target_link_libraries(spectphase_run readConfig_cc spectPhase_cc material_cc)
 target_link_libraries(readCCDResponse_run imgio_cc memManager_cc)
 target_link_libraries(bandwidthtest_run cudaLibcommon_cu)
+target_link_libraries(cup_run cuPlotter_cc FISTA_cc)
 
 if(GTK_FOUND)
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/gui/*.cpp )

@@ -168,6 +168,7 @@ button[disabled] {
     <button id="savecdi_def">Save As Default</button>
     <button id="cdi_btn">Run CDI</button>
     <p><img class="images" id="recon_input" width="200" border="0"><img class="images" id="recon" width="200" border="0"><img class="images" id="recon_phase" width="200" border="0"></p>
+    <p><img class="images" id="recon_wave" width="300" border="0"><img class="images" id="colorbar" width="300" border="0"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
     <p>Monochromatization log:</p><code id="monolog"></code>
     <p>CDI log:</p><code id="cdilog"></code>
@@ -205,6 +206,10 @@ button[disabled] {
     document.getElementById('recon_phase').title = "CDI reconstruction";
     document.getElementById('recon_input').src = path+"init_logpattern.png"+postfix;
     document.getElementById('recon_input').title = "CDI input";
+    document.getElementById('recon_wave').src = path+"recon_wave.png"+postfix;
+    document.getElementById('recon_wave').title = "CDI reconstruction";
+    document.getElementById('colorbar').src = "colorBar.png"+postfix;
+    document.getElementById('colorbar').title = "colorBar";
     document.getElementById('logimg').src = path+"mergedlog0.png"+postfix;
     document.getElementById('logimg').title="Monochromatization input";
     document.getElementById('solved').src = path+"solvedlog0.png"+postfix;
@@ -409,6 +414,7 @@ button[disabled] {
   selectListener("recon");
   selectListener("recon_phase");
   selectListener("recon_input");
+  selectListener("recon_wave");
   selectListener("solved");
   selectListener("residual_img");
   selectListener("logimg");
@@ -449,6 +455,8 @@ button[disabled] {
       document.getElementById('recon_input').title = "CDI input";
       document.getElementById('recon_phase').src = path+"recon_phase_cropped.png?t=" + timestamp;
       document.getElementById('recon_phase').title = "CDI reconstruction phase";
+      document.getElementById('recon_wave').src = path+"recon_wave.png?t=" + timestamp;
+      document.getElementById('recon_wave').title = "CDI reconstruction";
       button.removeAttribute("disabled");
     });
     return;
