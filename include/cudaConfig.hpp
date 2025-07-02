@@ -106,6 +106,7 @@ template <typename T1, typename T2>
 void multiply(T1* store, T1* source, T2* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
+void multiplyRegular(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha);
 void convertFOPhase(complexFormat* data);
 void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
 void cropinner(Real* src, Real* dest, int row, int col, Real norm);
@@ -141,6 +142,8 @@ void multiplyy(Real* object, Real* out);
 
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);
+template<typename T>
+void setValue(T* data, T value);
 template<typename T>
 void refine(T* src, T* dest, int refinement);
 template<typename T>

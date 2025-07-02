@@ -331,6 +331,14 @@ template void crop<Real>(Real*, Real*, int, int, Real, Real);
 template<> void crop<complexFormat>(complexFormat* src, complexFormat* dest, int row, int col, Real midx, Real midy){
   cropWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)src, (cuComplex*)dest, row, col, midx, midy));
 }
+cuFuncTemplate(setValue,(T* data, T value),(data,value),{
+    cuda1Idx()
+    data[index] = value;
+    })
+template void setValue<Real>(Real*, Real);
+template<> void setValue<complexFormat>(complexFormat* data, complexFormat value){
+  setValueWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, *(cuComplex*)&value));
+}
 
 
 cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuComplex* object, Real shiftx, Real shifty),((cuComplex*)object,shiftx,shifty),{
@@ -473,6 +481,15 @@ cuFuncc(multiplyReal,(Real* store, complexFormat* src, complexFormat* target),(R
 cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     store[index] = cuCmulf(src[index], cuConjf(target[index]));
+    })
+
+cuFuncc(multiplyRegular,(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha),(cuComplex* store, cuComplex* src, cuComplex* target, Real alpha),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target, alpha),{
+    cuda1Idx()
+    Real fact = 1;//target[index].x*target[index].x + target[index].y*target[index].y + alpha;
+    cuComplex tmp = cuCmulf(src[index], target[index]);
+    tmp.x /= fact;
+    tmp.y /= fact;
+    store[index] = tmp ; 
     })
 
 cuFuncc(forcePositive,(complexFormat* a),(cuComplex* a),((cuComplex*)a),{

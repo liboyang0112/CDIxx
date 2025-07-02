@@ -1,5 +1,6 @@
 #include "spectImaging.hpp"
 #include "cudaConfig.hpp"
+#include "cudaDefs_h.cu"
 #include "tvFilter.hpp"
 #include "memManager.hpp"
 #include "misc.hpp"
@@ -40,15 +41,20 @@ void spectImaging::initHSI(int _row, int _col){  //mask file, this is not to ini
   }
 }
 
-void spectImaging::initRefs(Real* refMask, int mrow, int mcol, int shiftx, int shifty){  //mask file, this is to init refs
+void spectImaging::initRefs(Real* refMask_dev, int mrow, int mcol, int shiftx, int shifty){  //mask file, this is to init refs
+  myDMalloc(Real, refMask, mrow*mcol);
+  myMemcpyH2D(refMask, refMask_dev, mrow*mcol*sizeof(Real));
   uint32_t* maskMap = createMaskMap(refMask, pixCount, row, column, mrow, mcol, shiftx, shifty);
   d_maskMap = (uint32_t*)memMngr.borrowCache(pixCount*sizeof(uint32_t));
   myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
   myFree(maskMap);
   myFree(refMask);
   refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
+
+  complexFormat val = 1;
   for(int i = 0; i < nlambda; i++){
     refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
+    setValue((complexFormat*)refs[i], val);
   }
   printf("mask has %d pixels\n", pixCount);
 }
@@ -111,7 +117,7 @@ void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask
         extendToComplex((Real*)d_patternSum, camp);
         cudaConvertFO(camp);
         myIFFTM(locplan[i],camp, camp);
-        plt.plotComplexColor(camp, 1, 1, "hologram_mono", 1, 0);
+        plt.plotComplexColor(camp, 1, 1./sqrt(pixCount), "hologram_mono", 1, 0);
       }
     }else{
       getMod2(d_pattern, camp);
@@ -163,10 +169,7 @@ void spectImaging::clearHSI(){
   }
 }
 
-void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
-  Real stepsize = 0.1;
-  Real normf = 1./(row*column);
-  //--create mask to block quadratic term--
+void createACmask_diamond(Real* acmask, int row, int imrow, int column, int imcol){
   diamond acdmasks;
   acdmasks.startx = (row - (imrow*2))/2;
   acdmasks.starty = (column - (imcol*2))/2;
@@ -177,7 +180,6 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
   acrmasks.endx = row;
   acrmasks.starty =  (column >> 1) - 30;
   acrmasks.endy = (column >> 1) + 30;
-  myCuDMalloc(Real, acmask, row*column);
   myCuDMalloc(Real, acrmask, row*column);
   resize_cuda_image(row, column);
   plt.init(row,column);
@@ -185,6 +187,24 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
   createMaskBar(acrmask, &acrmasks, 1);
   multiply(acmask, acmask, acrmask);
   myCuFree(acrmask);
+}
+void createACmask(Real* acmask, int row, int imrow, int column, int imcol){
+  rect acdmasks;
+  acdmasks.startx = row/2 - imrow;
+  acdmasks.starty = column/2 - imcol;
+  acdmasks.endx = row/2 + imrow;
+  acdmasks.endy = column/2 + imcol;
+  myCuDMalloc(rect, cuda_spt, 1);
+  myMemcpyH2D(cuda_spt, &acdmasks, sizeof(rect));
+  resize_cuda_image(row, column);
+  createMaskBar(acmask, cuda_spt, 1);
+}
+void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
+  Real stepsize = 0.3/pixCount;
+  Real normf = 1./(row*column);
+  //--create mask to block quadratic term--
+  myCuDMalloc(Real, acmask, row*column);
+  createACmask(acmask, row, imrow, column, imcol);
   plt.plotFloat(acmask, MOD, 1, 1, "acmask", 0, 0, 0);
 
   myCuDMalloc(Real, residual, row*column);
@@ -199,18 +219,21 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
     myCuMalloc(complexFormat, spectImages_prev[i], imrow*imcol);
     clearCuMem(spectImages_prev[i], imrow*imcol*sizeof(complexFormat));
   }
-  Real alpha = 1.92, beta = 3.96, norm = 0.15/(nlambda*2);
-  bool runAP = 0;
+  Real alpha = 1.92, beta = 3.96, norm = 0.15/(nlambda*2)/pixCount;
+  bool runAP = 1;
   complexFormat** tmp;
-  for(int iter = 0; iter < 500; iter ++){
+  int niter = 2000;
+  for(int iter = 0; iter < niter; iter ++){
     generateMWLPattern(residual, 0, mask);
     add(residual, (Real*)d_patternSum, residual,  -1.);
-    //plt.plotFloat(residual, MOD, 0, 1, "residual", 1, 0, 1);
+    if(iter %30==0) printf("iter = %d, residual = %f\n", iter, findRootSumSq(residual));
     extendToComplex(residual, autocorr);
     cudaConvertFO(autocorr);
     myIFFT(autocorr,autocorr);
+    if(iter == niter-1){
+    plt.plotComplexColor(autocorr, 1, 1./sqrt(imrow*imcol/2), "residual_autocorr", 1);
+    }
     multiply(autocorr, autocorr, acmask);
-    //plt.plotComplexColor(autocorr, 1, 1, "residual_autocorr");
     applyNorm(autocorr, 1./sqrt(row*column));
     if(!runAP){
       tmp = spectImages_prev;
@@ -225,16 +248,18 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
       expandRef((complexFormat*)refs[i], Ritilder, d_maskMap, row, column, row, column);
       resize_cuda_image(row, column);
       myFFT(Ritilder, Ritilder);
-      multiply(Ritilder, step, Ritilder);
+      multiplyRegular(Ritilder, step, Ritilder, 1);
+      //multiply(Ritilder, step, Ritilder);
+      applyNorm(Ritilder, normf*stepsize);
       myIFFT(Ritilder, Ritilder);
-      applyNorm(Ritilder, normf);
+      if(iter == niter-1) plt.plotComplexColor(Ritilder, 0, 1, "step");
       resize_cuda_image(imrow, imcol);
       crop(Ritilder, step, row, column);
       applyMask(step, mask);
       if(runAP){
         //--alternating projection--
-        add((complexFormat*)spectImages[i], step, stepsize);
-        FISTA((complexFormat*)spectImages[i], (complexFormat*)spectImages[i], 1e-1, 1, 0);
+        add((complexFormat*)spectImages[i], step);
+        FISTA((complexFormat*)spectImages[i], (complexFormat*)spectImages[i], 2e-4, 1, 0);
       }else{
       //--TwIST--
       //recon_imgs[i] = (1-alpha)*recon_imgs[i] + (alpha-beta)*recon_imgs_prev[i] +
@@ -253,6 +278,9 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
     //  //break;
     //}
   }
+  resize_cuda_image(row, column);
+  plt.init(row,column);
+  plt.plotFloat(residual, MOD, 0, 1, "residual", 1, 0, 1);
   myCuFree(residual);
   myCuFree(autocorr);
   myCuFree(step);

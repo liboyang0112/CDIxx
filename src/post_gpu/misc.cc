@@ -101,7 +101,7 @@ uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow
   for(int x = 0; x < mrow ; x++){
     for(int y = 0; y < mcol ; y++){
       if(refMask[idx] > 0.5) {
-        maskMap[ic] = (x+(row-mrow)/2+shiftx)*row + y+(col-mcol)/2 + shifty; //put mask in the middle
+        maskMap[ic] = (x+shiftx)*row + y+ shifty; //put mask in the middle
         ic++;
       }
       idx++;
