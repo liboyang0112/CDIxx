@@ -1,6 +1,6 @@
 #include "spectImaging.hpp"
 #include "cudaConfig.hpp"
-#include "cudaDefs_h.cu"
+#include "fmt/core.h"
 #include "tvFilter.hpp"
 #include "memManager.hpp"
 #include "misc.hpp"
@@ -56,7 +56,7 @@ void spectImaging::initRefs(Real* refMask_dev, int mrow, int mcol, int shiftx, i
     refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
     setValue((complexFormat*)refs[i], val);
   }
-  printf("mask has %d pixels\n", pixCount);
+  fmt::println("mask has {} pixels", pixCount);
 }
 void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this is to init refs
   pixCount = npoints;
@@ -64,7 +64,7 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   for (int i = 0; i < npoints; i++) {
     maskMap[i] = xs[i]*column + ys[i];
   }
-  printf("%d, %d\n", maskMap[0],maskMap[1]);
+  fmt::println("{}, {}", static_cast<int32_t>(maskMap[0]),static_cast<int32_t>(maskMap[1]));
   myCuMalloc(uint32_t, d_maskMap, pixCount);
   myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
   refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
@@ -78,7 +78,7 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   for (int i = 0; i < nlambda; i++) {
     myMemcpyH2D(refs[i], d_ref, pixCount*sizeof(complexFormat));
   }
-  printf("mask has %d pixels\n", pixCount);
+  fmt::println("mask has {} pixels", pixCount);
 }
 void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask){
   complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
@@ -222,11 +222,11 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
   Real alpha = 1.92, beta = 3.96, norm = 0.15/(nlambda*2)/pixCount;
   bool runAP = 1;
   complexFormat** tmp;
-  int niter = 2000;
+  int niter = 10000;
   for(int iter = 0; iter < niter; iter ++){
     generateMWLPattern(residual, 0, mask);
     add(residual, (Real*)d_patternSum, residual,  -1.);
-    if(iter %30==0) printf("iter = %d, residual = %f\n", iter, findRootSumSq(residual));
+    if(iter %30==0) fmt::println("iter = {}, residual = {:f}", iter, findRootSumSq(residual));
     extendToComplex(residual, autocorr);
     cudaConvertFO(autocorr);
     myIFFT(autocorr,autocorr);
@@ -248,18 +248,18 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
       expandRef((complexFormat*)refs[i], Ritilder, d_maskMap, row, column, row, column);
       resize_cuda_image(row, column);
       myFFT(Ritilder, Ritilder);
-      multiplyRegular(Ritilder, step, Ritilder, 1);
-      //multiply(Ritilder, step, Ritilder);
+      //multiplyRegular(Ritilder, step, Ritilder, 1e-3);
+      multiply(Ritilder, step, Ritilder);
       applyNorm(Ritilder, normf*stepsize);
       myIFFT(Ritilder, Ritilder);
-      if(iter == niter-1) plt.plotComplexColor(Ritilder, 0, 1, "step");
+      if(iter == niter-1) plt.plotComplexColor(Ritilder, 0, 1, "step", 1);
       resize_cuda_image(imrow, imcol);
       crop(Ritilder, step, row, column);
       applyMask(step, mask);
       if(runAP){
         //--alternating projection--
         add((complexFormat*)spectImages[i], step);
-        FISTA((complexFormat*)spectImages[i], (complexFormat*)spectImages[i], 2e-4, 1, 0);
+        FISTA((complexFormat*)spectImages[i], (complexFormat*)spectImages[i], 1e-5, 1, 0);
       }else{
       //--TwIST--
       //recon_imgs[i] = (1-alpha)*recon_imgs[i] + (alpha-beta)*recon_imgs_prev[i] +
@@ -315,7 +315,7 @@ void spectImaging::reconRefs(void* d_patternSum){
     cudaConvertFO(residual);
     if(niter%200 == 0){
       getMod2(deltao2, residual);
-      printf("residuale=%f\n", findSum(deltao2));
+      fmt::println("residuale={:f}", findSum(deltao2));
     }
 
     resize_cuda_image(pixCount, 1);

@@ -2,6 +2,8 @@
 #include "memManager.hpp"
 #include <map>
 #include <vector>
+
+#include "fmt/core.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,7 +62,7 @@ void* memManager::useOnsite(size_t sz){
 void* memManager::borrowSame(void* mem){
   auto iter = rentBook.find(mem);
   if(iter == rentBook.end()) {
-    printf("This pointer %p, is not found in the rentBook, please check if the memory is managed by memManager or returned already.\n", mem);
+    fmt::println("This pointer {}, is not found in the rentBook, please check if the memory is managed by memManager or returned already.", mem);
     abort();
   }
   return borrowCache(iter->second);
@@ -69,7 +71,7 @@ void* memManager::borrowSame(void* mem){
 size_t memManager::getSize(void* mem){
   auto iter = rentBook.find(mem);
   if(iter == rentBook.end()) {
-    printf("This pointer %p, is not found in the rentBook, please check if the memory is managed by memManager or returned already.\n", mem);
+    fmt::println("This pointer {}, is not found in the rentBook, please check if the memory is managed by memManager or returned already.", mem);
     abort();
   }
   return iter->second;
@@ -79,10 +81,10 @@ void memManager::returnCache(void* mem){
   if(mem == NULL) return;
   auto iter = rentBook.find(mem);
   if(iter == rentBook.end()) {
-    printf("This pointer %p, is not found in the rentBook, please check if the memory is managed by memManager or returned already.\n", mem);
-    printf("rent book content:\n");
+    fmt::println("This pointer {}, is not found in the rentBook, please check if the memory is managed by memManager or returned already.", mem);
+    fmt::println("rent book content:");
     for(auto x : rentBook){
-      printf("%p, %ld\n", x.first, x.second);
+      fmt::println("{}, {}", x.first, x.second);
     }
     abort();
   }

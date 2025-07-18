@@ -6,6 +6,7 @@
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
 #include "cub_wrap.hpp"
+#include "fmt/core.h"
 #include "misc.hpp"
 #include "frog.hpp"
 #include "imgio.hpp"
@@ -216,7 +217,7 @@ int main()
     maxfreq = freqs[0], minfreq = freqs.back();
     freqspacing = 2*M_PI/delay_spacing/1024;
     freqshift = (nspect>>1)-(midfreq-minfreq)/freqspacing;
-    printf("maxfreq = %f PHz, minfreq = %f PHz, spacing = %f, shift=%d\n", maxfreq, minfreq, freqspacing, freqshift);
+    fmt::println("maxfreq = {:f} PHz, minfreq = {:f} PHz, spacing = {:f}, shift={}", maxfreq, minfreq, freqspacing, freqshift);
   }
   myCuDMalloc(Real, d_fulldelays, nfulldelay);
   myCuDMalloc(complexFormat, d_cE, nspect);

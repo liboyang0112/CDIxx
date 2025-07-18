@@ -1,17 +1,17 @@
-#include <vtkNew.h>
-#include <vtkVolumeProperty.h>
-#include <vtkPiecewiseFunction.h>
-#include <vtkColorTransferFunction.h>
-#include <vtkVolume.h>
-#include <vtkGPUVolumeRayCastMapper.h>
-#include <vtkXMLImageDataWriter.h>
-#include <vtkXMLImageDataReader.h>
-#include <vtkImageData.h>
-#include <vtkRenderWindowInteractor.h>
-#include <vtkRenderer.h>
-#include <vtkRenderWindow.h>
-#include <vtkNamedColors.h>
-#include <vtkAutoInit.h>
+#include <vtk/vtkNew.h>
+#include <vtk/vtkVolumeProperty.h>
+#include <vtk/vtkPiecewiseFunction.h>
+#include <vtk/vtkColorTransferFunction.h>
+#include <vtk/vtkVolume.h>
+#include <vtk/vtkGPUVolumeRayCastMapper.h>
+#include <vtk/vtkXMLImageDataWriter.h>
+#include <vtk/vtkXMLImageDataReader.h>
+#include <vtk/vtkImageData.h>
+#include <vtk/vtkRenderWindowInteractor.h>
+#include <vtk/vtkRenderer.h>
+#include <vtk/vtkRenderWindow.h>
+#include <vtk/vtkNamedColors.h>
+#include <vtk/vtkAutoInit.h>
 #include "format.hpp"
 VTK_MODULE_INIT(vtkRenderingOpenGL2);
 VTK_MODULE_INIT(vtkInteractionStyle);
@@ -22,8 +22,8 @@ int writeVTI(const char* filename)
   vtkNew<vtkNamedColors> colors;
 
   // Parse command line arguments
-  Real opacityWindow = 1.;
-  Real opacityLevel = 0.5;
+  //Real opacityWindow = 1.;
+  //Real opacityLevel = 0.5;
   bool createFile = 1;
 
   if(createFile){

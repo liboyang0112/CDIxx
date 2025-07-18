@@ -1,10 +1,10 @@
+#include "fmt/core.h"
+#include "fmt/os.h"
 #include "orthFitter.hpp"
 #include "cudaConfig.hpp"
 #include "cub_wrap.hpp"
 #include "cuPlotter.hpp"
 #include "tvFilter.hpp"
-#include <fstream>
-#include <iostream>
 #include <math.h>
 #include <string.h>
 #include "monoChromo.hpp"
@@ -50,7 +50,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
-  if(nlambda<0) printf("nlambda not initialized: %d\n",nlambda);
+  if(nlambda<0) fmt::println("nlambda not initialized: {}",nlambda);
   size_t sz = row*column*sizeof(complexFormat);
   complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
   init_fft(row,column);
@@ -80,12 +80,12 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
   Real *momentum_a = 0;
   float step_a = 0;
-  ofstream fresidual;
-  if(writeResidual) fresidual.open("residual.txt", ios::out);
+  fmt::ostream* fresidual;
+  if(writeResidual) fresidual = new fmt::ostream(fmt::output_file("residual.txt"));
   if(updateA){
     getMod2(multiplied, (complexFormat*)d_input);
     Real mod2ref = findSum(multiplied);
-    printf("normalization: %f\n",mod2ref);
+    fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
     if(step_a<=0 || step_a!=step_a) abort();
     momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
@@ -174,7 +174,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     if(writeResidual) {
       resize_cuda_image(row, column);
       getMod2(multiplied, deltab);
-      fresidual<<i<<" "<<findSum(multiplied)<<endl;
+      fresidual->print("{} {}\n", i, findSum(multiplied));
     }
     if(calcDeltab) break;
     if(updateA){
@@ -183,7 +183,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;
       //}
-      printf("Fit spectrum done. %f\n", spectra[0]);
+      fmt::println("Fit spectrum done. {:f}", spectra[0]);
       if(!updateX) {
         i = nIter-2;
         updateA = 0;
@@ -248,7 +248,8 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);
-    fresidual.close();
+    fresidual->close();
+    delete fresidual;
   }
   myFree(momentum_a);
   myFree(matrix);
@@ -304,12 +305,12 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
   Real *momentum_a = 0;
   float step_a = 0;
-  ofstream fresidual;
-  if(writeResidual) fresidual.open("residual.txt", ios::out);
+  fmt::ostream* fresidual;
+  if(writeResidual) fresidual = new fmt::ostream(fmt::output_file("residual.txt"));
   if(updateA){
     getMod2(multiplied, (complexFormat*)d_input);
     Real mod2ref = findSum(multiplied);
-    printf("normalization: %f\n",mod2ref);
+    fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
     if(step_a<=0 || step_a!=step_a) abort();
     momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
@@ -358,7 +359,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
     }
     if(writeResidual) {
       getMod2(multiplied, deltab);
-      fresidual<<iter<<" "<<findSum(multiplied)<<endl;
+      fresidual->print("{} {}\n", iter, findSum(multiplied));
     }
     if(calcDeltab) break;
     if(gs){
@@ -386,20 +387,20 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
           matrix[j+i*nlambda] = matrix[i+j*nlambda];
         }
       }
-      ofstream matfile;
-      matfile.open("matrix.txt", ios::out);
+      fmt::ostream matfile = fmt::output_file("matrix.txt");
       for(int j = 0; j < nlambda; j++){
         for(int i = 0; i < nlambda; i++)
-          matfile << matrix[i+j*nlambda] << " ";
-        matfile << endl;
+          matfile.print("{} ", matrix[i+j*nlambda]);
+        matfile.print("\n");
       }
+      matfile.close();
       Fit_fast_matrix(spectra, nlambda, matrix, right);
       resize_cuda_image(row, column);
       //spectra[nlambda-2] = spectra[nlambda-1] = 0;
       //for(int il = 0; il < nlambda-2; il++){
       //  spectra[il] *= 1.1;
       //}
-      printf("Fit spectrum done. %f\n", spectra[0]);
+      fmt::println("Fit spectrum done. {:f}", spectra[0]);
       if(!updateX) {
         iter = nIter-2;
         updateA = 0;
@@ -444,7 +445,8 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
     add(deltab,(complexFormat*)d_input, -1);
-    fresidual.close();
+    fresidual->close();
+    delete fresidual;
   }
   myFree(momentum_a);
   myFree(matrix);

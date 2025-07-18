@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "cuPlotter.hpp"
+#include "fmt/core.h"
 #include "tvFilter.hpp"
 #include "cdi.hpp"
 
@@ -7,7 +8,7 @@ int main(int argc, char** argv )
 {
   CDI setups(argv[1]);
   if(argc < 2){
-    printf("please feed the object intensity and phase image\n");
+    fmt::println("please feed the object intensity and phase image");
   }
   setups.readFiles();
   setups.init();

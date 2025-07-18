@@ -2,6 +2,7 @@ extern "C" {
   #include "freetype.hpp"
   #include <freetype/freetype.h>
 }
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include <stdint.h>
 #include "memManager.hpp"
@@ -13,7 +14,7 @@ int main( int argc, char**  argv )
   memset(data, 0, rows*cols*sizeof(uint16_t));
   unsigned char val[3] = {0xff, 0xff, 0xff};
   if(argc < 2) {
-    printf("Usage: freetype_run text\n");
+    fmt::println("Usage: freetype_run text");
     return 0;
   }
   putText(argv[1], 0, rows, rows, cols, data, 0, val);

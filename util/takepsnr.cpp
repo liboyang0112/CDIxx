@@ -1,6 +1,7 @@
 #include <complex>
 #include <stdio.h>
 #include <stdio.h>
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include <string.h>
 #include "cudaConfig.hpp"
@@ -35,7 +36,7 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   resize_cuda_image(row,col);
   bitMap(d_bit, img, 0.2);
   std::complex<Real> mid(findMiddle(d_bit, row*col)+shiftx-shifty*1.0i);
-  printf("mid= %f,%f\n",mid.real(),mid.imag());
+  fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
   memMngr.returnCache(d_bit);
   if(!outrow || !outcol){
     outrow = (row-int(std::abs(mid.real())*row)*2)/4*4;
@@ -80,16 +81,16 @@ Real* mergewf(complexFormat * d_wfr, int &row, int &col, Real mg, Real shiftx, R
 complexFormat *readFromCDIRecon(const char* fname, int &row, int &col){
   imageFile fdata;
   FILE* imgfile = fopen(fname, "r");
-  printf("reading file: %s\n",fname);
+  fmt::println("reading file: {}",fname);
   if(!imgfile || !fread(&fdata, sizeof(fdata), 1, imgfile)){
-    printf("WARNING: file %s is empty!\n", fname); exit(0);
+    fmt::println("WARNING: file {} is empty!", fname); exit(0);
   }
   row = fdata.rows;
   col = fdata.cols;
   size_t sz = row*col*sizeof(complexFormat);
   myDMalloc(complexFormat, wf, row*col);
   if(!fread(wf, sz, 1, imgfile)){
-    printf("WARNING: data %s is empty!\n", fname); exit(0);
+    fmt::println("WARNING: data {} is empty!", fname); exit(0);
   }
   myCuDMalloc(complexFormat, d_wfr, row*col);
   myMemcpyH2D(d_wfr, wf, sz);
@@ -168,7 +169,7 @@ int main(int argc, char* argv[] )
   //plt.plotFloat(sigout, MOD, 0, 1, "sig", 0, 0, 1);
   //plt.plotFloat(bkgout, MOD, 0, 1, "bkg", 0, 0, 1);
   Real* ssimmap = ssim_map(sigout, bkgout, outrow, outcol, 1.5);
-  printf("ssim=%f\n",findSum(ssimmap)/(outrow*outcol));
+  fmt::println("ssim={:f}",findSum(ssimmap)/(outrow*outcol));
   //plt.plotFloat(ssimmap, REAL, 0, 1, "ssim", 0, 0, 1);
   Real maxs = findMax(sigout);
   Real maxb = findMax(bkgout);
@@ -176,13 +177,13 @@ int main(int argc, char* argv[] )
   add(sigout, bkgout, -1);
   applyNorm(sigout, 1./maxr);
 
-  printf("maxr = %f, s = %f, b = %f\n", maxr, maxs, maxb);
+  fmt::println("maxr = {:f}, s = {:f}, b = {:f}", maxr, maxs, maxb);
   resize_cuda_image(outrow, outcol);
   plt.plotFloat(sigout, REAL, 0, 1., "diff", 0, 0, 1);
   getMod2(sigout, sigout);
   Real mse = findSum(sigout);
   Real psnr = 10*log10(outrow*outcol/mse);
-  printf("psnr=%f\n",psnr);
+  fmt::println("psnr={:f}",psnr);
   //myMemcpyH2D(sigout, hsig, outrow*outcol*sizeof(Real));
   //plt.plotFloat(sigout, MOD, 0, 1., "lineimg", 0, 0, 0);
 

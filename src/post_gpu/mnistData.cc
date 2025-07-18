@@ -2,6 +2,7 @@
 #include "cudaConfig.hpp"
 #include <iostream>
 #include <string>
+#include "fmt/core.h"
 #include "memManager.hpp"
 #include "mnistData.hpp"
 #include <fstream>
@@ -21,7 +22,7 @@ mnistData::mnistData(const char* dir){
   filename = dir+filename;
   ifstream *file = new ifstream(filename, ios::binary);
   if(file->fail()) {
-    fprintf(stderr, "File open failed: %s, check if it exists!", filename.c_str());
+    fmt::print(stderr, "File open failed: {}, check if it exists!", filename);
     abort();
   }
   dataset = file;
@@ -36,7 +37,7 @@ mnistData::mnistData(const char* dir){
   rowraw = ReverseInt(rowraw);
   colraw = ReverseInt(colraw);
   output = (Real*)ccmemMngr.borrowCache(rowraw*colraw*sizeof(Real));
-  printf("mnist image size: %d x %d\n", rowraw, colraw);
+  fmt::println("mnist image size: {} x {}", rowraw, colraw);
 };
 Real* mnistData::read(){
   size_t sz =  rowraw*colraw*sizeof(char);

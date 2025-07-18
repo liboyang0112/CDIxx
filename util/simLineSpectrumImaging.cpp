@@ -1,4 +1,5 @@
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "material.hpp"
 #include "cub_wrap.hpp"
@@ -9,7 +10,7 @@
 
 int main(int argc, char* argv[]){
   if(argc < 2){
-    printf("Usage: simLineSpectrumImaging_run xxx.cfg\n");
+    fmt::println("Usage: simLineSpectrumImaging_run xxx.cfg");
     return 0;
   }
   ToyMaterial mat;

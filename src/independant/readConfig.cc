@@ -1,14 +1,14 @@
-#include  <memory>
 #include <vector>
 #include <string>
 #include <iostream>
 #include <string.h>
-using namespace std;
+#include "fmt/core.h"
+#include "format.hpp"
+#include "readConfig.hpp"
 #define subParsers (*(std::vector<AlgoParser*>*) subParsersp)
 #define count (*(std::vector<int>*) countp)
 #define algoList (*(std::vector<int>*) algoListp)
-#include "format.hpp"
-#include "readConfig.hpp"
+using namespace std;
 
 // This example reads the configuration file 'example.cfg' and displays
 // some of its contents.
@@ -17,7 +17,7 @@ int readConfigFile(const char * filename, config_t *cfg)
 {
   if(! config_read_file(cfg, filename))
   {
-    fprintf(stderr, "%s:%d - %s\n", config_error_file(cfg),
+    fmt::println(stderr, "{}:{} - {}", config_error_file(cfg),
         config_error_line(cfg), config_error_text(cfg));
     config_destroy(cfg);
     return(EXIT_FAILURE);
@@ -32,7 +32,7 @@ readConfig::readConfig(const char* configfile){
   config_t* cfg = &cfgs;
   config_init(cfg);
   int ret = readConfigFile(configfile, cfg);
-  cout << "config file: " << configfile << endl;
+  fmt::println("config file: {}", configfile);
   if(ret==EXIT_FAILURE) exit(ret);
 
   // Output a list of all vdWFluids in the inventory.
@@ -61,19 +61,19 @@ readConfig::readConfig(const char* configfile){
     STRVAR(getValstring);
 }
 void readConfig::print(){
-  std::cout<<"common Intensity="<<common.Intensity<<std::endl;
-  std::cout<<"common Phase="<<common.Phase<<std::endl;
-  std::cout<<"common restart="<<common.restart<<std::endl;
-  std::cout<<"common Pattern="<<common.Pattern<<std::endl;
-  std::cout<<"pupil Intensity="<<pupil.Intensity<<std::endl;
-  std::cout<<"pupil Phase="<<pupil.Phase<<std::endl;
-  std::cout<<"pupil restart="<<pupil.restart<<std::endl;
-  std::cout<<"pupil Pattern="<<pupil.Pattern<<std::endl;
+fmt::print("common Intensity={}\n", common.Intensity);
+fmt::print("common Phase={}\n", common.Phase);
+fmt::print("common restart={}\n", common.restart);
+fmt::print("common Pattern={}\n", common.Pattern);
+fmt::print("pupil Intensity={}\n", pupil.Intensity);
+fmt::print("pupil Phase={}\n", pupil.Phase);
+fmt::print("pupil restart={}\n", pupil.restart);
+fmt::print("pupil Pattern={}\n", pupil.Pattern);
 
-#define PRINTBOOL(x,y) std::cout<<"bool: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
-#define PRINTINT(x,y) std::cout<<"int: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
-#define PRINTREAL(x,y) std::cout<<"float: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
-#define PRINTSTR(x,y) std::cout<<"string: "<<#x<<" = "<<x<<"  (default = "<<y<<")"<<std::endl;
+#define PRINTBOOL(x, y) fmt::print("bool: {} = {}  (default = {})\n", #x, x, y);
+#define PRINTINT(x, y)  fmt::print("int: {} = {}  (default = {})\n", #x, x, y);
+#define PRINTREAL(x, y) fmt::print("float: {} = {}  (default = {})\n", #x, x, y);
+#define PRINTSTR(x, y)  fmt::print("string: {} = {}  (default = {})\n", #x, x, y);
   BOOLVAR(PRINTBOOL)
     INTVAR(PRINTINT)
     REALVAR(PRINTREAL)
@@ -94,7 +94,7 @@ AlgoParser::AlgoParser(const char* f){
   }
   formula.resize(j+1);
   formula[j]='\0';
-  printf("%s\n",formula.c_str());
+  fmt::println("{}",formula);
   auto position = formula.find("(");
   while(position!= std::string::npos){
     auto positione = formula.find(")");
@@ -103,11 +103,11 @@ AlgoParser::AlgoParser(const char* f){
     while(currentPosition!=std::string::npos){
       positione = formula.find(")",positione+1);
       currentPosition = formula.find("(",currentPosition+1,positione-currentPosition+1);
-      std::cout<<position<<","<<currentPosition<<","<<positione<<std::endl;
+      fmt::print("{},{},{}\n", position, currentPosition, positione);
     }
     subParsers.push_back(new AlgoParser(formula.substr(position+1, positione-position-1).c_str()));
     formula.replace(position, positione-position+1, "subParser");
-    printf("%s\n",formula.c_str());
+    fmt::println("{}",formula);
     position = formula.find("(");
   }
   char* term = const_cast<char*>(formula.c_str());
@@ -130,7 +130,7 @@ AlgoParser::AlgoParser(const char* f){
     else if(str=="XCORRELATION") algoList.push_back(XCORRELATION);
     else if(str=="subParser") algoList.push_back(nAlgo+iParser++);
     else{
-      printf("Algorithm %s not found\n", str.c_str());
+      fmt::println("Algorithm {} not found", str);
       exit(0);
     }
   }while( (ptr = strtok_r(NULL,"*",&ptrstore)));

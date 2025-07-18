@@ -1,6 +1,7 @@
 #include <string.h>
 #include "cudaConfig.hpp"
 #include "orthFitter.hpp"
+#include "fmt/core.h"
 #include "memManager.hpp"
 #ifdef useLapack
 #include "lapacke.hpp"
@@ -136,11 +137,11 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
       }
       //printf("\n");
     }
-    printf("inner prod= %f\n", innerProd(vectors[0], orthedVector[n-1],param)/ni[0]);
+    fmt::println("inner prod= {:f}", innerProd(vectors[0], orthedVector[n-1],param)/ni[0]);
   }
 
   Real step_lambda = 30./(maxnorm*maxnorm*n);
-  printf("step_lambda = %e\n", step_lambda);
+  fmt::println("step_lambda = {:e}", step_lambda);
   int niter = 30000;
   //now lets solve dual problem
   double *prods = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // b_i without positive constraints
@@ -287,7 +288,7 @@ void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
     if(maxval < val) maxval = val;
   }
   double step_lambda = 0.001/maxval;
-  printf("maxval = %f\n", maxval);
+  fmt::println("maxval = {:f}", maxval);
   int niter = 10000;
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
 }

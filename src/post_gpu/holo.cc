@@ -1,5 +1,6 @@
 #include <math.h>
 #include "holo.hpp"
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
@@ -80,7 +81,7 @@ void holo::simulate(){
     readComplexWaveFront(pupil.Intensity, phaseModulation_pupil?pupil.Phase:0,d_intensity,d_phase,objrow,objcol);
     resize_cuda_image(row, column);
     Real phasefactor = M_PI*lambda*d/sq(pixelsize*row);
-    printf("phase factor, %f, %f, %f, %d\n", lambda, d, pixelsize, row);
+    fmt::println("phase factor, {:f}, {:f}, {:f}, {}", lambda, d, pixelsize, row);
     createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2, phasefactor);
     add( (complexFormat*)objectWave_holo, (complexFormat*)objectWave, 1);
     propagate((complexFormat*)objectWave_holo, (complexFormat*)patternWave_holo, 1);

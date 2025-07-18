@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "orthFitter.hpp"
 #include "memManager.hpp"
 #include <cstring>
@@ -46,5 +47,5 @@ int main(){
   Real right[N] = {0,59};
   double* out = (double*) ccmemMngr.borrowCache(N*sizeof(double));
   Fit(out, N, (void**)vectors, right, innerProd, mult, add, createCache, deleteCache);
-  printf("solved: %f,%f\n", out[0], out[1]);
+  fmt::println("solved: {:f},{:f}", out[0], out[1]);
  }

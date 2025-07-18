@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "format.hpp"
 #include <string.h>
 #include <stdio.h>
@@ -19,7 +20,7 @@ int main() {
   subdiagEle[n-1] = 0;
 //  tqli(diagEle, subdiagEle, n, eigenVectors);
   for (int i = 0; i < n; i++) {
-    printf("%f", eigenVectors[i * n + n - 1]);
+    fmt::print("{:f}", eigenVectors[i * n + n - 1]);
   }
   return 0;
 }

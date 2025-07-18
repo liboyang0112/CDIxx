@@ -1,6 +1,7 @@
 #include <complex>
 #include <stdio.h>
 #include <stdio.h>
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
@@ -74,10 +75,10 @@ int main(int argc, char** argv )
   outrow = outcol = std::min(outrow,outcol);
   resize_cuda_image(outrow, outcol);
   myCuDMalloc(Real, tmp, outrow*outcol);
-  printf("mid= %f,%f\n",mid.real(),mid.imag());
+  fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
   Real shiftx = int(mid.real()*row)-mid.real()*row;
   Real shifty = int(mid.imag()*col)-mid.imag()*col;
-  printf("shift = %f,%f\n",shiftx, shifty);
+  fmt::println("shift = {:f},{:f}",shiftx, shifty);
   crop(d_sig, tmp, row, col,mid.real(),mid.imag());
   //crop(d_sig, tmp, row, col);
   myCuDMalloc(complexFormat, tmp1, outrow*outcol);

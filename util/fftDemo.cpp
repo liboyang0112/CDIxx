@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "imgio.hpp"  //readImage
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
@@ -7,7 +8,7 @@
 int main(int argc, char** argv )
 {
   if(argc < 2) {
-    printf("Usage: fftDemo_run img.png");
+    fmt::print("Usage: fftDemo_run img.png");
     return 0;
   }
   init_cuda_image();  //always needed

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <stdio.h>
 #include "cudaDefs_h.cu"
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "imageFile.hpp"
 #include <ctime>
@@ -32,17 +33,17 @@ void CDI::multiplyFresnelPhaseMid(void* amp, Real distance){
 }
 void CDI::allocateMem(){
   if(objectWave) return;
-  printf("allocating memory\n");
+  fmt::println("allocating memory");
   int sz = row*column*sizeof(Real);
   objectWave = memMngr.borrowCache(sz*2);
   patternWave = memMngr.borrowCache(sz*2);
   autoCorrelation = memMngr.borrowCache(sz*2);
   patternData = (Real*)memMngr.borrowCache(sz);
-  printf("initializing cuda image\n");
+  fmt::println("initializing cuda image");
   resize_cuda_image(row,column);
   init_cuda_image(rcolor,1./exposure);
   init_fft(row,column);
-  printf("initializing cuda plotter\n");
+  fmt::println("initializing cuda plotter");
   plt.init(row,column);
 }
 void CDI::readObjectWave(){
@@ -79,7 +80,7 @@ void CDI::readPattern(){
     myMemcpyH2D(patternData, pattern, row*column*sizeof(Real));
     Real maxs = findMax(patternData,row*column);
     if(maxs < 1e-7 || maxs!=maxs){
-      printf("max = %f\n", maxs);
+      fmt::println("max = {:f}", maxs);
       exit(0);
     }
   }
@@ -87,7 +88,7 @@ void CDI::readPattern(){
   //multiplySqy(patternData,patternData);
   cudaConvertFO(patternData);
   applyNorm(patternData, 1./exposure);
-  printf("Created pattern data\n");
+  fmt::println("Created pattern data");
 }
 void CDI::calculateParameters(){
   experimentConfig::calculateParameters();
@@ -95,7 +96,7 @@ void CDI::calculateParameters(){
     Real k = row*sq(pixelsize)/(lambda*d);
     dpupil = d*k/(k+1);
     resolution = lambda*dpupil/(row*pixelsize);
-    printf("Resolution=%4.2fum\n", resolution);
+    fmt::println("Resolution={:4.2f}um", resolution);
     enhancementpupil = sq(pixelsize)*sqrt(row*column)/(lambda*dpupil); // this guarentee energy conservation
     fresnelFactorpupil = lambda*dpupil/sq(pixelsize)/row/column;
     enhancementMid = sq(resolution)*sqrt(row*column)/(lambda*(d-dpupil)); // this guarentee energy conservation
@@ -104,10 +105,10 @@ void CDI::calculateParameters(){
 }
 void CDI::readFiles(){
   if(runSim) {
-    printf("running simulation, reading input images\n");
+    fmt::println("running simulation, reading input images");
     readObjectWave();
   }else{
-    printf("running reconstruction, reading input pattern\n");
+    fmt::println("running reconstruction, reading input pattern");
     readPattern();
   }
 }
@@ -150,7 +151,7 @@ void CDI::prepareIter(){
     //applyRandomPhase((complexFormat*)objectWave, 0, devstates);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
-    verbose(4,printf("Generating diffraction pattern\n"));
+    verbose(4,fmt::println("Generating diffraction pattern"));
     propagate(objectWave,(complexFormat*)patternWave, 1);
     convertFOPhase( (complexFormat*)patternWave);
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
@@ -159,7 +160,7 @@ void CDI::prepareIter(){
     plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern", 0);
     plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern_log", 1);
     if(simCCDbit){
-      verbose(4,printf("Applying Poisson noise\n"));
+      verbose(4,fmt::println("Applying Poisson noise"));
       auto img = readImage("theory_pattern.png", row, column);
       myMemcpyH2D(patternData, img, row*column*sizeof(Real));
       ccmemMngr.returnCache(img);
@@ -178,19 +179,19 @@ void CDI::prepareIter(){
     FILE* frestart = fopen(common.restart, "r");
     if(frestart)
       if(!fread(&fdata, sizeof(fdata), 1, frestart)){
-        printf("WARNING: file %s is empty!\n", common.restart);
+        fmt::println("WARNING: file {} is empty!", common.restart);
       }
     if(fdata.rows == row && fdata.cols == column){
       size_t sz = row*column*sizeof(complexFormat);
       complexFormat *wf = (complexFormat*) ccmemMngr.borrowCache(sz);
       if(!fread(wf, sz, 1, frestart)){
-        printf("WARNING: file %s is empty!\n", common.restart);
+        fmt::println("WARNING: file {} is empty!", common.restart);
       }
       myMemcpyH2D(patternWave, wf, sz);
       ccmemMngr.returnCache(wf);
       verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
     }else{
-      printf("Restart file size mismatch: %d!=%d || %d!=%d\n", fdata.rows, row, fdata.cols, column);
+      fmt::println("Restart file size mismatch: {}!={} || {}!={}", fdata.rows, row, fdata.cols, column);
       restart = 0;
     }
   }else{
@@ -243,7 +244,7 @@ void CDI::saveState(){
   resize_cuda_image(row/oversampling_spt,column/oversampling_spt);
   complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat*)*(row/oversampling_spt)*(column/oversampling_spt));
   Real* tmp1 = (Real*)memMngr.borrowCache(sizeof(Real*)*(row/oversampling_spt)*(column/oversampling_spt));
-  printf("mid= %f,%f\n",mid.real(), mid.imag());
+  fmt::println("mid= {:f},{:f}",mid.real(), mid.imag());
   crop(cuda_gkp1, tmp, row, column,mid.real(), mid.imag());
   getMod2(tmp1, tmp);
   Real max = min(1.f,findMax(tmp1,row/oversampling_spt*(column/oversampling_spt)));
@@ -299,7 +300,7 @@ void* CDI::phaseRetrieve(){
       if(avg*10 < maxs) maxs = avg*10;
       setThreshold(maxs*shrinkThreshold);
       if(fabs(maxs) < 1e-7 || maxs!=maxs) {
-        printf("max is %f\n", maxs);
+        fmt::println("max is {:f}", maxs);
         plt.plotFloat(support, MOD, 1, 1./row/column, "debug", 1, 0, 1);
       }
       if(gaussianSigma>2) {
@@ -354,7 +355,7 @@ void* CDI::phaseRetrieve(){
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
   initCub();
   residual = findSum(cuda_objMod);
-  printf("residual= %f\n",residual);
+  fmt::println("residual= {:f}",residual);
 
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);

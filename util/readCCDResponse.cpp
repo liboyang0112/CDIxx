@@ -1,7 +1,6 @@
-#include <stdio.h>
-#include <vector>
 #include <fstream>
 #include <iostream>
+#include "fmt/core.h"
 #include "format.hpp"
 #include "imgio.hpp"
 #include "memManager.hpp"
@@ -21,7 +20,7 @@ bool onCurve(unsigned char *pixColor, unsigned char *curveColor, int tolerance){
 int main(int argc, char** argv )
 {
   if(argc < 2){
-    printf("Usage: readCCDResponse response.png");
+    fmt::print("Usage: readCCDResponse response.png");
     return 0;
   }
   int start[] = {0,0};
@@ -41,7 +40,7 @@ int main(int argc, char** argv )
   end[0] = row-1;
   end[1] = column-1;
 
-  printf("image %d x %d\n", row, column);
+  fmt::println("image {} x {}", row, column);
   int nlambda = end[0]-start[0];
   Real *lambdas = (Real*) ccmemMngr.borrowCache(nlambda*sizeof(Real));
   Real *rate = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
@@ -54,7 +53,7 @@ int main(int argc, char** argv )
       unsigned char* p = rowp+3*y;
       if(onCurve(p, curveColor, tolerance)) {
         Real tmp = Real(start[1]-x)/(start[1]-end[1]);
-        printf("find curve at (%d, %d) = [%d, %d, %d], rate= %f\n", x, y, *p, p[1], p[2], tmp);
+        fmt::println("find curve at ({}, {}) = [{}, {}, {}], rate= {:f}", x, y, static_cast<signed char>(*p), static_cast<signed char>(p[1]), static_cast<signed char>(p[2]), tmp);
         p[2] = 255;
         p[0] = p[1] = 0;
         rate[y-start[0]] += tmp;

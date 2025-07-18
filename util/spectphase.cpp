@@ -1,4 +1,5 @@
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include "material.hpp"
 #include "cub_wrap.hpp"
 #include "readConfig.hpp"
@@ -10,7 +11,7 @@
 
 int main(int argc, char* argv[]){
   if(argc < 2){
-    printf("Usage: spectphase_run xxx.cfg");
+    fmt::print("Usage: spectphase_run xxx.cfg");
     exit(0);
   }
   init_cuda_image();

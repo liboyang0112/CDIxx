@@ -2,9 +2,10 @@
 #include "spectPhase.hpp"
 #include "cub_wrap.hpp"
 #include <complex.h>
+#include "fmt/core.h"
+#include "fmt/os.h"
 #include "material.hpp"
 #include "cuPlotter.hpp"
-#include <fstream>
 void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportinput){  //mask file, full image size,
   myMalloc(complexFormat, cspectrum, nlambda);
   myDMalloc(complexFormat, support, row*column);
@@ -15,7 +16,7 @@ void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportin
     if(creal(support[idx]) > 0.1) pixCount++;
   }
   if(pixCount ==0) {
-    fprintf(stderr, "ERROR: support is completely black\n");
+    fmt::println(stderr, "ERROR: support is completely black");
     abort();
   }
   myDMalloc(uint32_t, maskMap, pixCount);
@@ -104,9 +105,9 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
       cspectrum[j] += k*step_size*cspectrum_step[j];
     }
   }
-  std::ofstream file1("spectrum.txt", std::ios::out);
+  fmt::ostream file1 = fmt::output_file("spectrum.txt");
   for(int i = 0; i < nlambda; i++){
-    file1<<i << " " << Real(rows[i]) / row<< " "<< creal(cspectrum[i]) << " " << cimag(cspectrum[i]) << " " << cabs(cspectrum[i]) << " " << carg(cspectrum[i])<<std::endl;
+    file1.print("{} {} {} {} {} {}\n", i, Real(rows[i])/row, creal(cspectrum[i]), cimag(cspectrum[i]), cabs(cspectrum[i]), carg(cspectrum[i]));
   }
   file1.close();
   myCuFree(d_pattern);
@@ -121,14 +122,14 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
   myCuDMalloc(complexFormat, img0, row*column);
   myCuDMalloc(complexFormat, d_amp, rows[nlambda-1]*cols[nlambda-1]);
   clearCuMem(d_pattern, row*column*sizeof(Real));
-  std::ofstream file1("spectrum_sim.txt", std::ios::out);
+  fmt::ostream file1 = fmt::output_file("spectrum_sim.txt");
   for(int j = 0; j < nlambda; j++){
     int thisrow = rows[j];
     int thiscol = cols[j];
     Real rat = Real(thisrow)/row;
     complexFormat amp = 1;
     if(0) amp = cexp(1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
-    file1<<j << " " << rat << " " << creal(amp) << " " << cimag(amp) << " " << cabs(amp) << " " << carg(amp)<<std::endl;
+    file1.print("{} {} {} {} {} {}\n", j, rat, creal(amp), cimag(amp), cabs(amp), carg(amp));
     resize_cuda_image(pixCount, 1);
     expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, amp);
     resize_cuda_image(row, column);
@@ -144,7 +145,7 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
     add((Real*)d_pattern, single_pattern, spectra[j]);
   }
   Real m = findMax((Real*)d_pattern, row*column);
-  printf("max = %f\n",m);
+  fmt::println("max = {:f}",m);
   applyNorm((Real*)d_pattern, 1./m);
   for(int i = 0; i < nlambda; i++) spectra[i] *= 1./m;
   file1.close();

@@ -5,6 +5,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include <string.h>
+#include "fmt/core.h"
 #include "mnistData.hpp"
 #include "imgio.hpp"
 #include "monoChromo.hpp"
@@ -25,7 +26,7 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
   double threshold = 1e-3;
   file_spectrum.open(fspectrum);
   if(!file_spectrum) {
-    printf("file %s not found\n", fspectrum);
+    fmt::println("file {} not found", fspectrum);
     abort();
   }
   file_ccd_response.open(ccd_response);
@@ -93,10 +94,10 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
   if(0)
     for(int i = 0; i < nlambda; i++){
       if(lambdas[i] < ccd_lambda[0]){
-        printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
+        fmt::println("lambda smaller than ccd curve min {:f} < {:f}", lambdas[i], ccd_lambda[0]);
         spectrum[i] /= ccd_rate[0];
       }else if(lambdas[i] > ccd_lambda.back()){
-        printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
+        fmt::println("lambda larger than ccd curve max {:f} > {:f}", lambdas[i], ccd_lambda.back());
         spectrum[i] /= ccd_rate.back();
       }else
       spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
@@ -106,7 +107,7 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 }
 
 int main(int argc, char** argv){
-  if(argc==1) { printf("Tell me which one is the mnist data folder\n"); }
+  if(argc==1) { fmt::println("Tell me which one is the mnist data folder"); }
   int handle;
   bool training = 0;
   int ntraining = 4000;
@@ -208,7 +209,7 @@ int main(int argc, char** argv){
                                                                                                     //mwl.init(objrow, objcol, 1, 2);
     }else{
       getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-      printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
+      fmt::println("lambda range = ({:f}, {:f}), ratio={:f}, first bin: {:f}", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
       mwl.init(objrow, objcol, lambdas, spectra, nlambda);
       mwl.writeSpectra("spectra.txt", startlambda);
     }
@@ -231,7 +232,7 @@ int main(int argc, char** argv){
   //mwl.writeSpectra("spectra.txt");
   Real sumI = 0;
   Real maxsingle = 0;
-  printf("start mwl!\n");
+  fmt::println("start mwl!");
   for(int j = 0; j < (cdi.domnist? (training? ntraining:ntesting):1); j++){
     if(cdi.runSim){
       if(cdi.domnist) {

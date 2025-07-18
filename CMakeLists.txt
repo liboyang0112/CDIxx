@@ -8,7 +8,7 @@ set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after libr
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
-set(compileVTK FALSE)
+set(compileVTK TRUE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
 set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
@@ -17,6 +17,7 @@ link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 add_compile_options(-Wall -Wextra)
 
 find_package(PkgConfig) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
+find_package(fmt REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
 if(PkgConfig_FOUND)
   pkg_check_modules(GTK gtk4)
@@ -43,7 +44,7 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 execute_process(
-  COMMAND ${Python_EXECUTABLE} -c "import numpy; print(numpy.get_include())" # pip install scikit-build
+  COMMAND ${Python_EXECUTABLE} -c "import numpy; print(numpy.get_include())" # pip install numpy
     OUTPUT_VARIABLE NUMPY_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
@@ -56,7 +57,7 @@ message("Numpy dir:" ${NUMPY_DIR})
 message("PYTHON include:" ${Python_INCLUDE_DIRS})
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
 find_package ( Cython REQUIRED )
-include_directories(${NUMPY_DIR}) #libav* is in this directory on Fedora
+include_directories(${NUMPY_DIR})
 endif(Python_FOUND)
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 
@@ -76,6 +77,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 include_directories ("${PROJECT_SOURCE_DIR}/include")
 link_directories(${PROJECT_SOURCE_DIR}/lib)
+link_libraries(fmt)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/independant/*c)
 foreach( sourcefile ${APP_SOURCES})
@@ -87,7 +89,7 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --cuda-gpu-arch=sm_80")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
-set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_80")
+set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} ${CUFFTLIB})
@@ -225,11 +227,12 @@ foreach( sourcefile ${APP_SOURCES} )
     MODULES ${VTK_LIBRARIES}
     )
 endforeach( sourcefile ${APP_SOURCES} )
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/vtk/*.cpp )
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/vtk/*.cpp )
 foreach( sourcefile ${APP_SOURCES} )
   cmake_path(GET sourcefile FILENAME libname)
   string( REPLACE ".cpp" "_run" exename ${libname} )
   add_executable( ${exename} ${sourcefile})
+  message(${exename})
 endforeach( sourcefile ${APP_SOURCES} )
 target_link_libraries(testVtk_run WriteVTI_cc)
 endif()

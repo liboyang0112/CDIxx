@@ -1,4 +1,5 @@
 #include "cdilmdb.hpp"
+#include "fmt/core.h"
 #include <stdio.h>
 #include <math.h>
 const int N = 256*256;
@@ -27,8 +28,8 @@ int main(){
   float** dataout;
   int ndata = 0;
   readLMDB(handle, &ndata, (void***)&dataout, &data_sizes, &key);
-  printf("data= %f\n", dataout[0][10]);
-  printf("label= %f\n", dataout[1][10]);
+  fmt::println("data= {:f}", dataout[0][10]);
+  fmt::println("label= {:f}", dataout[1][10]);
   return 0;
 }
 

@@ -5,6 +5,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include <string.h>
+#include "fmt/core.h"
 #include "mnistData.hpp"
 #include "imgio.hpp"
 #include "monoChromo.hpp"
@@ -89,10 +90,10 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
   if(0)
     for(int i = 0; i < nlambda; i++){
       if(lambdas[i] < ccd_lambda[0]){
-        printf("lambda smaller than ccd curve min %f < %f\n", lambdas[i], ccd_lambda[0]);
+        fmt::println("lambda smaller than ccd curve min {:f} < {:f}", lambdas[i], ccd_lambda[0]);
         spectrum[i] /= ccd_rate[0];
       }else if(lambdas[i] > ccd_lambda.back()){
-        printf("lambda larger than ccd curve max %f > %f\n", lambdas[i], ccd_lambda.back());
+        fmt::println("lambda larger than ccd curve max {:f} > {:f}", lambdas[i], ccd_lambda.back());
         spectrum[i] /= ccd_rate.back();
       }else
         spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
@@ -103,7 +104,7 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
 
 int main(int argc, char** argv){
   if(argc < 2) {
-    printf("Usage: mono_run xxx.cfg");
+    fmt::print("Usage: mono_run xxx.cfg");
     exit(0);
   }
   int handle;
@@ -208,7 +209,7 @@ int main(int argc, char** argv){
                                                                                                     //mwl.init(objrow, objcol, 1, 2);
     }else{
       getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
-      printf("lambda range = (%f, %f), ratio=%f, first bin: %f\n", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
+      fmt::println("lambda range = ({:f}, {:f}), ratio={:f}, first bin: {:f}", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
       mwl.init(objrow, objcol, lambdas, spectra, nlambda);
       mwl.writeSpectra("spectra.txt", startlambda);
     }
@@ -244,7 +245,7 @@ int main(int argc, char** argv){
       if(maxmerged==0){
        maxmerged = findMax(d_patternSum);
        Real rat = findSum(d_patternSum)/maxmerged;
-       printf("ratio = %f\n", rat);
+       fmt::println("ratio = {:f}", rat);
       }
       if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged, 6553500);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);

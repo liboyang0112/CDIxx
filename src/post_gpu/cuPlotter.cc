@@ -1,6 +1,7 @@
 #include <string>
 #include <stdio.h>
 #include "cuPlotter.hpp"
+#include "fmt/core.h"
 #include "memManager.hpp"
 #include "cudaConfig.hpp"
 #include "videoWriter.hpp"
@@ -63,7 +64,7 @@ int cuPlotter::initVideo(const char* filename, int fps){
   }else
     nvid++;
   if(handle==100) {
-    printf("You created too many videos (100), please release some before create new ones");
+    fmt::print("You created too many videos (100), please release some before create new ones");
     exit(0);
   }
   videoWriterVec[handle] = createVideo(filename, rows, cols, fps);
@@ -76,7 +77,7 @@ void cuPlotter::saveVideo(int handle){
 void cuPlotter::init(int rows_, int cols_){
   if(rows==rows_ && cols==cols_) return;
   freeMem();
-  printf("init plot %d, %d\n",rows_,cols_);
+  fmt::println("init plot {}, {}",rows_,cols_);
   rows=rows_;
   cols=cols_;
   cv_cache = ccmemMngr.borrowCache(rows*cols*3);
@@ -199,7 +200,7 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);
     writePng(fname.c_str(), cv_data, rows, cols, Bits, 0);
   }
-  printf("written to file %s\n", fname.c_str());
+  fmt::println("written to file {}", fname);
 }
 cuPlotter::~cuPlotter(){
   freeMem();

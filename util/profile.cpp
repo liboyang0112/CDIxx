@@ -2,6 +2,7 @@
 #include <fstream>
 #include <stdio.h>
 #include <stdio.h>
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include <string.h>
 #include <iostream>
@@ -13,17 +14,17 @@
 Real *readFromCDIRecon(const char* fname, int &row, int &col){
   imageFile fdata;
   FILE* frestart = fopen(fname, "r");
-  printf("reading file: %s\n",fname);
+  fmt::println("reading file: {}",fname);
   if(frestart)
     if(!fread(&fdata, sizeof(fdata), 1, frestart)){
-      printf("WARNING: file %s is empty!\n", fname);
+      fmt::println("WARNING: file {} is empty!", fname);
     }
   row = fdata.rows;
   col = fdata.cols;
   size_t sz = row*col*sizeof(complexFormat);
   myDMalloc(complexFormat, wf, row*col);
   if(!fread(wf, sz, 1, frestart)){
-    printf("WARNING: file %s is empty!\n", fname);
+    fmt::println("WARNING: file {} is empty!", fname);
   }
   myCuDMalloc(complexFormat, d_wfr, row*col);
   myMemcpyH2D(d_wfr, wf, sz);
@@ -43,7 +44,7 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   resize_cuda_image(row,col);
   bitMap(d_bit, img, 0.2);
   std::complex<Real> mid(findMiddle(d_bit, row*col)+shiftx-shifty*1.0i);
-  printf("mid= %f,%f\n",mid.real(),mid.imag());
+  fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
   memMngr.returnCache(d_bit);
   if(!outrow || !outcol){
     outrow = (row-int(std::abs(mid.real())*row)*2)/4*4;

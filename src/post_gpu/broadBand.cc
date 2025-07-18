@@ -1,7 +1,8 @@
 #include "broadBand.hpp"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
-#include <fstream>
+#include "fmt/core.h"
+#include "fmt/os.h"
 #include <gsl/gsl_spline.h>
 #include <math.h>
 
@@ -32,13 +33,13 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
   locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  fstream file("spectrum_raw.txt", ios::out);
+  fmt::ostream file = fmt::output_file("spectrum_raw.txt");
   for(int i = 0; i < nlambda; i++){
     rows[i] = nearestEven(row*lambdas_[i]);
     cols[i] = nearestEven(column*lambdas_[i]);
     createPlan(locplan+i, rows[i], cols[i]);
     //file << lambdas_[i] << " " << 0 << endl;
-    file << lambdas_[i] << " " << spectra_[i]*nlambda << endl;
+    file.print("{} {}\n", lambdas_[i] , spectra_[i]*nlambda);
     //file << lambdas_[i] << " " << 0 << endl;
   }
   file.close();
@@ -60,7 +61,7 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
     rows[i] = row+(i+(minlambda-1)/stepsize)*2*jump;
     cols[i] = column+(i+(minlambda-1)/stepsize)*2*jump;
     lambdas[i] = double(rows[i])/row;
-    printf("%d: (%d,%d)\n",i, rows[i],cols[i]);
+    fmt::println("{}: ({},{})",i, rows[i],cols[i]);
     createPlan(locplan+i, rows[i], cols[i]);
   }
   padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
@@ -75,12 +76,12 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
   Real factor = Real(thisrowp)/row;
   nmiddle = 0;
   if(maxlambda < 1) {
-    printf("Max lambda is shorter than 1, please check your middle lambda and lambda range\n");
+    fmt::println("Max lambda is shorter than 1, please check your middle lambda and lambda range");
     abort();
   }
   myMalloc(int, locplan, 2);
   if(minlambda > 1) {
-    fprintf(stderr, "ERROR: minimum lambda > 1 detected, please reset it to 1\n");
+    fmt::println(stderr, "ERROR: minimum lambda > 1 detected, please reset it to 1");
   }else if(minlambda < factor){
     nmiddle = log(minlambda)/log(factor);
     minlambda = pow(factor, nmiddle);
@@ -145,10 +146,9 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   Real skiplambda = 2./row*skip;
   nlambda = (lambdasi[narray-1]-skiplambda-1)/stepsize+1;
   spectra = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
-  ofstream spectrumfile;
-  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  fmt::ostream spectrumfile = fmt::output_file("spectra_raw.txt");
   for(int i = 0; i < narray; i++){
-    spectrumfile<<lambdasi[i]<<" "<<spectrumi[i]/spectrumi[narray-1]<<std::endl;
+    spectrumfile.print("{} {}\n",lambdasi[i],spectrumi[i]/spectrumi[narray-1]);
   }
   lambdasi[0] /= (1+skiplambda);
   stepsize /= (1+skiplambda);
@@ -181,14 +181,14 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
     rows[i] = row+i*2*jump;
     cols[i] = column+i*2*jump;
     lambdas[i] = double(rows[i])/row;
-    printf("%d: (%d,%d)=%f\n",i, rows[i],cols[i],spectra[i]/=spectrumi[narray-1]);
+    fmt::println("{}: ({},{})={:f}",i, rows[i],cols[i],spectra[i]/=spectrumi[narray-1]);
     createPlan( locplan+i, rows[i], cols[i]);
   }
-  spectrumfile.open("spectra.txt", std::ios::out);
+  fmt::ostream spectrafile = fmt::output_file("spectra.txt");
   for(int i = 0; i < nlambda; i++){
-    spectrumfile<<1+stepsize*i+skiplambda<<" "<<spectra[i]/narray*nlambda<<std::endl;
+    spectrafile.print("{} {}\n",1+stepsize*i+skiplambda,spectra[i]/narray*nlambda);
   }
-  spectrumfile.close();
+  spectrafile.close();
   return spectrumi[narray-1];
 }
 Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
@@ -202,10 +202,9 @@ Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* sp
   nlambda = log(lambdasi[narray-1]/(skiplambda+1))/log(factor)+1;
   myMalloc(double, spectra, nlambda);
   myMalloc(double, lambdas, nlambda);
-  ofstream spectrumfile;
-  spectrumfile.open("spectra_raw.txt", std::ios::out);
+  fmt::ostream spectrumfile = fmt::output_file("spectra_raw.txt");
   for(int i = 0; i < narray; i++){
-    spectrumfile<<lambdasi[i]<<" "<<spectrumi[i]/spectrumi[narray-1]<<std::endl;
+    spectrumfile.print("{} {}\n",lambdasi[i],spectrumi[i]/spectrumi[narray-1]);
   }
   spectrumfile.close();
   lambdasi[0] /= (1+skiplambda);
@@ -230,12 +229,12 @@ Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* sp
 
   myMalloc(int, locplan, 1);
   createPlan(locplan, thisrow, thiscol);
-  spectrumfile.open("spectra.txt", std::ios::out);
+  fmt::ostream spectrafile = fmt::output_file("spectra.txt");
   for(int i = 0; i < nlambda; i++){
     spectra[i]/=spectrumi[narray-1];
-    spectrumfile<<lambdas[i]+skiplambda<<" "<<spectra[i]/narray*nlambda/lambdas[i]<<std::endl;
+    spectrafile.print("{} {}\n", lambdas[i]+skiplambda,spectra[i]/narray*nlambda/lambdas[i]);
   }
-  spectrumfile.close();
+  spectrafile.close();
   myCuMalloc(complexFormat, cache, thisrow*thiscol);
   return spectrumi[narray-1];
 }
@@ -245,18 +244,16 @@ void broadBand_base::resetSpectra(){
   }
 }
 void broadBand_base::writeSpectra(const char* filename, Real factor){
-  std::ofstream spectrafile;
-  spectrafile.open(filename,ios::out);
+  fmt::ostream spectrafile = fmt::output_file(filename);
   for(int i = 0; i < nlambda; i++){
-    spectrafile<<lambdas[i]*factor<<" "<<spectra[i]<<std::endl;
+    spectrafile.print("{} {}\n", lambdas[i]*factor,spectra[i]);
   }
   spectrafile.close();
 }
 void broadBand_constRatio::writeSpectra(const char* filename, Real factor){
-  std::ofstream spectrafile;
-  spectrafile.open(filename,ios::out);
+  fmt::ostream spectrafile = fmt::output_file(filename);
   for(int i = 0; i < nlambda; i++){
-    spectrafile<<lambdas[i]*factor<<" "<<spectra[i]/lambdas[i]<<std::endl;
+    spectrafile.print("{} {}\n", lambdas[i]*factor,spectra[i]/lambdas[i]);
   }
   spectrafile.close();
 }

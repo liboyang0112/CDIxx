@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdio.h>
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
@@ -13,22 +14,22 @@ int main(int argc, char** argv )
   //ZoneScoped;
   CDI setups(argv[1]);
   if(argc < 2){
-    printf("please feed the object intensity and phase image\n");
+    fmt::println("please feed the object intensity and phase image");
   }
   setups.readFiles();
   setups.init();
 
   //-----------------------configure experiment setups-----------------------------
-  printf("Imaging distance = %4.2fcm\n", setups.d*1e-4);
-  printf("fresnel factor = %f\n", setups.fresnelFactor);
-  printf("enhancement = %f\n", setups.enhancement);
+  fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
+  fmt::println("fresnel factor = {:f}", setups.fresnelFactor);
+  fmt::println("enhancement = {:f}", setups.enhancement);
 
-  printf("pupil Imaging distance = %4.2fcm\n", setups.dpupil*1e-4);
-  printf("pupil fresnel factor = %f\n", setups.fresnelFactorpupil);
-  printf("pupil enhancement = %f\n", setups.enhancementpupil);
+  fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
+  fmt::println("pupil fresnel factor = {:f}", setups.fresnelFactorpupil);
+  fmt::println("pupil enhancement = {:f}", setups.enhancementpupil);
 
   Real fresnelNumber = M_PI*sq(setups.beamspotsize)/(setups.d*setups.lambda);
-  printf("Fresnel Number = %f\n",fresnelNumber);
+  fmt::println("Fresnel Number = {:f}",fresnelNumber);
 
   int sz = setups.row*setups.column*sizeof(complexFormat);
   complexFormat* cuda_pupilAmp, *cuda_ESW, *cuda_ESWP, *cuda_ESWPattern, *cuda_pupilAmp_SIM;

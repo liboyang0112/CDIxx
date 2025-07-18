@@ -74,7 +74,7 @@ int main(){
   plt.plotFloat(d_patternSum, MOD, 0, 1, "mergedlog", 1, 0, 1);
   plt.plotFloat(d_patternSum, MOD, 0, 1, "merged", 0, 0, 0);
   //applyNorm((Real*)d_patternSum, 50);
-  workspace.plotAutoCorr("hologram", (Real*)d_patternSum, 1./sqrt(mrow*mcol/2));
+  workspace.plotAutoCorr("hologram", (Real*)d_patternSum, 5e-2/sqrt(mrow*mcol/2));
   workspace.clearHSI();
   workspace.reconstructHSI(d_patternSum, mask);
   workspace.saveHSI("hsi_recon", support);

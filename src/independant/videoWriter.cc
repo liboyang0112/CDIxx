@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "fmt/core.h"
 #include "memManager.hpp"
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -24,7 +25,7 @@ void* encode(void* args)
 
   ret = avcodec_send_frame(enc_ctx, frame);
   if (ret < 0) {
-    fprintf(stderr, "Error sending a frame for encoding\n");
+    fmt::println(stderr, "Error sending a frame for encoding");
     exit(1);
   }
 
@@ -33,7 +34,7 @@ void* encode(void* args)
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
       return 0;
     else if (ret < 0) {
-      fprintf(stderr, "Error during encoding\n");
+      fmt::println(stderr, "Error during encoding");
       exit(1);
     }
 
@@ -57,7 +58,7 @@ void* createVideo(const char* filename, int row, int col, int fps){
   //if(!codec) codec = avcodec_find_encoder_by_name("libx265");
   if(!codec) codec = avcodec_find_encoder_by_name("hevc_nvenc");
   if (!codec) {
-    fprintf(stderr, "Codec libx265 not found\n");
+    fmt::println(stderr, "Codec libx265 not found");
     exit(1);
   }
   AVCodecContext *c = thisvid->c = avcodec_alloc_context3(codec);
@@ -85,17 +86,17 @@ void* createVideo(const char* filename, int row, int col, int fps){
   /* open it */
   int ret = avcodec_open2(c, codec, NULL);
   if (ret < 0) {
-    fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
+    fmt::println(stderr, "Could not open codec: {}", av_err2str(ret));
   }
   FILE* f = thisvid->f = fopen(filename, "wb");
   if (!f) {
-    fprintf(stderr, "Could not open %s\n", filename);
+    fmt::println(stderr, "Could not open {}", filename);
     exit(1);
   }
 
   AVFrame *frame = thisvid->frame = av_frame_alloc();
   if (!frame) {
-    fprintf(stderr, "Could not allocate video frame\n");
+    fmt::println(stderr, "Could not allocate video frame");
     exit(1);
   }
   frame->format = c->pix_fmt;
@@ -104,7 +105,7 @@ void* createVideo(const char* filename, int row, int col, int fps){
 
   ret = av_frame_get_buffer(frame, 0);
   if (ret < 0) {
-    fprintf(stderr, "Could not allocate the video frame data\n");
+    fmt::println(stderr, "Could not allocate the video frame data");
     exit(1);
   }
   return thisvid;

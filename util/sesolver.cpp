@@ -4,6 +4,7 @@
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
+#include "fmt/core.h"
 using namespace std;
 void initV(Real* V, Real val);
 void Hpsifunc (Real * psi, Real *V, Real *Hpsi, Real Eshift);
@@ -28,7 +29,7 @@ int main(){
   initV(V, -0.2);
   initV(H2psi, 1);
   Real sum = findRootSumSq(H2psi);
-  printf("sum = %f\n", sum);
+  fmt::println("sum = {:f}", sum);
   applyNorm(H2psi, 1./sum);
 
   plt.init(nx,ny);

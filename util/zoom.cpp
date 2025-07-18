@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "imgio.hpp"  //readImage
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
@@ -8,7 +9,7 @@ using namespace std;
 int main(int argc, char** argv )
 {
   if(argc < 2){
-    printf("Usage: zoom_run image.png");
+    fmt::print("Usage: zoom_run image.png");
     exit(0);
   }
   init_cuda_image();  //always needed

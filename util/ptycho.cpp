@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <random>
 #include <chrono>
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
 #include "experimentConfig.hpp"
@@ -33,15 +34,15 @@ class ptycho : public experimentConfig{
     void allocateMem(){
       if(devstates) return;
       devstates = newRand(column_O * row_O);
-      printf("allocating memory\n");
+      fmt::println("allocating memory");
       scanx = (row_O-row)/stepSize+1;
       scany = (column_O-column)/stepSize+1;
-      printf("scanning %d x %d steps\n", scanx, scany);
+      fmt::println("scanning {} x {} steps", scanx, scany);
       objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
       esw = (complexFormat*) memMngr.borrowCache(sz*2);
       patterns = (Real**)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real*));
-      printf("initializing cuda image\n");
+      fmt::println("initializing cuda image");
       resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -109,7 +110,7 @@ class ptycho : public experimentConfig{
         for(int i = 0 ; i < scanx*scany; i++){
           shiftx[i]+= distribution(generator)*positionUncertainty;
           shifty[i]+= distribution(generator)*positionUncertainty;
-          if(verbose >=3 ) printf("shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
+          if(verbose >=3 ) fmt::println("shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
         }
       }
     }
@@ -238,7 +239,7 @@ class ptycho : public experimentConfig{
       }
       if(verbose>=3){
         for(int i = 0 ; i < scanx*scany; i++){
-          printf("recon shifts (%d, %d): (%f, %f)\n", i/scany, i%scany, shiftx[i],shifty[i]);
+          fmt::println("recon shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
         }
       }
       memMngr.returnCache(Fn);
@@ -277,7 +278,7 @@ class ptycho : public experimentConfig{
           idx++;
         }
       }
-      printf("Created pattern data\n");
+      fmt::println("Created pattern data");
       calculateParameters();
     }
     void calculateParameters(){
@@ -290,7 +291,7 @@ int main(int argc, char** argv )
 {
   ptycho setups(argv[1]);
   if(argc < 2){
-    printf("please feed the object intensity and phase image\n");
+    fmt::println("please feed the object intensity and phase image");
   }
   if(setups.runSim){
     setups.readPupilAndObject();
@@ -298,13 +299,13 @@ int main(int argc, char** argv )
   }else{
     setups.readPattern();
   }
-  printf("Imaging distance = %4.2fcm\n", setups.d*1e-4);
-  printf("fresnel factor = %f\n", setups.fresnelFactor);
-  printf("Resolution = %4.2fnm\n", setups.resolution*1e3);
+  fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
+  fmt::println("fresnel factor = {:f}", setups.fresnelFactor);
+  fmt::println("Resolution = {:4.2f}nm", setups.resolution*1e3);
 
-  printf("pupil Imaging distance = %4.2fcm\n", setups.dpupil*1e-4);
-  printf("pupil fresnel factor = %f\n", setups.fresnelFactorpupil);
-  printf("pupil enhancement = %f\n", setups.enhancementpupil);
+  fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
+  fmt::println("pupil fresnel factor = {:f}", setups.fresnelFactorpupil);
+  fmt::println("pupil enhancement = {:f}", setups.enhancementpupil);
   setups.initObject();
   setups.iterate();
 

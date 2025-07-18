@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "imgio.hpp"  //readImage
 #include "cudaConfig.hpp" //cuda related
 #include "cuPlotter.hpp" //plt
@@ -10,7 +11,7 @@ using namespace std;
 int main(int argc, char** argv )
 {
   if(argc < 2){
-    printf("Usage: propagatorDemo_run complex_image.bin");
+    fmt::print("Usage: propagatorDemo_run complex_image.bin");
     exit(0);
   }
   init_cuda_image();  //always needed
