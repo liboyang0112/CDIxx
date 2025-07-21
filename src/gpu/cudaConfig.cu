@@ -1,5 +1,6 @@
 #include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include <complex.h>
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
@@ -19,7 +20,7 @@ void gpuAssert(int code, const char *file, int line)
 {
   if (code != cudaSuccess)
   {
-    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString((cudaError_t)code), file, line);
+    fmt::println(stderr,"GPUassert: {} {} {}", cudaGetErrorString((cudaError_t)code), file, line);
     abort();
   }
 }
@@ -133,7 +134,7 @@ __device__ __inline__ T1 add(T1 val1, T2 val2){
 }
 
 void init_fft(int rows, int cols, int batch){
-  printf("init fft: %d %d, old dim=%d, %d\n", rows, cols, rows_fft, cols_fft);
+  fmt::println("init fft: {} {}, old dim={}, {}", rows, cols, rows_fft, cols_fft);
   if(rows!=rows_fft||cols!=cols_fft||batch_fft!=batch){
     if(!plan){
       plan = new cufftHandle();
@@ -802,7 +803,8 @@ cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, bool loose, int
     //else mod2 = maximum+1;
     return;
     }
-    Real tolerance = (sqrtf(mod2*vars->rcolor + noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
+   //Real tolerance = (sqrtf(mod2*vars->rcolor + noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
+    Real tolerance = (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
     cuComplex sourcedata = source[index];
     Real srcmod2 = sourcedata.x*sourcedata.x + sourcedata.y*sourcedata.y;
     if(mod2>=maximum) {
