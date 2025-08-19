@@ -7,6 +7,7 @@
 #include "cuPlotter.hpp" //plt
 #include "cub_wrap.hpp"
 #include "fmt/core.h"
+#include "fmt/os.h"
 #include "misc.hpp"
 #include "frog.hpp"
 #include "imgio.hpp"
@@ -15,25 +16,25 @@
 using namespace std;
 
 void saveWave(const char* fname, Real *x, complexFormat* ccE, int n){
-  std::ofstream file1(std::string(fname)+".txt", std::ios::out);
+  fmt::ostream file1 = fmt::output_file(fmt::format("{}.txt", fname));
   for(int i = 0; i < n; i++){
-    file1<< x[i] << " " << creal(ccE[i]) << " " << cimag(ccE[i]) << " " << sq(cabs(ccE[i])) << " " << carg(ccE[i])<<std::endl;
+    file1.print("{} {} {} {} {}\n", x[i], creal(ccE[i]), cimag(ccE[i]), sq(cabs(ccE[i])), carg(ccE[i]));
   }
   file1.close();
 }
 
 void saveWaveSimple(const char* fname, complexFormat* ccE, int n){
-  std::ofstream file1(std::string(fname)+".txt", std::ios::out);
+  fmt::ostream file1 = fmt::output_file(fmt::format("{}.txt", fname));
   for(int i = 0; i < n; i++){
-    file1<< creal(ccE[i]) << " " << cimag(ccE[i]) << std::endl;
+    file1.print("{} {}\n", creal(ccE[i]), cimag(ccE[i]));
   }
   file1.close();
 }
 
 void saveWave(const char* fname, complexFormat* ccE, int n){
-  std::ofstream file1(std::string(fname)+".txt", std::ios::out);
+  fmt::ostream file1 = fmt::output_file(fmt::format("{}.txt", fname));
   for(int i = 0; i < n; i++){
-    file1<<i << " " << creal(ccE[i]) << " " << cimag(ccE[i]) << " " << sq(cabs(ccE[i])) << " " << carg(ccE[i])<<std::endl;
+    file1.print("{} {} {} {} {}\n", i, creal(ccE[i]), cimag(ccE[i]), sq(cabs(ccE[i])), carg(ccE[i]));
   }
   file1.close();
 }
@@ -63,9 +64,9 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
   complexFormat* traceprime = Eprime+nspect;
   complexFormat* recTrace;
   Real* recTraceIntensity;
-  ofstream errfile;
+  fmt::ostream *errfile;
   if(d_delays){
-    errfile.open("residual.txt", std::ios::out);
+    errfile = new fmt::ostream(fmt::output_file("residual.txt"));
     myCuMalloc(complexFormat, recTrace, nspect*ndelay);
     myCuMalloc(Real, recTraceIntensity, nspect*ndelay);
   }
@@ -140,7 +141,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       }
       getMod2(recTraceIntensity, recTraceIntensity);
       Real err = sqrt(findSum(recTraceIntensity)/(nspect*ndelay));
-      errfile << i << " " << err <<endl;
+      errfile->print("{} {}\n", i, err);
       if(err < minresidual){
         minresidual = err;
         myMemcpyD2D(bestE, E, nspect*sizeof(complexFormat));
@@ -149,7 +150,8 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
     }
   }
   if(d_delays){
-    errfile.close();
+    errfile->close();
+    delete errfile;
   }
 }
 

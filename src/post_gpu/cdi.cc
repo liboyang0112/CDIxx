@@ -281,6 +281,7 @@ void* CDI::phaseRetrieve(){
   complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
 
   complexFormat *cuda_gkprime;
+  myCuDMalloc(Real, cuda_diff, sz);
   cuda_gkprime = (complexFormat*)memMngr.borrowCache(sz);
 
   AlgoParser algo(algorithm);
@@ -307,6 +308,12 @@ void* CDI::phaseRetrieve(){
         gaussianSigma*=0.99;
       }
       continue;
+    }else if(ialgo == TV){
+      getMod2(cuda_diff, cuda_gkp1);
+      FISTA(cuda_diff, cuda_diff, 0.1, 1, 0);
+      applyModAbs((complexFormat*)cuda_gkp1,cuda_diff);
+      myFFT( cuda_gkp1, (complexFormat*)patternWave);
+      continue;
     }
     if(simCCDbit) applyMod((complexFormat*)patternWave,patternData, useBS? beamstop:0, !reconAC || iter > 1000,iter, noiseLevel);
     else applyModAbs((complexFormat*)patternWave,patternData);
@@ -327,18 +334,16 @@ void* CDI::phaseRetrieve(){
         plt.plotComplex(cuda_gkp1, PHASE, 0, row*column, ("recon_phase"+iterstr).c_str(), 0, isFlip);
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
       }
-#if 0
-      if(iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
+      if(0 && iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
         takeMod2Diff((complexFormat*)patternWave,patternData, cuda_diff, useBS? beamstop:0);
         cudaConvertFO(cuda_diff);
         FISTA(cuda_diff, cuda_diff, 0.01, 80, 0);
         //plt.plotFloat(cuda_diff, MOD, 0, exposure, ("smootheddiff"+iterstr).c_str(), 1);
         cudaConvertFO(cuda_diff);
-        plt.plotFloat(cuda_diff, MOD, 1, exposure, ("diff"+iterstr).c_str(), 1);
+        //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("diff"+iterstr).c_str(), 1);
         takeMod2Sum((complexFormat*)patternWave, cuda_diff);
         //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("smoothed"+iterstr).c_str(), 1);
       }
-#endif
     }
   }
   applyNorm(cuda_gkp1, sqrt(row*column));

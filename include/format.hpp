@@ -18,7 +18,7 @@ typedef struct col_rgb{
 } col_rgb;
 
 const int rcolor=65535;
-enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, cnt};
+enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, TV, cnt};
 
 #define Real float
 #define REALIDX FLOAT

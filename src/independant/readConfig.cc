@@ -1,6 +1,5 @@
 #include <vector>
 #include <string>
-#include <iostream>
 #include <string.h>
 #include "fmt/core.h"
 #include "format.hpp"
@@ -127,6 +126,7 @@ AlgoParser::AlgoParser(const char* f){
     else if(str=="FHIO") algoList.push_back(FHIO);
     else if(str=="KKT") algoList.push_back(KKT);
     else if(str=="shrinkWrap") algoList.push_back(shrinkWrap);
+    else if(str=="TV") algoList.push_back(TV);
     else if(str=="XCORRELATION") algoList.push_back(XCORRELATION);
     else if(str=="subParser") algoList.push_back(nAlgo+iParser++);
     else{

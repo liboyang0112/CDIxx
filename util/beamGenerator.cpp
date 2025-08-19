@@ -1,3 +1,4 @@
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "memManager.hpp"
 #include "time.h"
@@ -73,12 +74,47 @@ void setbars(uint16_t* arr, int cols) {
   }
 };
 
+void fillRandomBinaryRegion(uint16_t* image, int width, int height,
+                            int start_x, int start_y, int rect_width, int rect_height,
+                            int granularity) {
+    // Seed the random number generator
+    srand(time(NULL));
+
+    // Ensure granularity is at least 1
+    if (granularity < 1) {
+        fmt::println(stderr, "Granularity must be >= 1");
+        return;
+    }
+
+    // Clamp rectangle to image bounds
+    int end_x = start_x + rect_width;
+    int end_y = start_y + rect_height;
+    if (end_x > width)  end_x = width;
+    if (end_y > height) end_y = height;
+
+    // Iterate over block-aligned grid
+    for (int by = start_y; by < end_y; by += granularity) {
+        for (int bx = start_x; bx < end_x; bx += granularity) {
+            // Assign a random value (0 or 1) to the entire block
+            uint16_t value = (rand() % 2);
+
+            // Fill the block (respecting image boundaries)
+            for (int y = by; y < by + granularity && y < end_y; y++) {
+                for (int x = bx; x < bx + granularity && x < end_x; x++) {
+                    image[y * width + x] = value;
+                }
+            }
+        }
+    }
+}
+
 //int main(int argc, char **argv) {
 int main() {
-  int rows = 128, cols = 128;
+  int rows = 1920, cols = 1080;
   myDMalloc(uint16_t, image, rows * cols);
   memset(image, 0, sizeof(uint16_t)*rows*cols);
-  setbars(image, cols);
+  fillRandomBinaryRegion(image, cols, rows, (1080-512)>>1, (1920-512)>>1, 512, 100, 1);
+  fillRandomBinaryRegion(image, cols, rows, (1080-512)>>1, ((1920+512)>>1)-100, 512, 100, 1);
   //setHoleArray(image, rows, cols, 0);
   writePng("mask.png", image, rows, cols, 16, 0);
 }
