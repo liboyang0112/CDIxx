@@ -97,6 +97,9 @@ button[disabled] {
     <button id="setpath">Confirm Folder</button>
     <a href="images">Show repository</a>
     <p><a href="" id="showpath"></a></p>
+    Select GPU:<div class="autocomplete"><input type="text" autocomplete="off" placeholder="0" id="iGPU"><!-- onchange="loadlog(event)"--></div>
+    <button id="selGPU_btn">Confirm!</button>
+    <br>
     <p>Experiment note:</p>
     <p><textarea id="note" contenteditable="true" rows="20" cols="80">
       After selecting working folder, you can edit file here</textarea></p>
@@ -458,6 +461,19 @@ button[disabled] {
       document.getElementById('recon_wave').src = path+"recon_wave.png?t=" + timestamp;
       document.getElementById('recon_wave').title = "CDI reconstruction";
       button.removeAttribute("disabled");
+    });
+    return;
+  });
+  document.getElementById("selGPU_btn").addEventListener('click',async ()=>{
+    var cmd = "echo export CUDA_VISIBLE_DEVICES="+ document.getElementById('iGPU').value + " > selectGPU.sh";
+    console.log(cmd)
+    fetch(url_cmd, {
+      method: 'POST',
+      body: cmd
+    }).then(response => {
+      return response.text();
+    }).then(data => {
+      console.log(data)
     });
     return;
   });
