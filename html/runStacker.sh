@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env bash
 source myenv.sh
 source selectGPU.sh
 cd $1

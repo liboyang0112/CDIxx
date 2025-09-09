@@ -3,7 +3,6 @@
 #include "format.hpp"
 #include<stddef.h>
 #include<stdint.h>
-#include <zlib.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
@@ -67,6 +66,7 @@ void extendToComplex(Real* a, complexFormat* b);
 void applyNorm(complexFormat* data, Real factor);
 void ceiling(complexFormat* data, Real ceilval);
 void applyNorm(Real* data, Real factor);
+void invert(Real* data);
 void rotateToReal(complexFormat* data);
 void interpolate(Real* out, Real* data0, Real* data1, Real dx);
 void interpolate(complexFormat* out, complexFormat* data0, complexFormat* data1, Real dx);

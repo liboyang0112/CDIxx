@@ -11,12 +11,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
-set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
+set(CUDA_TOOLKIT_ROOT_DIR "/opt/cuda") # Update this path if necessary
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 add_compile_options(-Wall -Wextra)
 
 find_package(PkgConfig) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
+include(FetchContent)
+
 find_package(fmt REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
 if(PkgConfig_FOUND)
@@ -32,6 +34,7 @@ if(tracy_FOUND)
 endif()
 #freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
 find_package(Freetype REQUIRED)
+find_package(Fontconfig REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
@@ -89,7 +92,7 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --cuda-gpu-arch=sm_80")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
-set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "--cuda-path=/opt/cuda;-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} ${CUFFTLIB})
@@ -110,7 +113,7 @@ target_link_libraries(spectImaging_cc broadBand_cc cuPlotter_cc misc_cc FISTA_cc
 target_link_libraries(spectPhase_cc broadBand_cc cuPlotter_cc misc_cc)
 target_link_libraries(monoChromo_cc broadBand_cc orthFitter_cc FISTA_cc cuPlotter_cc)
 target_link_libraries(FGA_cc monoChromo_cc cuPlotter_cc)
-target_link_libraries(freetype_c freetype)
+target_link_libraries(freetype_c freetype fontconfig)
 target_link_libraries(cdilmdb_c lmdb z)
 target_link_libraries(videoWriter_cc avformat avutil avcodec pthread)
 target_link_libraries(readConfig_cc config)

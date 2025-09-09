@@ -35,9 +35,10 @@ def writeFloat(path, array):
     else:
         print("data type not known:", array.dtype);
 
-def writePNG(path, array, cache = None, iscolor = 0, islog = 0):
+def writePNG(path, array_in, cache = None, iscolor = 0, islog = 0):
     fn = path.encode("utf8");
     cdef char* fname = fn;
+    array = array_in
     if islog:
         cvtLog(<float*>np.PyArray_BYTES(array), array.size);
     if array.dtype == np.single or array.dtype == np.double:

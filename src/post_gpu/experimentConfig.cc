@@ -1,5 +1,6 @@
 #include "experimentConfig.hpp"
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include <math.h>
 
 void opticalPropagate(void* field, Real lambda, Real d, Real imagesize, int n){
@@ -21,6 +22,7 @@ void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambd
 }
 
 void experimentConfig::createBeamStop(){
+  fmt::println("Creating default circular beamstop!");
   C_circle cir;
   cir.x0=row/2;
   cir.y0=column/2;

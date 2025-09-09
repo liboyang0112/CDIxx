@@ -32,7 +32,7 @@ F(isFlip,0)F(runSim,0)F(simCCDbit,0)F(isFresnel,0)F(doIteration,0)F(useGaussionL
 F(exposure,0)F(exposurepupil,0)F(oversampling,0)F(oversampling_spt,0)F(lambda,0)F(d,0)F(dpupil,0)F(pixelsize,0)F(beamspotsize,0)F(shrinkThreshold,0) F(positionUncertainty,0)F(costheta,1)F(photoncount,1e9)
 
 #define STRVAR(F) \
-F(mnistData,"data")F(algorithm,"1000*HIO")F(ccd_response,"/home/boyang/SharedNTFS/images/ccd_response.txt")F(spectrum,"/home/boyang/SharedNTFS/images/spectrum/spectrum_after_sample.txt")
+F(mnistData,"data")F(algorithm,"1000*HIO")F(ccd_response,"/home/boyang/SharedNTFS/images/ccd_response.txt")F(spectrum,"/home/boyang/SharedNTFS/images/spectrum/spectrum_after_sample.txt")F(BSimage, "")
 class readConfig
 {
 public:

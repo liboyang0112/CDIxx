@@ -6,8 +6,32 @@
 #include "format.hpp"
 #include <stdint.h>
 #include <math.h>
+#include <fontconfig/fontconfig.h>
+
+char* find_font_with_fc(const char* family) {
+    FcInit();
+    FcPattern* pattern = FcPatternCreate();
+    FcPatternAddString(pattern, FC_FAMILY, (FcChar8*)family);
+    FcConfigSubstitute(NULL, pattern, FcMatchPattern);
+    FcDefaultSubstitute(pattern);
+
+    FcResult result;
+    FcPattern* match = FcFontMatch(NULL, pattern, &result);
+    FcPatternDestroy(pattern);
+
+    if (!match) return NULL;
+
+    FcChar8* file;
+    if (FcPatternGetString(match, FC_FILE, 0, &file) == FcResultMatch) {
+        char* path = strdup((char*)file);
+        FcPatternDestroy(match);
+        return path;  // caller must free()
+    }
+
+    FcPatternDestroy(match);
+    return NULL;
+}
 //const char* fontfile= "/usr/share/fonts/msttcore/timesbi.ttf";
-const char* fontfile= "/usr/share/fonts/gsfonts/NimbusRoman-BoldItalic.otf";
 //const char* fontfile= "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold_Italic.ttf";
 static FT_Library    library;
 static FT_Face       face = 0;
@@ -19,6 +43,11 @@ int putText(const char* text, int initx, int inity, unsigned int rows, unsigned 
   double angle = ( 00.0 / 360 ) * 3.14159 * 2;      /* use 25 degrees     */
 
   FT_Init_FreeType( &library );              /* initialize library */
+  char* fontfile = find_font_with_fc("Times_New_Roman");
+  if(!fontfile) {
+    fprintf(stderr, "Font not found!");
+    abort();
+  }
   FT_New_Face( library, fontfile, 0, &face );/* create face object */
   FT_Set_Char_Size(face, 0, 10*64, 0,200 );                /* set character size */
   if(!face){

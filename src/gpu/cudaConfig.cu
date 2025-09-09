@@ -376,6 +376,12 @@ cuFunc(applyNorm,(Real* data, Real factor),(data,factor),{
     data[index]*=factor;
     })
 
+cuFunc(invert,(Real* data),(data),{
+    cuda1Idx()
+    data[index]=1-data[index];
+    })
+
+
 cuFuncc(rotateToReal,(complexFormat* data),(cuComplex* data),((cuComplex*)data),{
     cuda1Idx();
     data[index].x = cuCabsf(data[index]);
