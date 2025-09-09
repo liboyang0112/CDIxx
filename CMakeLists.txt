@@ -8,7 +8,7 @@ set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after libr
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
-set(compileVTK TRUE)
+set(compileVTK FALSE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
 set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
