@@ -7,9 +7,11 @@
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
 #define myCufftExecR2C cufftExecR2C
+#define myCufftExecC2R cufftExecC2R
 #define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
 #define myCuDMallocClean(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCleanCache(size*sizeof(fmt));
 #define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
+#define myCuMallocClean(fmt, var, size) var = (fmt*)memMngr.borrowCleanCache(size*sizeof(fmt));
 #define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
 #include "memManager.hpp"
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -48,6 +50,7 @@ void myIFFT(void* in, void* out);
 void myFFTM(int handle, void* in, void* out);
 void myIFFTM(int handle, void* in, void* out);
 void myFFTR2C(void* in, void* out);
+void myFFTC2R(void* in, void* out);
 void createPlan(int* handle, int row, int col);
 void createPlan1d(int* handle, int n);
 void destroyPlan(int handle);
@@ -78,6 +81,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void applyGaussMult(complexFormat* input, complexFormat* output, Real sigma, bool isFreq);
+void applyGaussMult(Real* input, Real* output, Real sigma, bool isFreq);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void getMod(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
@@ -101,6 +105,7 @@ void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, i
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);
 void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
+void linearConst(complexFormat* store, complexFormat* data, complexFormat factor, complexFormat b);
 void applyRandomPhase(complexFormat* wave, Real* beamstop, void *state);
 template <typename T1, typename T2>
 void multiply(T1* store, T1* source, T2* target);
@@ -139,6 +144,16 @@ void multiplyx(complexFormat* object, Real* out);
 void multiplyy(complexFormat* object, Real* out);
 void multiplyx(Real* object, Real* out);
 void multiplyy(Real* object, Real* out);
+void multiplyZernikeConj(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
+void multiplyLaguerreConj(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m);
+void addZernike(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
+void addLaguerre(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
+void multiplyHermit(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
+void getArg(Real* angle, complexFormat* amp);
+
+
+void phaseUnwrapping(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height);
+void solve_poisson_frequency_domain(complexFormat* d_fft_data, int width, int height);
 
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);

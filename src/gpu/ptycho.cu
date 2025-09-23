@@ -7,8 +7,7 @@
 #define GAMMA 0.5
 
 __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
-  Real r2 = pow(x,2) + pow(y,2);
-  return exp(-r2/2/pow(sigma,2));
+  return exp(-(x*x+y*y)/2/(sigma*sigma));
 }
 
 cuFunc(applySupport,(Real* image, Real* support),(image,support),{
@@ -93,8 +92,8 @@ cuFuncc(multiplyx,(complexFormat* object),(cuComplex* object),((cuComplex*)objec
 cuFuncc(multiplyy,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{
   cuda1Idx();
   int y = index%cuda_column;
-  object[index].x *= Real(y)/cuda_row-0.5;
-  object[index].y *= Real(y)/cuda_row-0.5;
+  object[index].x *= Real(y)/cuda_column-0.5;
+  object[index].y *= Real(y)/cuda_column-0.5;
 })
 
 cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),((cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{
@@ -112,3 +111,90 @@ cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Re
   ret*=1-sqrt(fact/(fnmod2+DELTA));
   object[index].x = ret;
 })
+
+cuFuncc(solve_poisson_frequency_domain,
+       (complexFormat* d_fft_data, int width, int height),
+       (cuComplex* d_fft_data, int width, int height),
+       ((cuComplex*)d_fft_data, width, height),
+{
+    int kx = blockIdx.x * blockDim.x + threadIdx.x;  // kx: 0 to width/2
+    int ky = blockIdx.y * blockDim.y + threadIdx.y;  // ky: 0 to height-1
+
+    int kx_max = width / 2 + 1;  // number of stored kx per row
+    if (kx >= kx_max || ky >= height) return;
+
+    // Map kx back to physical frequency: [0..w/2] corresponds to positive frequencies
+    // Negative kx are implicit via conjugate symmetry
+    int kx_phys = kx;
+    int ky_phys = (ky <= height/2) ? ky : ky - height;
+
+    // Avoid DC component
+    if (kx_phys == 0 && ky_phys == 0) {
+        d_fft_data[ky * kx_max + kx] = make_cuFloatComplex(0.0f, 0.0f);
+        return;
+    }
+
+    // Compute discrete Laplacian denominator: 4*sin²(π kx/N) + 4*sin²(π ky/M)
+    Real fx = sinf(M_PI * (Real)kx_phys / (Real)width);
+    Real fy = sinf(M_PI * (Real)abs(ky_phys) / (Real)height);  // symmetric
+    Real denom = 4.0f * (fx*fx + fy*fy);
+
+    int idx = ky * kx_max + kx;
+    cuComplex& val = d_fft_data[idx];
+    Real scale = 1.0f / denom;
+
+    val.x *= scale;
+    val.y *= scale;
+})
+cuFunc(phaseUnwrapping, 
+       (Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height), 
+       (d_wrapped_phase, d_unwrapped_phase, width, height),
+{
+    // Temporary buffers (assumed pre-allocated or managed externally)
+    extern __shared__ char shared_mem[];
+    Real* d_gx = (Real*)shared_mem;                        // gradient x
+    Real* d_gy = (Real*)(d_gx + width * height);           // gradient y
+    Real* d_b  = (Real*)(d_gy + width * height);           // divergence (RHS of Poisson)
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int x = idx % width;
+    int y = idx / width;
+
+    if (idx >= width * height) return;
+
+    // === Step 1: Compute wrapped gradients with jump correction ===
+    Real right = (x + 1 < width) ? d_wrapped_phase[idx + 1] : d_wrapped_phase[idx];
+    Real down  = (y + 1 < height) ? d_wrapped_phase[idx + width] : d_wrapped_phase[idx];
+
+    // Forward differences
+    Real dx = right - d_wrapped_phase[idx];
+    Real dy = down  - d_wrapped_phase[idx];
+
+    // Remove 2π discontinuities
+    dx += round((M_PI - dx) / (2.0 * M_PI)) * 2.0 * M_PI;
+    dy += round((M_PI - dy) / (2.0 * M_PI)) * 2.0 * M_PI;
+
+    d_gx[idx] = dx;
+    d_gy[idx] = dy;
+
+    __syncthreads();
+    // === Step 2: Compute divergence b = ∂²φ/∂x² + ∂²φ/∂y² ≈ div(grad φ) ===
+    Real lapx = 0, lapy = 0;
+    if (x > 0 && x < width - 1) {
+        Real left_val = d_gx[idx - 1];
+        Real right_val = d_gx[idx + 1];
+        lapx = 0.5f * (right_val - left_val);  // central diff of gx
+    } else {
+        lapx = (x == 0) ? (d_gx[idx+1] - d_gx[idx]) : (d_gx[idx] - d_gx[idx-1]);
+    }
+    if (y > 0 && y < height - 1) {
+        Real up_val   = d_gy[idx - width];
+        Real down_val = d_gy[idx + width];
+        lapy = 0.5f * (down_val - up_val);
+    } else {
+        lapy = (y == 0) ? (d_gy[idx+width] - d_gy[idx]) : (d_gy[idx] - d_gy[idx-width]);
+    }
+    d_b[idx] = lapx + lapy;  // this is the "residue density" or source term
+})
+
+

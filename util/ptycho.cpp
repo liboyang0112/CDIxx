@@ -201,7 +201,7 @@ class ptycho : public experimentConfig{
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
-            int shiftypix = shiftx[idx]-round(shifty[idx]);
+            int shiftypix = shifty[idx]-round(shifty[idx]);
             int shiftxn = i*stepSize+round(shiftx[idx]);
             int shiftyn = j*stepSize+round(shifty[idx]);
             getWindow((complexFormat*)objectWave, shiftxn, shiftyn, row_O, column_O, objCache);
@@ -211,7 +211,7 @@ class ptycho : public experimentConfig{
             }
             multiply(esw, (complexFormat*)pupilpatternWave, objCache);
             propagate(esw,Fn,1);
-            if(iter % 20 == 0 && iter >= 20) {
+            if(iter % 10 == 0 && iter >= 20) {
               updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
             }
             applyMod(Fn, patterns[idx],beamstop,1);
@@ -252,10 +252,15 @@ class ptycho : public experimentConfig{
       resize_cuda_image(rowc, colc);
       plt.init(rowc, colc);
       complexFormat* cropped = (complexFormat*)memMngr.borrowCache(rowc*colc*sizeof(complexFormat));
+      myCuDMalloc(Real, angle, rowc*colc);
       crop((complexFormat*)objectWave, cropped, row_O, column_O);
+      getArg(angle, cropped);
+      applyNorm(angle, 1./(2*M_PI));
       plt.plotComplex(cropped, MOD2, 0, 0.7, "ptycho_afterIter");
       //plt.plotPhase(cropped, PHASERAD, 0, 1, "ptycho_afterIterphase");
-      plt.plotComplex(cropped, PHASE, 0, 1, "ptycho_afterIterphase");
+      //phaseUnwrapping(angle, angle, rowc, colc);
+      plt.plotFloat(angle, REAL, 0, 1, "ptycho_afterIterphase");
+      plt.plotComplexColor(cropped, 0, 1, "ptycho_afterIterwave");
     }
     void readPattern(){
       Real* pattern = readImage((string(common.Pattern)+"0_0.png").c_str(), row, column);

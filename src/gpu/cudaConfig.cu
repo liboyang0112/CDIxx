@@ -133,6 +133,99 @@ __device__ __inline__ T1 add(T1 val1, T2 val2){
   return val1+val2;
 }
 
+__device__ Real Hermit(Real x,int n) {
+    if (n < 0) return 0;
+    Real e = expf(-0.5f * x*x), p0 = 0.751127f * e;
+    if (n == 0) return p0;
+    Real p1 = 1.224744f * x * p0;
+    if (n == 1) return p1;
+    Real p = p1;
+    for (int k = 2; k <= n; ++k) {
+        p = sqrtf(2.f/k) * x * p1 - sqrtf((k-1.f)/k) * p0;
+        p0 = p1; p1 = p;
+    }
+    return p;
+}
+
+__device__ cuComplex multiplyAM(Real r, int m, Real theta) {
+  Real c, s;
+  sincosf(m * theta, &s, &c);
+  return make_cuComplex(r * c, r * s);
+}
+__device__ Real laguerre_gaussian_R(Real z, int p, int m) {
+  int alpha = m>0? m:-m;
+  Real L0 = sqrt(2./M_PI)*expf(-0.5f * z)*powf(z, Real(alpha)/2);
+  for(int i = p+1; i <= p+alpha; i++) { L0 /= sqrtf(i); }
+  if (p == 0) return L0;
+  Real L1 = (1.0f + alpha - z)*L0;
+  Real L = L1;
+  for (int k = 2; k <= p; ++k) {
+    L = __fmaf_rn(2.0f*k + alpha - 1.0f - z, L1, -(k - 1 + alpha) * L0) / k;
+    L0 = L1;
+    L1 = L;
+  }
+  return  L;
+}
+__device__ cuComplex laguerre_gaussian(Real x, Real y, int p, int m) {
+    return multiplyAM(laguerre_gaussian_R(2*(x*x + y*y), p, m), m, atan2(y, x));
+}
+__device__ Real zernike_R(Real z, int n, int m) {
+    if (z > 1.0f || n < 0) return 0;
+    const int m_abs = (m < 0) ? -m : m;
+    if (m_abs > n || (n - m_abs) % 2 != 0)
+        return 0;
+    Real K = (n - m_abs) / 2;
+    Real C = 1;
+    Real b = min(K, n - K);
+    for (int i = 0; i < b; ++i) {
+      C = C * (n - i) / (i + 1);
+    }
+    Real radial = C;
+    Real a_half = (n + m_abs) >> 1;
+    for (int k = 0; k < K; ++k) {
+      C = -(C * (a_half - k) * (K - k)) / ((n - k) * (k + 1));
+      radial = __fmaf_rn(z, radial, C);
+    }
+    z = sqrt(z);
+    for (int i = 0; i < m_abs; ++i) {
+      radial *= z;
+    }
+    return radial;
+}
+__device__ cuComplex zernike_complex(Real x, Real y, int n, int m) {
+    return multiplyAM(zernike_R(x*x+y*y, n, m) * sqrtf(n + 1), m, atan2(y, x));
+}
+cuFuncc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+    cudaIdx()
+    Real xp = Real(x - (cuda_row>>1))/pupilsize;
+    Real yp = Real(y - (cuda_column>>1))/pupilsize;
+    Real factor = Hermit(xp, n) * Hermit(yp, m);
+    store[index].x = factor*data[index].x;
+    store[index].y = factor*data[index].y;
+    })
+
+cuFuncc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+    cudaIdx()
+    store[index] = cuCmulf(data[index], cuConjf(zernike_complex(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
+    })
+
+cuFuncc(multiplyLaguerreConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+    cudaIdx()
+    store[index] = cuCmulf(data[index], cuConjf(laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
+    })
+
+cuFuncc(addZernike,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
+    cudaIdx()
+    Real xp = Real(x - (cuda_row>>1))/pupilsize;
+    Real yp = Real(y - (cuda_column>>1))/pupilsize;
+    store[index] = cuCaddf(store[index],cuCmulf(coefficient, zernike_complex(xp, yp, n, m)));
+    })
+
+cuFuncc(addLaguerre,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
+    cudaIdx()
+    store[index] = cuCaddf(store[index], cuCmulf(coefficient, laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
+    })
+
 void init_fft(int rows, int cols, int batch){
   fmt::println("init fft: {} {}, old dim={}, {}", rows, cols, rows_fft, cols_fft);
   if(rows!=rows_fft||cols!=cols_fft||batch_fft!=batch){
@@ -179,6 +272,10 @@ void myIFFT(void* in, void* out){
 }
 void myFFTR2C(void* in, void* out){
   myCufftExecR2C(*planR2C, (Real*)in, (cuComplex*)out);
+}
+
+void myFFTC2R(void* in, void* out){
+  myCufftExecC2R(*planR2C, (cuComplex*)in, (Real*)out);
 }
 
 cuFuncTemplate(getWindow,(T* object, int shiftx, int shifty, int objrow, int objcol, T *window, bool replace, Real norm),(object,shiftx,shifty,objrow,objcol, window, replace, norm),{
@@ -313,6 +410,7 @@ void assignVal(T1* out, T2* input){
 }
 template void assignVal<Real,Real>(Real*, Real*);
 template void assignVal<Real,double>(Real*, double*);
+template void assignVal<Real,int>(Real*, int*);
 template<> void assignVal<complexFormat, complexFormat>(complexFormat* out, complexFormat* input){
   assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)out,(cuComplex*)input);
 }
@@ -364,6 +462,22 @@ cuFuncc(applyGaussMult,(complexFormat* input, complexFormat *output, Real sigma,
     Real factor = exp(-(xrel*xrel+yrel*yrel)/(2*sigma*sigma));
     output[index].x=factor*input[index].x;
     output[index].y=factor*input[index].y;
+    })
+
+cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq),(input,output,sigma,isFreq),{
+    cudaIdx()
+    Real xrel, yrel;
+    if(isFreq){
+    if(x>=cuda_row/2) xrel=x-cuda_row;
+    else xrel=x;
+    if(y>=cuda_column/2) yrel=y-cuda_column;
+    else yrel=y;
+    }else{
+    xrel = x - cuda_row/2;
+    yrel = y - cuda_column/2;
+    }
+    Real factor = exp(-(xrel*xrel+yrel*yrel)/(2*sigma*sigma));
+    output[index]=factor*input[index];
     })
 
 cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
@@ -724,6 +838,10 @@ cuFuncc(getMod2,(Real* mod2, complexFormat* amp),(Real* mod2, cuComplex* amp),(m
     cuComplex tmp = amp[index];
     mod2[index] = tmp.x*tmp.x + tmp.y*tmp.y;
     })
+cuFuncc(getArg,(Real* mod2, complexFormat* amp),(Real* mod2, cuComplex* amp),(mod2,(cuComplex*)amp),{
+    cuda1Idx()
+    mod2[index] = atan2f(amp[index].x, amp[index].y);
+    })
 cuFuncc(getMod2,(complexFormat* mod2, complexFormat* amp),(cuComplex* mod2, cuComplex* amp),((cuComplex*)mod2,(cuComplex*)amp),{
     cuda1Idx()
     cuComplex tmp = amp[index];
@@ -761,6 +879,14 @@ cuFunc(applyThreshold,(Real* store, Real* input, Real threshold),(store,input,th
 cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data, fact, shift),{
     cuda1Idx();
     store[index] = fact*data[index]+shift;
+    })
+
+cuFuncc(linearConst,(complexFormat* store, complexFormat* data, complexFormat fact, complexFormat shift),(cuComplex* store, cuComplex* data, cuComplex fact, cuComplex shift),((cuComplex*)store, (cuComplex*)data, *(cuComplex*)&fact, *(cuComplex*)&shift),{
+    cuda1Idx();
+    cuComplex out = cuCmulf(fact,data[index]);
+    out.x += shift.x;
+    out.y += shift.y;
+    store[index] = out;
     })
 
 cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComplex* source, Real* target, void* state),((cuComplex*)source, target, state),{

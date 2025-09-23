@@ -97,6 +97,7 @@ int main(int argc, char** argv )
   myFFT(xc, xc);
   plt.plotFloat(d_sig, MOD, 0, 1, "logimagemerged", 1, 0, 1);
   plt.plotComplex(xc, MOD2, 1, 1./finsize, "autocorrelation", 1, 0, 1);
+  fmt::println("Summation: {}.", size_t(findSum(d_sig)*65535));
   plt.saveFloat(d_sig, argv[4]);
   return 0;
 }

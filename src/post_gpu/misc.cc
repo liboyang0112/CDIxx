@@ -109,3 +109,27 @@ uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow
   }
   return maskMap;
 }
+
+void unwrapPhaseFFT(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height) {
+    const int N = width * height;
+    const size_t bytes_real = N * sizeof(Real);
+    const size_t bytes_cplx = ((width/2 + 1) * height) * sizeof(complexFormat);
+
+    // --- Step 1: Allocate workspace ---
+    Real* d_b = (Real*)memMngr.borrowCache(bytes_real);           // divergence (∇·v)
+    myCuDMalloc(complexFormat, d_fft, bytes_cplx);
+
+    // --- Step 2: Compute divergence b = ∂gx/∂x + ∂gy/∂y ---
+    phaseUnwrapping(d_wrapped_phase, d_b, width, height);
+
+    // --- Step 3: Forward FFT: b(x,y) → B(kx,ky) ---
+    init_fft(width, height);
+    myFFTR2C(d_b, d_fft);
+    // --- Step 4: Solve in frequency domain: Ψ(k) = B(k) / |k|² ---
+    solve_poisson_frequency_domain(d_fft, width, height);
+    // --- Step 5: Inverse FFT: Ψ(k) → ψ(x,y) ---
+    myFFTC2R(d_fft, d_unwrapped_phase);
+    applyNorm(d_unwrapped_phase, 1./(width * height));  // normalize IFFT
+    myCuFree(d_b);
+    myCuFree(d_fft);
+}

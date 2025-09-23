@@ -311,7 +311,7 @@ void* CDI::phaseRetrieve(){
       getMod2(support,cuda_gkprime);
       Real maxs = findMax(support,row*column);
       if(avg == 0) avg = findSum(support,row*column)*4/row/column;
-      if(avg*10 < maxs) maxs = avg*10;
+      if(avg*5 < maxs) maxs = avg*5;
       setThreshold(maxs*shrinkThreshold);
       if(fabs(maxs) < 1e-7 || maxs!=maxs) {
         fmt::println("max is {:f}", maxs);

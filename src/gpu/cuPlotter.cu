@@ -141,6 +141,7 @@ cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real dec
   char* col = (char*)(&(cache[targetx*cuda_column+targety]));
   if(mod > 1) mod = 1;
   Real phase = atan2(data.y,data.x)/2/M_PI+0.5; //0-1
+  if(phase < 0) phase += 1;
   if(phase == 1) phase = 0;
   Real value = phase;
   value = 3*value + 0.5;
