@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <template class="CairoPainter" parent="GtkBox">
+  <template class="ImagePainter" parent="GtkBox">
     <property name="orientation">vertical</property>
     <child>
       <object class="GtkImage" id="img">

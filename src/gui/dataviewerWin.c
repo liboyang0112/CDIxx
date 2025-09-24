@@ -1,7 +1,7 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include "gui/dataviewerWin.hpp"
-#include "gui/cairoPainter.hpp"
+#include "gui/imagePainter.hpp"
 
 struct _DataviewerWindow{
   GtkApplicationWindow parent;
@@ -25,8 +25,8 @@ DataviewerWindow* dataviewer_window_new(DataviewerApp* app){
 }
 void dataviewer_window_open(DataviewerWindow* win, GFile* file){
   char* path = g_file_get_path(file);
-  CairoPainter* cairopainter = cairo_painter_new(path);
-  gtk_box_append(GTK_BOX(win->imgbox), GTK_WIDGET(cairopainter));
+  ImagePainter* imagepainter = image_painter_new(path);
+  gtk_box_append(GTK_BOX(win->imgbox), GTK_WIDGET(imagepainter));
 }
 void gtk_dataviewer_window_save(DataviewerWindow* win){
   GtkSnapshot* ss = gtk_snapshot_new();

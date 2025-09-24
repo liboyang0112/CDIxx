@@ -2,7 +2,7 @@
 #include <curand_kernel.h>
 
 #define ALPHA 0.5
-#define BETA 1
+#define BETA 0.5
 #define DELTA 1e-3
 #define GAMMA 0.5
 
@@ -57,14 +57,20 @@ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real 
 cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
   cuda1Idx()
   rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
+  //ePIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
 cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real mod2maxObj),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe,mod2maxObj),{
   cuda1Idx()
   cuComplex objectdat= object[index];
+  cuComplex probedat= probe[index];
   cuComplex diff= U[index];
-  rPIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
-  rPIE(probe[index], objectdat, diff, mod2maxObj, BETA);
+  //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
+  //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
+  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA);
+  rPIE(probedat, objectdat, diff, mod2maxObj, BETA);
+  probe[index] = probedat;
+  object[index] = objectdat;
 })
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{

@@ -26,3 +26,8 @@ enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KK
 #endif
 #define sq(x) ((x)*(x))
 #define sqSum(x,y) ((x)*(x)+(y)*(y))
+#define SWAP(a, b) do { \
+    __typeof__(a) temp = (a); \
+    (a) = (b); \
+    (b) = temp; \
+} while(0)

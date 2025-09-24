@@ -2,6 +2,6 @@
 <gresources>
   <gresource prefix="/org/gtk/dataViewer">
     <file preprocess="xml-stripblanks">window.ui</file>
-    <file preprocess="xml-stripblanks">cairopainter.ui</file>
+    <file preprocess="xml-stripblanks">imagepainter.ui</file>
   </gresource>
 </gresources>

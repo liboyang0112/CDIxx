@@ -89,17 +89,18 @@ int main() {
   //setHoleArray(image, rows, cols, 0);
   writePng("mask.png", image, rows, cols, 16, 0);
   */ 
-  int rows = 128, cols = 128;
+  int rows = 384, cols = 384;
   init_cuda_image();
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
   C_circle spt;
-  spt.r = 64;
-  spt.x0=spt.y0 = 64;
+  //spt.r = 192;
+  spt.r = 48;
+  spt.x0=spt.y0 = rows>>1;
   myCuDMalloc(C_circle, d_spt, 1);
   myMemcpyH2D(d_spt, &spt, sizeof(C_circle));
   createMask(image, d_spt);
-  applyGaussMult(image, image, 64, 0);
+  applyGaussMult(image, image, 30, 0);
   plt.init(rows, cols);
   plt.saveFloat(image, "image");
 }

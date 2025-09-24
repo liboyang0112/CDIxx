@@ -87,12 +87,12 @@ void getMod(Real* mod, complexFormat* amp);
 void getImag(Real* mod, complexFormat* amp);
 void assignReal(Real* mod, complexFormat* amp);
 void assignImag(Real* mod, complexFormat* amp);
-void getMod2(Real* mod2, complexFormat* amp);
-void getMod2(complexFormat* mod2, complexFormat* amp);
+void getMod2(Real* mod2, complexFormat* amp, Real norm = 1);
+void getMod2(complexFormat* mod2, complexFormat* amp, Real norm = 1);
 void addMod2(Real* mod2, complexFormat* amp, Real norm = 1);
 void addReal(Real* mod, complexFormat* amp, Real norm = 1);
 void getReal(Real* mod, complexFormat* amp, Real norm = 1);
-void getMod2(Real* mod2, Real* mod);
+void getMod2(Real* mod2, Real* mod, Real norm = 1);
 void applyPoissonNoise(Real* wave, Real noiseLevel, void *state, Real scale = 0);
 void applyPoissonNoise_WO(Real* wave, Real noiseLevel, void *state, Real scale = 0);
 void ccdRecord(uint16_t* data, Real* wave, int noiseLevel, void *state, Real exposure = 1);
@@ -101,7 +101,7 @@ void ccdRecord(Real* data, Real* wave, int noiseLevel, void *state, Real exposur
 void ccdRecord(Real* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
 void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
 void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
-void applyMod(complexFormat* source, Real* target, Real *bs = 0, bool loose=0, int iter = 0, int noiseLevel = 0);
+void applyMod(complexFormat* source, Real* target, Real *bs = 0, int noiseLevel = 0, Real norm = 1);
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);
 void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
@@ -112,7 +112,7 @@ void multiply(T1* store, T1* source, T2* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
 void multiplyRegular(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha);
-void convertFOPhase(complexFormat* data);
+void convertFOPhase(complexFormat* data, Real norm = 1);
 void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
 void cropinner(Real* src, Real* dest, int row, int col, Real norm);
 void cropinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm = 1);
@@ -170,7 +170,7 @@ void resize(const T* input, T* output, int in_width, int in_height);
 template <typename T1, typename T2>
 void assignVal(T1* out, T2* input);
 template<typename T>
-void cudaConvertFO(T* data, T* out = 0);
+void cudaConvertFO(T* data, T* out = 0, Real norm = 1);
 template<typename T>
 void getWindow(T* object, int shiftx, int shifty, int objrow, int objcol, T *window, bool replace = 0, Real norm = 1);
 template<typename T>

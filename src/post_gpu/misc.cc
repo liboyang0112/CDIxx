@@ -90,6 +90,15 @@ void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
   myIFFT(wave, wave);
 }
 
+void shiftWave(int plan, complexFormat* wave, Real shiftx, Real shifty){
+  myFFTM(plan, wave, wave);
+  cudaConvertFO(wave);
+  multiplyShift(wave, shiftx, shifty);
+  cudaConvertFO(wave);
+  applyNorm(wave, 1./(getCudaRows()*getCudaCols()));
+  myIFFTM(plan, wave, wave);
+}
+
 uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow, int mcol, int shiftx, int shifty){
   //==create reference mask and it's map: d_maskMap, allocate refs==
   pixCount = 0;
