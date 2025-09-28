@@ -10,3 +10,4 @@ __pycache__
 html/CDIxx
 html/myenv.sh
 compile_commands.json
+html/selectGPU.sh
