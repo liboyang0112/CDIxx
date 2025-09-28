@@ -1,7 +1,7 @@
 #include "format.hpp"
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cudaDefs_h.cu"
-__device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
+__forceinline__ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
     H*=6;
     char hi = floor(H);
     Real f = H - hi;
@@ -47,7 +47,7 @@ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
           rgb[0] = rgb[1] = rgb[2] = -1;
     }
 };
-__device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, bool islog){
+__forceinline__ __device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, bool islog){
   Real target = 0;
   switch(m){
     case IMAG: target = data.y*decay; break;
@@ -75,7 +75,7 @@ __device__ Real cugetVal(cudaVars*vars, mode m, cuComplex &data, Real decay, boo
   }
   return target;
 }
-__device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool islog){
+__forceinline__ __device__ Real cugetVal(cudaVars* vars, mode m, Real &data, Real decay, bool islog){
   Real ret = 0;
   if(m==REAL) {
     ret = data*decay; //-1~1

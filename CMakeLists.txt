@@ -71,8 +71,8 @@ include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedor
 #endforeach()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
-#set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)

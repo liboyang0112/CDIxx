@@ -17,7 +17,7 @@ cuFunc(calcbs, (double* bi, double* matrix, double* lambdas, double* prods), (bi
   }
   bi[index] = prods[index]-0.5*grad;
 })
-__device__ int d_getRFPidx(int i, int j, int n){
+__forceinline__ __device__ int d_getRFPidx(int i, int j, int n){
   if(i < j){
     int tmp = i;
     i = j;

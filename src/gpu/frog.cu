@@ -31,8 +31,10 @@ cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
   Real CEP = M_PI;
   Real phase = 2*M_PI*midf*index + CEP + 2*M_PI*chirp*bias*bias;
   Real envolope = (exp(-sq(bias-100)/(2*sq(sigma)))+0.5*exp(-sq(bias+100)/(2*sq(sigma))));
-  E[index].x = envolope*cos(phase);
-  E[index].y = envolope*sin(phase);
+  Real c, s;
+  sincosf(phase, &s, &c);
+  E[index].x = envolope*c;
+  E[index].y = envolope*s;
 })
 
 cuFunc(setDelay,(Real* delay),(delay),{
@@ -142,8 +144,10 @@ cuFuncc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int
     if(abs(mod)<1e-5) {
       if(rat > 1e-3) {
         Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
-        source[index].x = rat*cos(randphase);
-        source[index].y = rat*sin(randphase);
+        Real c, s;
+        sincos(randphase, &s, &c);
+        source[index].x = rat*c;
+        source[index].y = rat*s;
       }
       return;
     }

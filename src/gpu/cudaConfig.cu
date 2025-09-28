@@ -84,16 +84,16 @@ void gpuerr(){
 }
 
 static int rows_fft, cols_fft, batch_fft;
-__device__ __host__ bool rect::isInside(int x, int y){
+__forceinline__ __device__ __host__ bool rect::isInside(int x, int y){
   if(x >= startx && x < endx && y >= starty && y < endy) return true;
   return false;
 }
-__device__ __host__ bool C_circle::isInside(int x, int y){
+__forceinline__ __device__ __host__ bool C_circle::isInside(int x, int y){
   Real dr = hypot(Real(x-x0),Real(y-y0));
   if(dr < r) return true;
   return false;
 }
-__device__ __host__ bool diamond::isInside(int x, int y){
+__forceinline__ __device__ __host__ bool diamond::isInside(int x, int y){
   Real k = Real(height)/width;
   Real kx = (x-startx)*k;
   y -= starty;
@@ -106,126 +106,33 @@ __device__ __host__ bool diamond::isInside(int x, int y){
   return true;
 }
 
-__device__ __inline__ cuComplex multiply_dev(cuComplex val, cuComplex val2){
+__device__ __forceinline__ cuComplex multiply_dev(cuComplex val, cuComplex val2){
   return cuCmulf(val,val2);
 }
 
 template<typename T2>
-__device__ __inline__ cuComplex multiply_dev(cuComplex val, T2 norm){
+__device__ __forceinline__ cuComplex multiply_dev(cuComplex val, T2 norm){
   val.x *= norm;
   val.y *= norm;
   return val;
 }
 
 template<typename T1, typename T2>
-__device__ __inline__ T1 multiply_dev(T1 val, T2 norm){
+__device__ __forceinline__ T1 multiply_dev(T1 val, T2 norm){
   return val*norm;
 }
 
-__device__ __inline__ cuComplex add(cuComplex val1, cuComplex val2){
+__device__ __forceinline__ cuComplex add(cuComplex val1, cuComplex val2){
   val1.x += val2.x;
   val1.y += val2.x;
   return val1;
 }
 
 template<typename T1, typename T2>
-__device__ __inline__ T1 add(T1 val1, T2 val2){
+__device__ __forceinline__ T1 add(T1 val1, T2 val2){
   return val1+val2;
 }
 
-__device__ Real Hermit(Real x,int n) {
-    if (n < 0) return 0;
-    Real e = expf(-0.5f * x*x), p0 = 0.751127f * e;
-    if (n == 0) return p0;
-    Real p1 = 1.224744f * x * p0;
-    if (n == 1) return p1;
-    Real p = p1;
-    for (int k = 2; k <= n; ++k) {
-        p = sqrtf(2.f/k) * x * p1 - sqrtf((k-1.f)/k) * p0;
-        p0 = p1; p1 = p;
-    }
-    return p;
-}
-
-__device__ cuComplex multiplyAM(Real r, int m, Real theta) {
-  Real c, s;
-  sincosf(m * theta, &s, &c);
-  return make_cuComplex(r * c, r * s);
-}
-__device__ Real laguerre_gaussian_R(Real z, int p, int m) {
-  int alpha = m>0? m:-m;
-  Real L0 = sqrt(2./M_PI)*expf(-0.5f * z)*powf(z, Real(alpha)/2);
-  for(int i = p+1; i <= p+alpha; i++) { L0 /= sqrtf(i); }
-  if (p == 0) return L0;
-  Real L1 = (1.0f + alpha - z)*L0;
-  Real L = L1;
-  for (int k = 2; k <= p; ++k) {
-    L = __fmaf_rn(2.0f*k + alpha - 1.0f - z, L1, -(k - 1 + alpha) * L0) / k;
-    L0 = L1;
-    L1 = L;
-  }
-  return  L;
-}
-__device__ cuComplex laguerre_gaussian(Real x, Real y, int p, int m) {
-    return multiplyAM(laguerre_gaussian_R(2*(x*x + y*y), p, m), m, atan2(y, x));
-}
-__device__ Real zernike_R(Real z, int n, int m_abs) {
-    Real K = (n - m_abs) / 2;
-    Real C = 1;
-    Real b = min(K, n - K);
-    for (int i = 0; i < b; ++i) {
-      C = C * (n - i) / (i + 1);
-    }
-    Real radial = C;
-    Real a_half = (n + m_abs) >> 1;
-    for (int k = 0; k < K; ++k) {
-      C = -(C * (a_half - k) * (K - k)) / ((n - k) * (k + 1));
-      radial = __fmaf_rn(z, radial, C);
-    }
-    z = sqrt(z);
-    for (int i = 0; i < m_abs; ++i) {
-      radial *= z;
-    }
-    return radial;
-}
-__device__ cuComplex zernike_complex(Real x, Real y, int n, int m) {
-    Real z = x*x+y*y;
-    if (z > 1.0f || n < 0) return cuComplex();
-    const int m_abs = (m < 0) ? -m : m;
-    if (m_abs > n || (n - m_abs) % 2 != 0)
-        return cuComplex();
-    return multiplyAM(zernike_R(z, n, m_abs) * sqrtf(n + 1), m, atan2(y, x));
-}
-cuFuncc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
-    cudaIdx()
-    Real xp = Real(x - (cuda_row>>1))/pupilsize;
-    Real yp = Real(y - (cuda_column>>1))/pupilsize;
-    Real factor = Hermit(xp, n) * Hermit(yp, m);
-    store[index].x = factor*data[index].x;
-    store[index].y = factor*data[index].y;
-    })
-
-cuFuncc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
-    cudaIdx()
-    store[index] = cuCmulf(data[index], cuConjf(zernike_complex(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
-    })
-
-cuFuncc(multiplyLaguerreConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
-    cudaIdx()
-    store[index] = cuCmulf(data[index], cuConjf(laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
-    })
-
-cuFuncc(addZernike,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
-    cudaIdx()
-    Real xp = Real(x - (cuda_row>>1))/pupilsize;
-    Real yp = Real(y - (cuda_column>>1))/pupilsize;
-    store[index] = cuCaddf(store[index],cuCmulf(coefficient, zernike_complex(xp, yp, n, m)));
-    })
-
-cuFuncc(addLaguerre,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
-    cudaIdx()
-    store[index] = cuCaddf(store[index], cuCmulf(coefficient, laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
-    })
 
 void init_fft(int rows, int cols, int batch){
   fmt::println("init fft: {} {}, old dim={}, {}", rows, cols, rows_fft, cols_fft);
@@ -295,10 +202,10 @@ template<> void getWindow<complexFormat>(complexFormat* object, int shiftx, int 
 cuFuncTemplate(cudaConvertFO, (T* data, T* out, Real norm),(data,out==0?data:out, norm),{
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index >= (cuda_row*cuda_column)/2) return;
-    int x = index%cuda_row;
-    int y = index/cuda_row;
-    index = x*cuda_column+y;
-    int indexp = (x >= (cuda_row>>1)? x - (cuda_row>>1) : (x + (cuda_row>>1)))*cuda_column + y + (cuda_column>>1);
+    int x = index/cuda_column;
+    int y = index%cuda_column;
+    //index = x*cuda_column+y;
+    int indexp = (x + (cuda_row >> 1))*cuda_column + (y >= (cuda_column>>1)? y-(cuda_column>>1) : (y+(cuda_column>>1)));
     T tmp = data[index];
     out[index]=multiply_dev(data[indexp],norm);
     out[indexp]=multiply_dev(tmp,norm);
@@ -356,8 +263,10 @@ template<> void rotate90<complexFormat>(complexFormat* data, complexFormat* out,
 cuFuncTemplate(rotate, (T* data, T* out, Real angle),(data,out,angle),{
     cudaIdx();
     Real xp, yp;
-    xp = cos(angle)*(x-cuda_row/2)-sin(angle)*(y-cuda_column/2) + cuda_row/2;
-    yp = cos(angle)*(y-cuda_column/2)+sin(angle)*(x-cuda_row/2) + cuda_column/2;
+    Real c, s;
+    sincosf(angle, &s, &c);
+    xp = c*(x-cuda_row/2)-s*(y-cuda_column/2) + cuda_row/2;
+    yp = c*(y-cuda_column/2)+s*(x-cuda_row/2) + cuda_column/2;
     int xpi = floor(xp);
     int ypi = floor(yp);
     if(xpi < 0 || ypi < 0 || xpi+1 >= cuda_row || ypi+1 >= cuda_column) {
@@ -443,8 +352,8 @@ template<> void setValue<complexFormat>(complexFormat* data, complexFormat value
 
 cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuComplex* object, Real shiftx, Real shifty),((cuComplex*)object,shiftx,shifty),{
     cudaIdx();
-    Real phi = -2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column);
-    cuComplex tmp = {cos(phi),sin(phi)};
+    cuComplex tmp;
+    sincosf(-2*M_PI*(shiftx*(x-cuda_row/2)/cuda_row+shifty*(y-cuda_column/2)/cuda_column), &tmp.y, &tmp.x);
     object[index] = cuCmulf(object[index],tmp);
     })
 
@@ -626,20 +535,20 @@ cuFunc(forcePositive,(Real* a),(a),{
     })
 
 template<typename T1, typename T2>
-__device__ auto sub(T1 a, T2 b) { return a - b; }
+__forceinline__ __device__ auto sub(T1 a, T2 b) { return a - b; }
 
 template<typename T1, typename T2>
-__device__ auto mul(T1 a, T2 b) { return a * b; }
-__device__ __inline__ float2 sub(float2 a, float2 b) {
+__forceinline__ __device__ auto mul(T1 a, T2 b) { return a * b; }
+__forceinline__ __device__ float2 sub(float2 a, float2 b) {
     return make_float2(a.x - b.x, a.y - b.y);
 }
 
-__device__ __inline__ float2 mul(float2 a, float s) {
+__forceinline__ __device__ float2 mul(float2 a, float s) {
     return make_float2(a.x * s, a.y * s);
 }
 
 template<typename T>
-__device__ __inline__ T bilinearInterpolate(const T* img, int w, int h, float x, float y) {
+__forceinline__ __device__ T bilinearInterpolate(const T* img, int w, int h, float x, float y) {
     x = min(max(x, 0.0f), static_cast<float>(w - 1));
     y = min(max(y, 0.0f), static_cast<float>(h - 1));
 
@@ -687,8 +596,7 @@ cuFuncc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(cuComplex* 
     cudaIdx();
     cuComplex phasefactor;
     Real phase = a*sqrt(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
-    phasefactor.x = cos(phase);
-    phasefactor.y = sin(phase);
+    sincosf(phase, &phasefactor.y, &phasefactor.x);
     amp[index] = cuCmulf(amp[index],phasefactor);
     })
 
@@ -713,8 +621,10 @@ cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* object
     phase += (d_phase[targetindex]-0.5)*2*M_PI;
     }
     if(phase){
-    objectWave[index].x = mod*cos(phase);
-    objectWave[index].y = mod*sin(phase);
+    Real c,s;
+    sincosf(phase, &s, &c);
+    objectWave[index].x = mod*c;
+    objectWave[index].y = mod*s;
     }else{
     objectWave[index].x = mod;
     objectWave[index].y = 0;
@@ -738,8 +648,10 @@ cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* object
     if(d_phase) phase += (d_phase[targetindex]-0.5)*2*M_PI;
     //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
     if(phase){
-    objectWave[index].x = mod*cos(phase);
-    objectWave[index].y = mod*sin(phase);
+    Real c,s;
+    sincosf(phase, &s, &c);
+    objectWave[index].x = mod*c;
+    objectWave[index].y = mod*s;
     }else{
     objectWave[index].x = mod;
     objectWave[index].y = 0;
@@ -898,8 +810,10 @@ cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComple
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
-    source[index].x = rat*cos(randphase);
-    source[index].y = rat*sin(randphase);
+    Real c,s;
+    sincosf(randphase, &s, &c);
+    source[index].x = rat*c;
+    source[index].y = rat*s;
     return;
     }
     rat /= mod;
@@ -917,8 +831,10 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state+index)*2*M_PI:0;
-    source[index].x = rat*cos(randphase);
-    source[index].x = rat*sin(randphase);
+    Real c,s;
+    sincosf(randphase, &s, &c);
+    source[index].x = rat*c;
+    source[index].x = rat*s;
     return;
     }
     rat /= mod;
@@ -926,42 +842,52 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     source[index].y *= rat;
     })
 
-cuFuncc(applyMod,(complexFormat* source, Real* target, Real *bs, int noiseLevel, Real bsnorm),(cuComplex* source, Real* target, Real *bs, int noiseLevel, Real bsnorm), ((cuComplex*)source, target, bs, noiseLevel, bsnorm),{
-    cuda1Idx()
-    Real maximum = vars->scale*0.95;
-    Real mod2 = max(0.,target[index]);
+cuFuncc(applyMod,
+    (complexFormat* source, Real* target, Real *bs, int noiseLevel, Real bsnorm),
+    (cuComplex* source, Real* target, Real *bs, int noiseLevel, Real bsnorm),
+    ((cuComplex*)source, target, bs, noiseLevel, bsnorm),
+{
+    cuda1Idx();
+
+    // Load data early
     cuComplex sourcedata = source[index];
-    if(bsnorm != 1) {
-      sourcedata.x *= bsnorm;
-      sourcedata.y *= bsnorm;
+    Real mod2 = fmaxf(0.0f, target[index]);
+
+    // Early return if blocked by bs flag (common case?)
+    if (bs && bs[index] > 0.5f) {
+        // Only write back scaled value if bsnorm was applied
+        if (bsnorm != 1.0f) {
+            sourcedata.x *= bsnorm;
+            sourcedata.y *= bsnorm;
+            source[index] = sourcedata;
+        }
+        return;
     }
-    if(bs && bs[index]>0.5) {
-      if(bsnorm != 1) {
-        source[index] = sourcedata;
-      }
-      return;
+    Real rx = sourcedata.x;
+    Real ry = sourcedata.y;
+    if (bsnorm != 1.0f) {
+        rx *= bsnorm;
+        ry *= bsnorm;
     }
-   //Real tolerance = (sqrtf(mod2*vars->rcolor + noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
-    Real tolerance = (1.+sqrtf(noiseLevel))*vars->scale/vars->rcolor; // fluctuation caused by bit depth and noise
-    Real srcmod2 = sourcedata.x*sourcedata.x + sourcedata.y*sourcedata.y;
-    if(mod2>=maximum) {
-      mod2 = max(maximum,srcmod2);
+    Real srcmod2 = rx*rx + ry*ry;
+    Real maximum = vars->scale * 0.95f;
+    if (mod2 >= maximum) {
+        mod2 = fmaxf(maximum, srcmod2);
     }
-    Real diff = mod2-srcmod2;
+    Real tolerance = (1.0f + sqrtf((Real)noiseLevel)) * vars->scale / vars->rcolor;
+    Real diff = mod2 - srcmod2;
     Real val = mod2;
-    if(diff>tolerance){
-      val -= tolerance;
-    }else if(diff < -tolerance ){
-      val += tolerance;
+    if (diff > tolerance) {
+        val -= tolerance;
+    } else if (diff < -tolerance) {
+        val += tolerance;
     }
-    if(srcmod2 == 0){
-    source[index].x = val;
-    source[index].y = 0;
-    return;
+    if (srcmod2 == 0.0f) {
+        source[index] = make_cuComplex(val, 0.0f);
+        return;
     }
-    val = sqrt(val/srcmod2);
-    source[index].x = val*sourcedata.x;
-    source[index].y = val*sourcedata.y;
+    Real scale = sqrtf(fmaxf(val, 0.0f) / srcmod2); // Clamp val to avoid NaN
+    source[index] = make_cuComplex(scale * rx, scale * ry);
 })
 cuFuncc(convertFOPhase, (complexFormat* data, Real norm),(cuComplex* data, Real norm),((cuComplex*)data, norm),{
     cudaIdx();
@@ -1015,29 +941,14 @@ cuFuncc(applyRandomPhase,(complexFormat* wave, Real* beamstop, void* state),(cuC
     else{
     Real mod = cuCabsf(wave[index]);
     Real randphase = (curand_uniform((curandStateMRG32k3a*)state+index)>0.5)*M_PI;
-    tmp.x = mod*cos(randphase);
-    tmp.y = mod*sin(randphase);
+    Real c,s;
+    sincosf(randphase, &s, &c);
+    tmp.x = mod*c;
+    tmp.y = mod*s;
     }
     wave[index] = tmp;
     })
 
-__device__ cuComplex getFact(Real phase, int l){
-  cuComplex nom;
-  if(phase != 0){
-    nom.x = cos(phase)-1;
-    nom.y = sin(phase);
-    Real mod2 = sqSum(nom.x, nom.y);
-    nom.x = nom.x/mod2;
-    nom.y = nom.y/mod2;  //omitted a - sign
-    Real nomy = 2*sin(phase*l/2);
-    nom.x = nom.y*nomy;
-    nom.y = nom.x*nomy;
-  }else{
-    nom.x = l;
-    nom.y = 0;
-  }
-  return nom;
-}
 cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
     cudaIdx()
     int targetx = x >= cuda_row/2 ? x + row - cuda_row : x;
@@ -1149,28 +1060,32 @@ cuFuncc(createColorbar, (complexFormat* output), (cuComplex *output), ((cuComple
 cuFuncc(multiplyPatternPhase_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda),((cuComplex*)amp,r_d_lambda,d_r_lambda),{
     cudaIdx()
     Real phase = (sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-    cuComplex p = {cos(phase),sin(phase)};
+    cuComplex p;
+    sincosf(phase, &p.y, &p.x);
     amp[index] = cuCmulf(amp[index], p);
     })
 
 cuFuncc(multiplyPatternPhaseOblique_Device,(complexFormat* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),(cuComplex* amp, Real r_d_lambda, Real d_r_lambda, Real costheta),((cuComplex*)amp,r_d_lambda,d_r_lambda,costheta),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda and costheta = z/r
     cudaIdx()
     Real phase = (sq((x-(cuda_row>>1)*costheta))+sq(y-(cuda_column>>1)))*r_d_lambda+d_r_lambda;
-    cuComplex p = {cos(phase),sin(phase)};
+    cuComplex p;
+    sincosf(phase, &p.y, &p.x);
     amp[index] = cuCmulf(amp[index], p);
     })
 
 cuFuncc(multiplyFresnelPhase_Device,(complexFormat* amp, Real phaseFactor),(cuComplex* amp, Real phaseFactor),((cuComplex*)amp,phaseFactor),{ // pixsize*pixsize*M_PI/(d*lambda) and 2*d*M_PI/lambda
     cudaIdx()
     Real phase = phaseFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
-    cuComplex p = {cos(phase),sin(phase)};
+    cuComplex p;
+    sincosf(phase, &p.y, &p.x);
     if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
     })
 
 cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor, Real costheta_r),(cuComplex* amp, Real phaseFactor, Real costheta_r),((cuComplex*)amp,phaseFactor,costheta_r),{ // costheta_r = 1./costheta = r/z
     cudaIdx()
     Real phase = phaseFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
-    cuComplex p = {cos(phase),sin(phase)};
+    cuComplex p;
+    sincosf(phase, &p.y, &p.x);
     if(cuCabsf(amp[index])!=0) amp[index] = cuCmulf(amp[index], p);
     })
 
@@ -1193,7 +1108,7 @@ cuFuncc(takeMod2Sum,(complexFormat* a, Real* b),(cuComplex* a, Real* b),((cuComp
     if(tmp<0) tmp=0;
     b[index] = tmp;
     })
-__device__ void ApplyHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
+__forceinline__ __device__ void ApplyHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(insideS){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -1202,7 +1117,7 @@ __device__ void ApplyHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhop
     rhonp1.y -= beta*rhoprime.y;
   }
 }
-__device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
+__forceinline__ __device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
@@ -1211,7 +1126,7 @@ __device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rho
     rhonp1.y -= 1.2*rhoprime.y;
   }
 }
-__device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
+__forceinline__ __device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(insideS){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -1223,7 +1138,7 @@ __device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rho
     //    rhonp1.y = beta*(rhonp1.y-rhoprime.y);
   }
 }
-__device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
+__forceinline__ __device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS && rhoprime.x > 0){
     rhonp1.x = rhoprime.x;
     rhonp1.y = rhoprime.y;
@@ -1232,7 +1147,7 @@ __device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rh
     rhonp1.y = 0;
   }
 }
-__device__ void ApplyERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
+__forceinline__ __device__ void ApplyERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
   if(insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
@@ -1241,7 +1156,7 @@ __device__ void ApplyERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhopr
     rhonp1.y = 0;
   }
 }
-__device__ void ApplyPOSHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
+__forceinline__ __device__ void ApplyPOSHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(rhoprime.x > 0 && insideS){
     rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
     //rhonp1.y = rhoprime.y;
@@ -1250,7 +1165,7 @@ __device__ void ApplyPOSHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &r
   }
   rhonp1.y -= beta*rhoprime.y;
 }
-__device__ void ApplyPOS0HIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
+__forceinline__ __device__ void ApplyPOS0HIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
   if(rhoprime.x > 0 && insideS){
     rhonp1.x = rhoprime.x;
     //rhonp1.y = rhoprime.y;
@@ -1271,33 +1186,41 @@ cuFuncc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, int al
     if(inside){
     Real phase = M_PI*fresnelFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
     //Real mod = cuCabs(gkp1data);
-    Real mod = fabs(gkp1data.x*cos(phase)+gkp1data.y*sin(phase)); //use projection (Error reduction)
-    gkp1data.x=mod*cos(phase);
-    gkp1data.y=mod*sin(phase);
+    Real c, s;
+    sincosf(phase, &s, &c);  // Single call: ~2x faster than separate sin/cos
+    Real mod = fabs(gkp1data.x*c+gkp1data.y*s); //use projection (Error reduction)
+    gkp1data.x=mod*c;
+    gkp1data.y=mod*s;
     }
     }
     })
-cuFunc(applySupport,(void *gkp1, void *gkprime, int algo, Real *spt, int iter, Real fresnelFactor),(gkp1,gkprime,algo,spt,iter,fresnelFactor),{
+cuFunc(applySupport,
+    (void *gkp1, void *gkprime, int algo, Real *spt, int iter, Real fresnelFactor),
+    (gkp1,gkprime,algo,spt,iter,fresnelFactor),
+{
     cudaIdx();
-    bool inside = spt[index] > vars->threshold;
     cuComplex &gkp1data = ((cuComplex*)gkp1)[index];
     cuComplex &gkprimedata = ((cuComplex*)gkprime)[index];
-    if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
-    else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
-    else if(algo==POSER) ApplyPOSERSupport(inside,gkp1data,gkprimedata);
-    else if(algo==POSHIO) ApplyPOSHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
-    else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
-    else if(algo==FHIO) ApplyFHIOSupport(inside,gkp1data,gkprimedata);
-    if(fresnelFactor>1e-4 && iter < 400) {
-    if(inside){
-    Real phase = M_PI*fresnelFactor*(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)));
-    //Real mod = cuCabs(gkp1data);
-    Real mod = fabs(gkp1data.x*cos(phase)+gkp1data.y*sin(phase)); //use projection (Error reduction)
-    gkp1data.x=mod*cos(phase);
-    gkp1data.y=mod*sin(phase);
+    bool inside = spt[index] > vars->threshold;
+    switch (algo) {
+      case RAAR:    ApplyRAARSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);     break;
+      case ER:      ApplyERSupport(inside, gkp1data, gkprimedata);                       break;
+      case POSER:   ApplyPOSERSupport(inside, gkp1data, gkprimedata);                    break;
+      case POSHIO:  ApplyPOSHIOSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);   break;
+      case HIO:     ApplyHIOSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);      break;
+      default:      ApplyFHIOSupport(inside, gkp1data, gkprimedata);                     break;
     }
-    }
-    })
+    if (!(fresnelFactor > 1e-4f && iter < 400)) return;
+    if (!inside) return;
+    int dx = x - (cuda_row >> 1);
+    int dy = y - (cuda_column >> 1);
+    Real phase = (Real)M_PI * fresnelFactor * (dx*dx + dy*dy);
+    Real c, s;
+    sincosf(phase, &s, &c);  // Single call: ~2x faster than separate sin/cos
+    Real mod = fabsf(gkp1data.x * c + gkp1data.y * s);  // Real part after rotation
+    gkp1data.x = mod * c;
+    gkp1data.y = mod * s;
+})
 //-------cdi.cc-end
 
 //-------FISTA.cc-------begin
@@ -1579,11 +1502,11 @@ cuFuncTemplate(randZero,(T* src, T* dest, void* state, Real ratio, char step),(s
     bool isoff = curand_uniform((curandStateMRG32k3a*)state+index)>ratio;
     int tidx;
     for (int i = 0; i < step; i++) {
-      for (int j = 0 ; j < step; j++) {
-        if(x + i >= cuda_row || y + j >= cuda_column) continue;
-        tidx = index + i * cuda_column + j;
-        dest[tidx] = isoff ? T() : src[tidx];
-      }
+    for (int j = 0 ; j < step; j++) {
+    if(x + i >= cuda_row || y + j >= cuda_column) continue;
+    tidx = index + i * cuda_column + j;
+    dest[tidx] = isoff ? T() : src[tidx];
+    }
     }
     })
 template void randZero<Real>(Real*, Real*, void*, Real, char);
@@ -1625,23 +1548,23 @@ template void refine<Real>(Real*, Real*, int);
 
 cuFuncc(multiplyx,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
     cuda1Idx();
-    int x = index/cuda_column;
+    Real x = index/cuda_column;
     out[index] = cuCabsf(object[index]) * ((x+0.5)/cuda_row-0.5);
     })
 
 cuFuncc(multiplyy,(complexFormat* object, Real* out),(cuComplex* object, Real* out),((cuComplex*)object,out),{
     cuda1Idx();
-    int y = index%cuda_column;
+    Real y = index%cuda_column;
     out[index] = cuCabsf(object[index]) * ((y+0.5)/cuda_column-0.5);
     })
 cuFunc(multiplyx,(Real* object, Real* out),(object,out),{
     cuda1Idx();
-    int x = index/cuda_column;
+    Real x = index/cuda_column;
     out[index] = object[index] * ((x+0.5)/cuda_row-0.5);
     })
 
 cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
     cuda1Idx()
-    int y = index%cuda_column;
+    Real y = index%cuda_column;
     out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
     })

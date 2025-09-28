@@ -95,7 +95,7 @@ int main() {
   myCuDMalloc(Real, image, rows*cols);
   C_circle spt;
   //spt.r = 192;
-  spt.r = 48;
+  spt.r = 38;
   spt.x0=spt.y0 = rows>>1;
   myCuDMalloc(C_circle, d_spt, 1);
   myMemcpyH2D(d_spt, &spt, sizeof(C_circle));

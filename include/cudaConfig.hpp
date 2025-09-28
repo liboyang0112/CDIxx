@@ -150,7 +150,10 @@ void addZernike(complexFormat* store, complexFormat coefficient, Real pupilsize,
 void addLaguerre(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
 void multiplyHermit(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
 void getArg(Real* angle, complexFormat* amp);
-
+void* zernike_init(int width, int height, int maxN, int max_blocks);
+void zernike_destroy(void* handle_ptr);
+complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy);
+complexFormat* zernike_coeff(void* handle_ptr);
 
 void phaseUnwrapping(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height);
 void solve_poisson_frequency_domain(complexFormat* d_fft_data, int width, int height);

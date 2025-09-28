@@ -32,13 +32,16 @@ complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, c
 
 complexFormat** laguerreDecomposition(complexFormat* img, int maxn, int maxl, int radius, complexFormat* coefficient = NULL, complexFormat* projected = NULL){
   // Using cuda_row and cuda_column, please set resize_cuda_image(row, col) properly before calling this function
-  myDMalloc(complexFormat*, output, 2);
   int n_base = (maxn+1)*(2*maxl+1);
   size_t sz = getCudaCols()*getCudaRows();
+  complexFormat** output = NULL;
+  if(projected == NULL && coefficient == NULL) myMalloc(complexFormat*, output, 2);
   if(projected == NULL) myCuMallocClean(complexFormat, projected, sz);
   if(coefficient == NULL) myMalloc(complexFormat, coefficient, n_base);
-  output[0] = coefficient;
-  output[1] = projected;
+  if(output){
+    output[0] = coefficient;
+    output[1] = projected;
+  }
   int ibase = 0;
   for (int n = 0; n <= maxn; n++) {
     for (int m = -maxl; m <= maxl; m+=1) {

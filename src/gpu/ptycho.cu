@@ -6,7 +6,7 @@
 #define DELTA 1e-3
 #define GAMMA 0.5
 
-__device__ __host__ Real gaussian(Real x, Real y, Real sigma){
+__forceinline__ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
   return exp(-(x*x+y*y)/2/(sigma*sigma));
 }
 
@@ -38,20 +38,19 @@ cuFuncc(updateWindow,(complexFormat* object, int shiftx, int shifty, int objrow,
 })
 
 
-__device__ void ePIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
+__forceinline__ __device__ void ePIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
   Real denom = param/(maxi);
   source = cuCmulf(cuConjf(source),diff);
   target.x -= source.x*denom;
   target.y -= source.y*denom;
 }
 
-__device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
+__forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
   denom = 1./((1-param)*denom+param*maxi);
-  source = cuCmulf(cuConjf(source),diff);
-  target.x -= source.x*denom;
-  target.y -= source.y*denom;
+  target.x -= (source.x*diff.x + source.y*diff.y)*denom;
+  target.y -= (source.x*diff.y - source.y*diff.x)*denom;
 }
 
 cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
@@ -88,18 +87,30 @@ cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)objec
   object[index].y = 0;
 })
 
-cuFuncc(multiplyx,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{
-  cuda1Idx();
-  int x = index/cuda_column;
-  object[index].x *= Real(x)/cuda_row-0.5;
-  object[index].y *= Real(x)/cuda_row-0.5;
+cuFuncc(multiplyx,
+    (complexFormat* object),
+    (cuComplex* object),
+    ((cuComplex*)object),
+{
+    cuda1Idx();
+    unsigned int idx = index;
+    Real x = (int)(idx / (unsigned int)cuda_column);  // Encourage uint div
+    Real scale = x * (1.0f / (Real)cuda_row) - 0.5f;
+    object[index].x *= scale;
+    object[index].y *= scale;
 })
 
-cuFuncc(multiplyy,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{
-  cuda1Idx();
-  int y = index%cuda_column;
-  object[index].x *= Real(y)/cuda_column-0.5;
-  object[index].y *= Real(y)/cuda_column-0.5;
+
+cuFuncc(multiplyy,
+    (complexFormat* object),
+    (cuComplex* object),
+    ((cuComplex*)object),
+{
+    cuda1Idx();
+    Real y = index % cuda_column;
+    Real scale = y * (1.0f / (Real)cuda_column) - 0.5f;
+    object[index].x *= scale;
+    object[index].y *= scale;
 })
 
 cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),((cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{
@@ -108,10 +119,9 @@ cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Re
     object[index].x = 0;
     return;
   }
-  Real ret;
   auto fntmp = Fn[index];
   Real fnmod2 = fntmp.x*fntmp.x + fntmp.y*fntmp.y;
-  ret = fntmp.x*object[index].y - fntmp.y*object[index].x;
+  Real ret = fntmp.x*object[index].y - fntmp.y*object[index].x;
   Real fact = pattern[index]+DELTA;
   if(fact<0) fact = 0;
   ret*=1-sqrt(fact/(fnmod2+DELTA));

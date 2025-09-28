@@ -2,11 +2,11 @@
 #include <math.h>
 #include "cudaDefs_h.cu"
 #include "fdtd3d.hpp"
-__device__ Real getmH(int x, int y, int z){
+__forceinline__ __device__ Real getmH(int x, int y, int z){
   Real ret = 0.4;
   return ret;
 }
-__device__ Real getmE(int x, int y, int z){
+__forceinline__ __device__ Real getmE(int x, int y, int z){
   //if(sqSum(x-nx/2,y-ny/2,z-nz/2) < 100) mE = 0.1;
   //if(sqSum(sqrt(sqSum(x-100,y-100))-70,z-100)<100) return 2./9;
   //if(sqSum(y-100,z-100)<100) return 2./9;

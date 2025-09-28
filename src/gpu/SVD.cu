@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cudaConfig.hpp"
-#include "memManager.hpp"
 #include <cusolverDn.h>
 #include <cuda_runtime.h>
 

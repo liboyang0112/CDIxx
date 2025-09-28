@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <ctime>
+#include "fmt/core.h"
 float bandwidthtest(int GB){
   size_t sz = 1024*1024;
   sz*= 1024*GB;
@@ -13,6 +13,6 @@ float bandwidthtest(int GB){
   cudaMemcpy(memory, memorydev, sz, cudaMemcpyDeviceToHost);
   cudaMemcpy(memorydev, memory, sz, cudaMemcpyHostToDevice);
   cudaMemcpy(memory, memorydev, sz, cudaMemcpyDeviceToHost);
-  printf("time eclipsed: %ld\n", time(NULL)-current_time);
+  fmt::println("time eclipsed: {}", time(NULL)-current_time);
   return 6.*GB/(time(NULL) - current_time);
 }
