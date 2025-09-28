@@ -93,8 +93,7 @@ cuFuncc(multiplyx,
     ((cuComplex*)object),
 {
     cuda1Idx();
-    unsigned int idx = index;
-    Real x = (int)(idx / (unsigned int)cuda_column);  // Encourage uint div
+    Real x = ((unsigned int)index) / (unsigned int)cuda_column;  // Encourage uint div
     Real scale = x * (1.0f / (Real)cuda_row) - 0.5f;
     object[index].x *= scale;
     object[index].y *= scale;
@@ -113,7 +112,7 @@ cuFuncc(multiplyy,
     object[index].y *= scale;
 })
 
-cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),((cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{
+cuFuncc(calcPartial,(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(Real* out, cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),(out, (cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{
   cuda1Idx();
   if(beamstop[index] > 0.5){
     object[index].x = 0;
@@ -124,8 +123,8 @@ cuFuncc(calcPartial,(complexFormat* object, complexFormat* Fn, Real* pattern, Re
   Real ret = fntmp.x*object[index].y - fntmp.y*object[index].x;
   Real fact = pattern[index]+DELTA;
   if(fact<0) fact = 0;
-  ret*=1-sqrt(fact/(fnmod2+DELTA));
-  object[index].x = ret;
+  ret*=1-sqrtf(fact/(fnmod2+DELTA));
+  out[index] = ret;
 })
 
 cuFuncc(solve_poisson_frequency_domain,

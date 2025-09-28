@@ -24,7 +24,7 @@ __forceinline__ __device__ cuComplex multiplyAM(Real r, int m, Real theta) {
 }
 __forceinline__ __device__ Real laguerre_gaussian_R(Real z, int p, int m) {
   int alpha = m>0? m:-m;
-  Real L0 = sqrt(2./M_PI)*expf(-0.5f * z)*powf(z, Real(alpha)/2);
+  Real L0 = sqrtf(2./M_PI)*expf(-0.5f * z)*powf(z, Real(alpha)/2);
   for(int i = p+1; i <= p+alpha; i++) { L0 /= sqrtf(i); }
   if (p == 0) return L0;
   Real L1 = (1.0f + alpha - z)*L0;
@@ -52,7 +52,7 @@ __forceinline__ __device__ Real zernike_R(Real z, int n, int m_abs) {
       C = -(C * (a_half - k) * (K - k)) / ((n - k) * (k + 1));
       radial = __fmaf_rn(z, radial, C);
     }
-    z = sqrt(z);
+    z = sqrtf(z);
     for (int i = 0; i < m_abs; ++i) {
       radial *= z;
     }
@@ -107,6 +107,7 @@ struct ZernikeHandle {
     cuComplex* block_coeff;
     cuComplex* final_coeff;
     complexFormat* host_coeff;
+    int nthread;
     bool initialized;
 };
 
@@ -116,10 +117,11 @@ void* zernike_init(int width, int height, int maxN, int max_blocks) {
     handle->height = height;
     handle->maxN = maxN;
     handle->nmodes = (maxN + 1) * (maxN + 2) / 2;
+    handle->nthread = 256;
     int npixels = width * height;
-    handle->nblocks = (npixels + 511) / 512;
+    handle->nblocks = (npixels + handle->nthread-1) / handle->nthread;
     if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
-    handle->shared_mem_size = (512 + 1) * 10 * 2 * sizeof(Real);
+    handle->shared_mem_size = (handle->nthread + 1) * 7 * 2 * sizeof(Real);
     
     cudaError_t err1 = cudaMalloc(&handle->block_coeff, handle->nmodes * handle->nblocks * sizeof(cuComplex));
     cudaError_t err2 = cudaSuccess;
@@ -166,7 +168,7 @@ __global__ void zernike_project_mode(
     cuComplex* block_coeff_mode
 ) {
     extern __shared__ char shared_raw[];
-    const int modes_in_shared_mem = 10;  // 必须与 zernike_init 中的 shared_mem_size 一致
+    const int modes_in_shared_mem = 7;  // 必须与 zernike_init 中的 shared_mem_size 一致
     const int SHMEM_STRIDE = blockDim.x + 1;
     Real* shared_real = (Real*)shared_raw;
     Real* shared_imag = shared_real + SHMEM_STRIDE * modes_in_shared_mem;
@@ -199,7 +201,6 @@ __global__ void zernike_project_mode(
 
     // Helper lambda to flush current batch (C++11 required)
     auto flush_batch = [&]() {
-        if (shared_n == 0) return;
         __syncthreads();
         int batch_start = imode - shared_n;
         if (tid < shared_n) {
@@ -210,7 +211,7 @@ __global__ void zernike_project_mode(
             }
             int mode_idx = batch_start + tid;
             if (mode_idx < nmodes) {
-                block_coeff_mode[mode_idx * nblocks + bid] = make_cuComplex(sum_r*norm, sum_i*norm);
+                block_coeff_mode[bid * nmodes + mode_idx] = make_cuComplex(sum_r*norm, sum_i*norm);
             }
         }
         shared_n = 0;
@@ -220,8 +221,7 @@ __global__ void zernike_project_mode(
         Real cos_m = 1.0f, sin_m = 0.0f;
         if (rho <= 1.0f && m_abs > 0) {
             Real m_theta = m_abs * theta;
-            cos_m = cosf(m_theta);
-            sin_m = sinf(m_theta);
+            sincosf(m_theta, &sin_m, &cos_m);
         }
 
         Real R_nm2 = 0.0f;
@@ -253,18 +253,19 @@ __global__ void zernike_project_mode(
             }
 
             // Now safe to write
-            R_curr *= m_abs == 0 ? sqrt(n+1) : sqrt(2*(n+1));
+            R_curr *= m_abs == 0 ? sqrtf(n+1) : sqrtf(2*(n+1));
             if (m_abs == 0) {
-              shared_real[tid + SHMEM_STRIDE * shared_n] = cuCrealf(phi_val) * R_curr;
-              shared_imag[tid + SHMEM_STRIDE * shared_n] = cuCimagf(phi_val) * R_curr;
+              shared_real[tid + SHMEM_STRIDE * shared_n] = phi_val.x * R_curr;
+              shared_imag[tid + SHMEM_STRIDE * shared_n] = phi_val.y * R_curr;
               shared_n++;
               imode++;
             } else {
-              shared_real[tid + SHMEM_STRIDE * shared_n] = cuCrealf(phi_val) * R_curr * cos_m;
-              shared_imag[tid + SHMEM_STRIDE * shared_n] = cuCimagf(phi_val) * R_curr * cos_m;
+              Real Rc = R_curr*cos_m, Rs = R_curr*sin_m;
+              shared_real[tid + SHMEM_STRIDE * shared_n] = phi_val.x * Rc;
+              shared_imag[tid + SHMEM_STRIDE * shared_n] = phi_val.y * Rc;
               shared_n++;
-              shared_real[tid + SHMEM_STRIDE * shared_n] = cuCrealf(phi_val) * R_curr * sin_m;
-              shared_imag[tid + SHMEM_STRIDE * shared_n] = cuCimagf(phi_val) * R_curr * sin_m;
+              shared_real[tid + SHMEM_STRIDE * shared_n] = phi_val.x * Rs;
+              shared_imag[tid + SHMEM_STRIDE * shared_n] = phi_val.y * Rs;
               shared_n++;
               imode += 2;
             }
@@ -288,7 +289,7 @@ __global__ void reduce_coefficients(
   if (mode >= nmodes) return;
   cuComplex sum = make_cuComplex(0.0f, 0.0f);
   for (int b = 0; b < nblocks; b++) {
-    sum = cuCaddf(sum, block_coeff_mode[mode * nblocks + b]);
+    sum = cuCaddf(sum, block_coeff_mode[b * nmodes + mode]);
   }
   final_coeff[mode] = sum;
 }
@@ -314,7 +315,7 @@ __global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, int he
         Real cos_m = 1.0f, sin_m = 0.0f;
         if (m_abs > 0) {
             Real m_theta = m_abs * theta;
-            cos_m = cosf(m_theta); sin_m = sinf(m_theta);
+            sincosf(m_theta, &sin_m, &cos_m);
         }
         Real R_nm2 = 0.0f, R_nm4 = 0.0f;
         for (int n = m_abs; n <= maxN && mode_idx < nmodes; n += 2) {
@@ -355,10 +356,10 @@ complexFormat* zernike_compute(
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
   if (!handle->initialized) return nullptr;
 
-  zernike_project_mode<<<handle->nblocks, 512, handle->shared_mem_size>>>(
+  zernike_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
       (cuComplex*)phi, handle->width, handle->height, cx, cy, handle->maxN, handle->nblocks, handle->block_coeff
       );
-  int reduce_threads = 512;
+  int reduce_threads = handle->nthread;
   int reduce_blocks = (handle->nmodes + reduce_threads - 1) / reduce_threads;
   reduce_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
       handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff

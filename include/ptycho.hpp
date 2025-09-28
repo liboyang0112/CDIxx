@@ -9,5 +9,5 @@ void random(complexFormat* object, void *state);
 void pupilFunc(complexFormat* object);
 void multiplyx(complexFormat* object);
 void multiplyy(complexFormat* object);
-void calcPartial(complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop);
+void calcPartial(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop);
 void applySupport(Real* image, Real* support);

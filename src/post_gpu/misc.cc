@@ -1,31 +1,40 @@
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include "imgio.hpp"
 #include "cub_wrap.hpp"
 #include <math.h>
 complexFormat findMiddle(complexFormat* d_in, int num){
   if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
+  myCuDMalloc(Real, out, 3);
+  myDMalloc(Real, h_out, 3);
   myCuDMalloc(Real, tmp, num);
   getMod(tmp,d_in);
-  Real norm = findSum(tmp, num);
+  findSum(tmp, num, out+2);
   multiplyx(d_in,tmp);
-  complexFormat mid;
-  mid = findSum(tmp, num)/norm;
+  findSum(tmp, num, out);
   multiplyy(d_in,tmp);
-  mid += findSum(tmp, num)/norm*1.0i;
+  findSum(tmp, num, out+1);
   memMngr.returnCache(tmp);
-  return mid;
+  myMemcpyD2H(h_out, out, 3*sizeof(Real));
+  memMngr.returnCache(out);
+  ccmemMngr.returnCache(h_out);
+  return {h_out[0]/h_out[2], h_out[1]/h_out[2]};
 };
 complexFormat findMiddle(Real* d_in, int num){
   if(num==0) num = memMngr.getSize(d_in);
   myCuDMalloc(Real, tmp, num);
-  Real norm = findSum(d_in, num);
+  myCuDMalloc(Real, out, 3);
+  myDMalloc(Real, h_out, 3);
+  findSum(d_in, num, out+2);
   multiplyx(d_in,tmp);
-  complexFormat mid;
-  mid = findSum(tmp, num)/norm;
+  findSum(tmp, num, out);
   multiplyy(d_in,tmp);
-  mid += findSum(tmp, num)/norm*1.0iF;
+  findSum(tmp, num, out+1);
   memMngr.returnCache(tmp);
-  return mid;
+  myMemcpyD2H(h_out, out, 3*sizeof(Real));
+  memMngr.returnCache(out);
+  ccmemMngr.returnCache(h_out);
+  return {h_out[0]/h_out[2], h_out[1]/h_out[2]};
 };
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol){
   size_t sz = 0;

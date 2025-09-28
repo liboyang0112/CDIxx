@@ -89,7 +89,8 @@ __forceinline__ __device__ __host__ bool rect::isInside(int x, int y){
   return false;
 }
 __forceinline__ __device__ __host__ bool C_circle::isInside(int x, int y){
-  Real dr = hypot(Real(x-x0),Real(y-y0));
+  Real dx = x - x0, dy = y - y0;
+  Real dr = sqrtf(dx*dx+dy*dy);
   if(dr < r) return true;
   return false;
 }
@@ -495,7 +496,7 @@ cuFuncc(adamUpdateV,(Real* v, complexFormat* grad, Real beta2),(Real* v, cuCompl
     })
 cuFuncc(adamUpdate,(complexFormat* xn, complexFormat* m, Real* v, Real lr, Real eps),(cuComplex* xn, cuComplex* m, Real* v, Real lr, Real eps),((cuComplex*)xn,(cuComplex*)m,v,lr,eps),{
     cuda1Idx()
-    xn[index].x += lr*m[index].x/(sqrt(v[index])+eps);
+    xn[index].x += lr*m[index].x/(sqrtf(v[index])+eps);
     })
 cuFuncc(ceiling,(complexFormat* data, Real ceilval),(cuComplex* data, Real ceilval),((cuComplex*)data,ceilval),{
     cuda1Idx()
@@ -595,7 +596,7 @@ template void resize<complexFormat>(const complexFormat*, complexFormat*, int, i
 cuFuncc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(cuComplex* amp, Real a, Real b),((cuComplex*)amp,a,b),{ // a=z/lambda, b = (lambda/s)^2, s is the image size
     cudaIdx();
     cuComplex phasefactor;
-    Real phase = a*sqrt(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
+    Real phase = a*sqrtf(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
     sincosf(phase, &phasefactor.y, &phasefactor.x);
     amp[index] = cuCmulf(amp[index],phasefactor);
     })
@@ -806,7 +807,7 @@ cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComple
     cuda1Idx();
     Real mod = hypot(source[index].x, source[index].y);
     Real rat = target[index];
-    if(rat > 0) rat = sqrt(rat);
+    if(rat > 0) rat = sqrtf(rat);
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
@@ -827,7 +828,7 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     Real rat = target[index]*norm;
     index = targetx*col+targety;
     Real mod = hypot(source[index].x, source[index].y);
-    if(rat > 0) rat = sqrt(rat);
+    if(rat > 0) rat = sqrtf(rat);
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state+index)*2*M_PI:0;

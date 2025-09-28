@@ -262,7 +262,7 @@ void CDI::saveState(){
   int col_spt = column/oversampling_spt;
   size_t sptsz = row_spt*col_spt*sizeof(Real);
   resize_cuda_image(row_spt,col_spt);
-  complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sptsz>>1);
+  complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sptsz<<1);
   Real* tmp1 = (Real*)memMngr.borrowCache(sptsz);
   fmt::println("mid= {:f},{:f}",mid.real(), mid.imag());
   crop(cuda_gkp1, tmp, row, column,mid.real(), mid.imag());

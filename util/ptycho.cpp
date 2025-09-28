@@ -31,6 +31,10 @@ class ptycho : public experimentConfig{
     int scany = 0;
     Real *shiftx = 0;
     Real *shifty = 0;
+    Real *step_shiftx = 0;
+    Real *step_shifty = 0;
+    Real *d_shiftx = 0;
+    Real *d_shifty = 0;
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
     complexFormat *esw;
     void *devstates = 0;
@@ -42,6 +46,7 @@ class ptycho : public experimentConfig{
       fmt::println("allocating memory");
       scanx = (row_O-row)/stepSize+1;
       scany = (column_O-column)/stepSize+1;
+      size_t scansz = scanx*scany*sizeof(Real);
       fmt::println("scanning {} x {} steps", scanx, scany);
       objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
@@ -52,8 +57,12 @@ class ptycho : public experimentConfig{
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       initRand(devstates,seed);
-      shiftx = (Real*)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real));
-      shifty = (Real*)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real));
+      shiftx = (Real*)ccmemMngr.borrowCleanCache(scansz);
+      shifty = (Real*)ccmemMngr.borrowCleanCache(scansz);
+      d_shiftx = (Real*)memMngr.borrowCleanCache(scansz);
+      d_shifty = (Real*)memMngr.borrowCleanCache(scansz);
+      step_shiftx = (Real*)ccmemMngr.borrowCache(scansz);
+      step_shifty = (Real*)ccmemMngr.borrowCache(scansz);
       if(positionUncertainty > 1e-4){
         initPosition();
       }
@@ -133,7 +142,7 @@ class ptycho : public experimentConfig{
       for(int i = 0; i < scanx; i++){
         for(int j = 0; j < scany; j++){
           int shiftxpix = shiftx[idx]-round(shiftx[idx]);
-          int shiftypix = shiftx[idx]-round(shifty[idx]);
+          int shiftypix = shifty[idx]-round(shifty[idx]);
           getWindow((complexFormat*)objectWave, i*stepSize+round(shiftx[idx]), j*stepSize+round(shifty[idx]), row_O, column_O, window);
           if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
             shiftWave((complexFormat*)window, shiftxpix, shiftypix);
@@ -158,37 +167,32 @@ class ptycho : public experimentConfig{
       resize_cuda_image(row,column);
       pupilFunc((complexFormat*)pupilpatternWave);
     }
-    void updatePosition(Real &shiftx, Real &shifty, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){
-      Real siz = memMngr.getSize(obj);
+    void updatePosition(int scanidx, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){
+      size_t siz = memMngr.getSize(obj);
       Real norm = 1./(row*column);
       complexFormat *cachex = (complexFormat*)memMngr.borrowCache(siz);
       complexFormat *cachey = (complexFormat*)memMngr.borrowCache(siz);
+      Real *cache = (Real*)memMngr.borrowCache(siz>>1);
       myFFT(obj, cachex);
-      applyNorm(cachex, sqrt(norm));
-      cudaConvertFO(cachex);
+      cudaConvertFO(cachex, cachex, sqrt(norm));
       myMemcpyD2D(cachey, cachex, siz);
       multiplyx(cachex);
       multiplyy(cachey);
-      cudaConvertFO(cachex);
-      cudaConvertFO(cachey);
+      cudaConvertFO(cachex, cachex, norm);
+      cudaConvertFO(cachey, cachey, norm);
       myIFFT(cachex, cachex);
       myIFFT(cachey, cachey);
-      applyNorm(cachex, norm);
-      applyNorm(cachey, norm);
       multiply(cachex, cachex, probe);
       multiply(cachey, cachey, probe);
       myFFT(cachex, cachex);
       myFFT(cachey, cachey);
-      calcPartial(cachex, Fn, pattern, beamstop);
-      calcPartial(cachey, Fn, pattern, beamstop);
-      shiftx += 0.3*findSumReal(cachex);
-      shifty += 0.3*findSumReal(cachey);
+      calcPartial(cache, cachex, Fn, pattern, beamstop);
+      findSum(cache, 0, d_shiftx+scanidx);
+      calcPartial(cache, cachey, Fn, pattern, beamstop);
+      findSum(cache, 0, d_shifty+scanidx);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
-      if(shiftx!=shiftx || shifty!=shifty) {
-        fmt::println("Error: shift was computed as: ({},{})", shiftx, shifty);
-        abort();
-      }
+      memMngr.returnCache(cache);
     }
     void iterate(){
       resetPosition();
@@ -218,6 +222,7 @@ class ptycho : public experimentConfig{
         }
         //complexFormat* coeff = NULL, *projection = NULL;
         int positionUpdateIter = 50;
+        bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
@@ -231,9 +236,9 @@ class ptycho : public experimentConfig{
             }
             multiply(esw, (complexFormat*)pupilpatternWave, objCache);
             myFFT(esw,Fn);
-            if(iter % 20 == 0 && iter >= positionUpdateIter) {
+            if(doUpdatePosition) {
               applyNorm(Fn, norm);
-              updatePosition(shiftx[idx], shifty[idx], objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
+              updatePosition(idx, objCache, (complexFormat*)pupilpatternWave, patterns[idx], Fn);
               applyMod(Fn, patterns[idx],beamstop,noiseLevel, 1);
             }else applyMod(Fn, patterns[idx],beamstop,noiseLevel, norm);
             myIFFT(Fn,Fn);
@@ -249,11 +254,22 @@ class ptycho : public experimentConfig{
             idx++;
           }
         }
+        if(doUpdatePosition){
+          size_t scansz = scanx*scany*sizeof(Real);
+          myMemcpyD2H(step_shiftx, d_shiftx, scansz);
+          myMemcpyD2H(step_shifty, d_shifty, scansz);
+          clearCuMem(d_shifty, scansz);
+          clearCuMem(d_shiftx, scansz);
+          const int N = scanx * scany;
+          for (int i = 0; i < N; ++i) {
+            shiftx[i] += 0.8*step_shiftx[i];
+            shifty[i] += 0.8*step_shifty[i];
+          }
+        }
         if(iter >= update_probe_iter){
           getMod2(tmp, (complexFormat*)pupilpatternWave);
           complexFormat middle = findMiddle(tmp);
           Real biasx = crealf(middle), biasy = cimagf(middle);
-          //shiftWave((complexFormat*)pupilpatternWave, -biasx, -biasy);
           Real offsetx = 0, offsety = 0;
           const int N = scanx * scany;
           for (int i = 0; i < N; ++i) {
@@ -266,16 +282,17 @@ class ptycho : public experimentConfig{
             shiftx[i] -= offsetx;
             shifty[i] -= offsety;
           }
-          resize_cuda_image(row_O, column_O);
-          shiftWave(objFFT,(complexFormat*)objectWave, -offsetx-biasx*row, -offsety-biasy*column);
-          resize_cuda_image(row, column);
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
           getMod2(tmp, (complexFormat*)pupilpatternWave);
-          Real norm = findSum(tmp);
+          myCuDMalloc(Real, d_norm, 2);
+          myDMalloc(Real, h_norm, 2);
+          findSum(tmp, row*column, d_norm);
           if(iter == nIter -1) {
             plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
             plt.saveComplex(pupilpatternWave, "pupilwave");
           }
+          resize_cuda_image(row_O, column_O);
+          shiftWave(objFFT,(complexFormat*)objectWave, -offsetx-biasx*row, -offsety-biasy*column);
           resize_cuda_image(pupildiameter, pupildiameter);
           crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
           zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1);
@@ -283,25 +300,29 @@ class ptycho : public experimentConfig{
           resize_cuda_image(row, column);
           pad(zernikeCrop, (complexFormat*)pupilpatternWave, pupildiameter, pupildiameter);
           /*
-          complexFormat** result = zernikeDecomposition((complexFormat*)pupilpatternWave, 5, 48, coeff, projection);
-          if(result){
-            coeff = result[0];
-            projection = (complexFormat*)pupilpatternWave;
-            pupilpatternWave = result[1];
-            myFree(result);
-          }else{
-            complexFormat* tmp = projection;
-            projection = (complexFormat*)pupilpatternWave;
-            pupilpatternWave = tmp;
-          }
-          if(iter == nIter -1) {
-            for (int ic=0 ; ic < 21; ic++) {
-              fmt::println("x[{}]=({:.2g},{:.2g})",ic, crealf(coeff[ic]), cimagf(coeff[ic]));
-            }
-          }
-          */
+             complexFormat** result = zernikeDecomposition((complexFormat*)pupilpatternWave, 5, 48, coeff, projection);
+             if(result){
+             coeff = result[0];
+             projection = (complexFormat*)pupilpatternWave;
+             pupilpatternWave = result[1];
+             myFree(result);
+             }else{
+             complexFormat* tmp = projection;
+             projection = (complexFormat*)pupilpatternWave;
+             pupilpatternWave = tmp;
+             }
+             if(iter == nIter -1) {
+             for (int ic=0 ; ic < 21; ic++) {
+             fmt::println("x[{}]=({:.2g},{:.2g})",ic, crealf(coeff[ic]), cimagf(coeff[ic]));
+             }
+             }
+             */
           getMod2(tmp, (complexFormat*)pupilpatternWave);
-          norm /= findSum(tmp);
+          findSum(tmp, row*column, d_norm+1);
+          myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
+          Real norm = h_norm[0]/h_norm[1];
+          myCuFree(d_norm);
+          myFree(h_norm);
           if(norm > 2 || norm < 0.5) applyNorm((complexFormat*)pupilpatternWave, sqrt(norm));
           if(iter == nIter -1) plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same

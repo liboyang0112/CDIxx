@@ -59,8 +59,8 @@ cuFuncc(applyESWMod,(complexFormat* ESW, Real* mod, complexFormat* amp, int nois
   if(cuCabsf(sum)>1e-10){
     //factor = mod[index]/cuCabsf(sum);
     Real mod2s = sum.x*sum.x+sum.y*sum.y;
-    if(mod2+tolerance < mod2s) factor = sqrt((mod2+tolerance)/mod2s);
-    else if(mod2-tolerance > mod2s) factor = sqrt((mod2-tolerance)/mod2s);
+    if(mod2+tolerance < mod2s) factor = sqrtf((mod2+tolerance)/mod2s);
+    else if(mod2-tolerance > mod2s) factor = sqrtf((mod2-tolerance)/mod2s);
     else factor=1;
   }
   //if(mod[index] >= 0.99) factor = max(0.99/cuCabsf(sum), 1.);

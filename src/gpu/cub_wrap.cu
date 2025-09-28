@@ -62,39 +62,45 @@ void initCub(){
   initStore(findSumReal);
   initStore(findSumComplex);
 }
-
 #define FUNC(T,OP,INIT,STORE)\
-T *d_out = (T*)memMngr.borrowCache(sizeof(T));\
+bool hascache = 1;\
+if(!d_out) {\
+  d_out = memMngr.borrowCache(sizeof(T));\
+  hascache = 0;\
+}\
 size_t num_items = num;\
 if(num_items == 0) num_items = memMngr.getSize(d_in)/sizeof(T);\
 if(!STORE##_n){\
-  gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, d_out, num_items, OP, INIT));\
+  gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, (T*)d_out, num_items, OP, INIT));\
   STORE = memMngr.borrowCache(STORE##_n);\
 }\
-gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, d_out, num_items, OP, INIT));\
-T output;\
+gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, (T*)d_out, num_items, OP, INIT));\
+T output = T();\
+if(!hascache){\
 cudaMemcpy(&output, d_out, sizeof(T), cudaMemcpyDeviceToHost);\
-if (d_out) memMngr.returnCache(d_out);
+if (d_out) memMngr.returnCache(d_out);\
+}
 
-Real findMax(Real* d_in, int num)
+
+Real findMax(Real* d_in, int num, void* d_out)
 {
   FUNC(Real, max_op, Real(0), store_findMax);
   return output;
 }
 
-int findMax(int* d_in, int num)
+int findMax(int* d_in, int num, void* d_out)
 {
   FUNC(int, max_op, 0, store_findMax_int);
   return output;
 }
-int findMin(int* d_in, int num)
+int findMin(int* d_in, int num, void* d_out)
 {
   FUNC(int, min_op, 0, store_findMin_int);
   return output;
 }
 
 
-Real findMod2Max(complexFormat* d_in, int num)
+Real findMod2Max(complexFormat* d_in, int num, void* d_out)
 {
   cuComplex tmp;
   tmp.x = tmp.y = 0;
@@ -102,13 +108,13 @@ Real findMod2Max(complexFormat* d_in, int num)
   return output.x*output.x + output.y*output.y;
 }
 
-Real findSumReal(complexFormat* d_in, int num)
+Real findSumReal(complexFormat* d_in, int num, void* d_out)
 {
   FUNC(cuComplex, sumcomplex_op, cuComplex(), store_findSumReal);
   return output.x;
 }
 
-complexFormat findSum(complexFormat* d_in, int num)
+complexFormat findSum(complexFormat* d_in, int num, void* d_out)
 {
   cuComplex tmp;
   tmp.x = tmp.y = 0;
@@ -117,13 +123,13 @@ complexFormat findSum(complexFormat* d_in, int num)
   return {output.x, output.y};
 }
 
-Real findSum(Real* d_in, int num)
+Real findSum(Real* d_in, int num, void* d_out)
 {
   FUNC(Real, sum_op, Real(0), store_findSum);
   return output;
 }
 
-Real findRootSumSq(Real* d_in, int num)
+Real findRootSumSq(Real* d_in, int num, void* d_out)
 {
   FUNC(Real, rootsumsq_op, Real(0), store_findRootSumSq);
   return output;
