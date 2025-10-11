@@ -95,12 +95,12 @@ int main() {
   myCuDMalloc(Real, image, rows*cols);
   C_circle spt;
   //spt.r = 192;
-  spt.r = 38;
+  spt.r = 80;
   spt.x0=spt.y0 = rows>>1;
   myCuDMalloc(C_circle, d_spt, 1);
   myMemcpyH2D(d_spt, &spt, sizeof(C_circle));
   createMask(image, d_spt);
-  applyGaussMult(image, image, 30, 0);
+  applyGaussMult(image, image, 45, 0);
   plt.init(rows, cols);
   plt.saveFloat(image, "image");
 }

@@ -1,5 +1,4 @@
 #include <complex.h>
-#include <complex>
 #include <fmt/base.h>
 #include <stdio.h>
 #include <random>
@@ -25,16 +24,16 @@ class ptycho : public experimentConfig{
     int row_O = 512;  //in ptychography this is different from row (the size of probe).
     int column_O = 512;
     int sz = 0;
-    int stepSize = 16;
+    int stepSize = 32;
     int doPhaseModulationPupil = 0;
     int scanx = 0;
     int scany = 0;
     Real *shiftx = 0;
     Real *shifty = 0;
-    Real *step_shiftx = 0;
-    Real *step_shifty = 0;
-    Real *d_shiftx = 0;
-    Real *d_shifty = 0;
+    Real *shifts = 0;
+    Real *step_shift = 0;
+    Real *d_shift = 0;
+    Real *d_shifts = 0;
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
     complexFormat *esw;
     void *devstates = 0;
@@ -57,12 +56,11 @@ class ptycho : public experimentConfig{
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       initRand(devstates,seed);
-      shiftx = (Real*)ccmemMngr.borrowCleanCache(scansz);
-      shifty = (Real*)ccmemMngr.borrowCleanCache(scansz);
-      d_shiftx = (Real*)memMngr.borrowCleanCache(scansz);
-      d_shifty = (Real*)memMngr.borrowCleanCache(scansz);
-      step_shiftx = (Real*)ccmemMngr.borrowCache(scansz);
-      step_shifty = (Real*)ccmemMngr.borrowCache(scansz);
+      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
+      shiftx = shifts;
+      shifty = shifts+scanx*scany;
+      d_shift = (Real*)memMngr.borrowCache(scansz*2);
       if(positionUncertainty > 1e-4){
         initPosition();
       }
@@ -81,8 +79,7 @@ class ptycho : public experimentConfig{
       memMngr.returnCache(d_object_phase);
       verbose(2,
           plt.init(row_O,column_O);
-          plt.plotComplex(objectWave, MOD2, 0, 1, "inputObject");
-          plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase");
+          plt.plotComplexColor(objectWave, 0, 1, "inputObject");
           //plt.plotPhase(objectWave, PHASERAD, 0, 1, "inputPhase");
       )
       Real* d_intensity = (Real*) memMngr.borrowCache(sz); //use the memory allocated;
@@ -175,9 +172,8 @@ class ptycho : public experimentConfig{
       Real *cache = (Real*)memMngr.borrowCache(siz>>1);
       myFFT(obj, cachex);
       cudaConvertFO(cachex, cachex, sqrt(norm));
-      myMemcpyD2D(cachey, cachex, siz);
-      multiplyx(cachex);
-      multiplyy(cachey);
+      multiplyy(cachex, cachey);
+      multiplyx(cachex, cachex);
       cudaConvertFO(cachex, cachex, norm);
       cudaConvertFO(cachey, cachey, norm);
       myIFFT(cachex, cachex);
@@ -187,9 +183,9 @@ class ptycho : public experimentConfig{
       myFFT(cachex, cachex);
       myFFT(cachey, cachey);
       calcPartial(cache, cachex, Fn, pattern, beamstop);
-      findSum(cache, 0, d_shiftx+scanidx);
+      findSum(cache, 0, d_shift+scanidx);
       calcPartial(cache, cachey, Fn, pattern, beamstop);
-      findSum(cache, 0, d_shifty+scanidx);
+      findSum(cache, 0, d_shift+scanidx+scanx*scany);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
       memMngr.returnCache(cache);
@@ -201,18 +197,32 @@ class ptycho : public experimentConfig{
       Real probeMax;
       complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
       complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
+      Real *maxCache = (Real*)memMngr.borrowCache(row_O*column_O*sizeof(Real));
       myCuDMalloc(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
       int objFFT;
       createPlan(&objFFT, row_O, column_O); 
-      int pupildiameter = 128;
+      int pupildiameter = 180;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
-      void* zernike = zernike_init(pupildiameter, pupildiameter, 40, 0);
+      void* zernike = zernike_init(pupildiameter, pupildiameter, 40, 0); //40 is already high enough for modelling complex beams
+      myCuDMalloc(Real, d_norm, 2);
+      myDMalloc(Real, h_norm, 2);
       for(int iter = 0; iter < nIter; iter++){
         int idx = 0;
-        if(iter >= update_probe_iter) objMax = findMod2Max((complexFormat*)objectWave);
-        probeMax = findMod2Max((complexFormat*)pupilpatternWave);
+        getMod2(maxCache, (complexFormat*)pupilpatternWave);
+        findMax(maxCache, row*column ,d_norm);
+        if(iter >= update_probe_iter) {
+          resize_cuda_image(row_O,column_O);
+          getMod2(maxCache, (complexFormat*)objectWave);
+          findMax(maxCache, row_O*column_O, d_norm+1);
+          resize_cuda_image(row,column);
+          myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
+          objMax = h_norm[1];
+        }else{
+          myMemcpyD2H(h_norm, d_norm, sizeof(Real));
+        }
+        probeMax = h_norm[0];
         if(iter >= update_probe_iter && iter%50==0){
           resize_cuda_image(row_O,column_O);
           applyNorm((complexFormat*)objectWave, pow(probeMax/objMax, 0.25));
@@ -222,7 +232,7 @@ class ptycho : public experimentConfig{
         }
         //complexFormat* coeff = NULL, *projection = NULL;
         int positionUpdateIter = 50;
-        bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
+        bool doUpdatePosition = iter % 10 == 0 && iter >= positionUpdateIter;
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
@@ -255,77 +265,51 @@ class ptycho : public experimentConfig{
           }
         }
         if(doUpdatePosition){
-          size_t scansz = scanx*scany*sizeof(Real);
-          myMemcpyD2H(step_shiftx, d_shiftx, scansz);
-          myMemcpyD2H(step_shifty, d_shifty, scansz);
-          clearCuMem(d_shifty, scansz);
-          clearCuMem(d_shiftx, scansz);
-          const int N = scanx * scany;
-          for (int i = 0; i < N; ++i) {
-            shiftx[i] += 0.8*step_shiftx[i];
-            shifty[i] += 0.8*step_shifty[i];
-          }
+          resize_cuda_image(scanx*scany*2, 1);
+          add(d_shifts, d_shift, 0.9);
+          resize_cuda_image(row, column);
         }
         if(iter >= update_probe_iter){
           getMod2(tmp, (complexFormat*)pupilpatternWave);
           complexFormat middle = findMiddle(tmp);
-          Real biasx = crealf(middle), biasy = cimagf(middle);
-          Real offsetx = 0, offsety = 0;
           const int N = scanx * scany;
-          for (int i = 0; i < N; ++i) {
-            offsetx += shiftx[i];
-            offsety += shifty[i];
-          }
-          offsetx = offsetx / N;
-          offsety = offsety / N;
-          for (int i = 0; i < N; ++i) {
-            shiftx[i] -= offsetx;
-            shifty[i] -= offsety;
-          }
+          findSum(d_shifts, N, d_norm);
+          findSum(d_shifts+N, N, d_norm+1);
+          myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
+          resize_cuda_image(scanx*scany, 1);
+          h_norm[0] /= N;
+          h_norm[1] /= N;
+          linearConst(d_shifts, d_shifts, 1, -h_norm[0]);
+          linearConst(d_shifts+N, d_shifts+N, 1, -h_norm[1]);
+          resize_cuda_image(row, column);
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
           getMod2(tmp, (complexFormat*)pupilpatternWave);
-          myCuDMalloc(Real, d_norm, 2);
-          myDMalloc(Real, h_norm, 2);
           findSum(tmp, row*column, d_norm);
           if(iter == nIter -1) {
             plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
             plt.saveComplex(pupilpatternWave, "pupilwave");
           }
           resize_cuda_image(row_O, column_O);
-          shiftWave(objFFT,(complexFormat*)objectWave, -offsetx-biasx*row, -offsety-biasy*column);
+          Real biasx = crealf(middle), biasy = cimagf(middle);
+          shiftWave(objFFT,(complexFormat*)objectWave, -h_norm[0]-biasx*row, -h_norm[1]-biasy*column);
           resize_cuda_image(pupildiameter, pupildiameter);
           crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
-          zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1);
-          zernike_reconstruct(zernike, (complexFormat*)zernikeCrop);
+          if(iter < 100){
+          zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1, pupildiameter>>1);
+          zernike_reconstruct(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1);
+          }
           resize_cuda_image(row, column);
           pad(zernikeCrop, (complexFormat*)pupilpatternWave, pupildiameter, pupildiameter);
-          /*
-             complexFormat** result = zernikeDecomposition((complexFormat*)pupilpatternWave, 5, 48, coeff, projection);
-             if(result){
-             coeff = result[0];
-             projection = (complexFormat*)pupilpatternWave;
-             pupilpatternWave = result[1];
-             myFree(result);
-             }else{
-             complexFormat* tmp = projection;
-             projection = (complexFormat*)pupilpatternWave;
-             pupilpatternWave = tmp;
-             }
-             if(iter == nIter -1) {
-             for (int ic=0 ; ic < 21; ic++) {
-             fmt::println("x[{}]=({:.2g},{:.2g})",ic, crealf(coeff[ic]), cimagf(coeff[ic]));
-             }
-             }
-             */
           getMod2(tmp, (complexFormat*)pupilpatternWave);
           findSum(tmp, row*column, d_norm+1);
           myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
           Real norm = h_norm[0]/h_norm[1];
-          myCuFree(d_norm);
-          myFree(h_norm);
           if(norm > 2 || norm < 0.5) applyNorm((complexFormat*)pupilpatternWave, sqrt(norm));
           if(iter == nIter -1) plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+        }
+        if(doUpdatePosition || iter >= update_probe_iter){
+          myMemcpyD2H(shifts, d_shifts, scanx*scany*sizeof(Real)*2);
         }
         if(iter == positionUpdateIter){
           resize_cuda_image(row_O,column_O);
@@ -341,6 +325,8 @@ class ptycho : public experimentConfig{
           fmt::println("recon shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
         }
       }
+      myCuFree(d_norm);
+      myFree(h_norm);
       memMngr.returnCache(Fn);
       memMngr.returnCache(objCache);
       plt.plotComplexColor(pupilpatternWave, 0, 0.12, "ptycho_probe_afterIter", 0);

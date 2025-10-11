@@ -39,6 +39,15 @@ void myMemcpyD2D(void* d, void* s, size_t sz){
 void myMemcpyD2H(void* d, void* s, size_t sz){
   cudaMemcpy(d, s, sz, cudaMemcpyDeviceToHost);
 }
+void myMemcpyH2DAsync(void* d, void* s, size_t sz){
+  cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice);
+}
+void myMemcpyD2DAsync(void* d, void* s, size_t sz){
+  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice);
+}
+void myMemcpyD2HAsync(void* d, void* s, size_t sz){
+  cudaMemcpyAsync(d, s, sz, cudaMemcpyDeviceToHost);
+}
 void clearCuMem(void* ptr, size_t sz){
   cudaMemset(ptr, 0, sz);
 }

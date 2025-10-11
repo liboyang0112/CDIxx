@@ -88,28 +88,28 @@ cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)objec
 })
 
 cuFuncc(multiplyx,
-    (complexFormat* object),
-    (cuComplex* object),
-    ((cuComplex*)object),
+    (complexFormat* object, complexFormat* out),
+    (cuComplex* object, cuComplex* out),
+    ((cuComplex*)object, (cuComplex*)out),
 {
     cuda1Idx();
     Real x = ((unsigned int)index) / (unsigned int)cuda_column;  // Encourage uint div
     Real scale = x * (1.0f / (Real)cuda_row) - 0.5f;
-    object[index].x *= scale;
-    object[index].y *= scale;
+    out[index].x = object[index].x * scale;
+    out[index].y = object[index].y * scale;
 })
 
 
 cuFuncc(multiplyy,
-    (complexFormat* object),
-    (cuComplex* object),
-    ((cuComplex*)object),
+    (complexFormat* object, complexFormat* out),
+    (cuComplex* object, cuComplex* out),
+    ((cuComplex*)object, (cuComplex*)out),
 {
     cuda1Idx();
     Real y = index % cuda_column;
     Real scale = y * (1.0f / (Real)cuda_column) - 0.5f;
-    object[index].x *= scale;
-    object[index].y *= scale;
+    out[index].x = object[index].x * scale;
+    out[index].y = object[index].y * scale;
 })
 
 cuFuncc(calcPartial,(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(Real* out, cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),(out, (cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{

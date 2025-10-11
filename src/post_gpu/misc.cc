@@ -2,6 +2,7 @@
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "cub_wrap.hpp"
+#include <fmt/base.h>
 #include <math.h>
 complexFormat findMiddle(complexFormat* d_in, int num){
   if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
@@ -21,7 +22,7 @@ complexFormat findMiddle(complexFormat* d_in, int num){
   return {h_out[0]/h_out[2], h_out[1]/h_out[2]};
 };
 complexFormat findMiddle(Real* d_in, int num){
-  if(num==0) num = memMngr.getSize(d_in);
+  if(num==0) num = memMngr.getSize(d_in)/sizeof(Real);
   myCuDMalloc(Real, tmp, num);
   myCuDMalloc(Real, out, 3);
   myDMalloc(Real, h_out, 3);

@@ -11,7 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
-set(CUDA_TOOLKIT_ROOT_DIR "/opt/cuda") # Update this path if necessary
+set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 add_compile_options(-Wall -Wextra)
@@ -24,13 +24,17 @@ find_package(fmt REQUIRED) #package finder, always equipped in linux system, if 
 if(PkgConfig_FOUND)
   pkg_check_modules(GTK gtk4)
   pkg_check_modules(TRACY tracy)
+  pkg_check_modules(hdf5 hdf5)
 endif(PkgConfig_FOUND)
 if(GTK_FOUND)
 include_directories (${GTK_INCLUDE_DIRS})
 endif()
 if(tracy_FOUND)
   include_directories (${tracy_INCLUDE_DIRS})
-  message(${tracy_INCLUDE_DIRS})
+endif()
+if(hdf5_FOUND)
+  include_directories (${hdf5_INCLUDE_DIRS})
+  link_directories(${hdf5_LIBRARY_DIRS})
 endif()
 #freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
 find_package(Freetype REQUIRED)
@@ -92,7 +96,7 @@ endforeach( sourcefile ${APP_SOURCES} )
 
 #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --cuda-gpu-arch=sm_80")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
-set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "--cuda-path=/opt/cuda;-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "--cuda-path=/usr/local/cuda;-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
 set(libname "cudaLibcommon_cu")
 add_library(${libname} SHARED ${APP_SOURCES})
 target_link_libraries(${libname} ${CUFFTLIB})

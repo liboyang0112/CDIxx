@@ -1,8 +1,9 @@
 #include "cudaConfig.hpp"
 #include "cub_wrap.hpp"
 #include <cmath>
+#include "beamDecomposition.hpp"
 
-complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, complexFormat* coefficient = NULL, complexFormat* projected = NULL){
+complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, complexFormat* coefficient, complexFormat* projected){
   // Using cuda_row and cuda_column, please set resize_cuda_image(row, col) properly before calling this function
   myDMalloc(complexFormat*, output, 2);
   int n_base = (maxn+1)*(maxn+2)/2;
@@ -30,7 +31,7 @@ complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, c
   return output;
 }
 
-complexFormat** laguerreDecomposition(complexFormat* img, int maxn, int maxl, int radius, complexFormat* coefficient = NULL, complexFormat* projected = NULL){
+complexFormat** laguerreDecomposition(complexFormat* img, int maxn, int maxl, int radius, complexFormat* coefficient, complexFormat* projected){
   // Using cuda_row and cuda_column, please set resize_cuda_image(row, col) properly before calling this function
   int n_base = (maxn+1)*(2*maxl+1);
   size_t sz = getCudaCols()*getCudaRows();

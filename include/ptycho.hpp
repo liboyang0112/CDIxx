@@ -7,7 +7,7 @@ void updateObject(complexFormat* object, complexFormat* probe, complexFormat* U,
 void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj);
 void random(complexFormat* object, void *state);
 void pupilFunc(complexFormat* object);
-void multiplyx(complexFormat* object);
-void multiplyy(complexFormat* object);
+void multiplyx(complexFormat* object, complexFormat* out);
+void multiplyy(complexFormat* object, complexFormat* out);
 void calcPartial(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop);
 void applySupport(Real* image, Real* support);
