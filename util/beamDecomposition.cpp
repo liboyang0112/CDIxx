@@ -48,7 +48,7 @@ int main () {
   plt.init(row,col);
   plt.plotComplexColor(img, 0, 1, "output");
 
-  int maxl = 200;
+  //int maxl = 200;
   int ibase = 0;
   /*
   void* handle = laguerre_init(row, col, maxn, maxl, 0);

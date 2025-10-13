@@ -18,5 +18,5 @@ void applyPMLx0 (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Rea
 void applyPMLy1 (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdy1, Real* EzBdy1, int ny);
 void applyPMLy0 (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdy0, Real* HzBdy0, int ny);
 void applyPMLz1 (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdz1, Real* EyBdz1, int nz);
-void applyPMLz0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdz0, Real* HyBdz0, int nz);
+void applyPMLz0(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdz0, Real* HyBdz0);
 void applySource(Real* Ez, size_t idx, Real val);

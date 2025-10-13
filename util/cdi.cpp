@@ -1,6 +1,4 @@
-#include <stdio.h>
 #include <unistd.h>
-#include <stdio.h>
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
@@ -154,7 +152,7 @@ int main(int argc, char** argv )
     steplength = (Real*)malloc(sz/2);
     cuda_steplength = (Real*)memMngr.borrowCache(sz/2);
     for(int iter = 0; iter < setups.nIterpupil ;iter++){
-      applyESWSupport(cuda_ESW, cuda_ISW, cuda_ESWP, cuda_steplength);
+      applyESWSupport(cuda_ESW, cuda_ISW, cuda_ESWP);
       myMemcpyD2H(steplength, cuda_steplength, sz/2);
       /*
          lengthsum = 0;
@@ -163,7 +161,7 @@ int main(int argc, char** argv )
          if(lengthsum<1e-6) break;
        */
       setups.propagate(cuda_ESW, cuda_ESWPattern, 1);
-      applyESWMod(cuda_ESWPattern, cuda_pupilmod, cuda_pupilAmp, 0);//setups.noiseLevel);
+      applyESWMod(cuda_ESWPattern, cuda_pupilmod, cuda_pupilAmp);//setups.noiseLevel);
       setups.propagate(cuda_ESWPattern, cuda_ESWP, 0);
     }
 

@@ -278,7 +278,6 @@ __global__ void zernike_project_mode(
     int width, int height,
     Real cx, Real cy, Real norm,
     int maxN,
-    int nblocks,
     cuComplex* block_coeff_mode
     ) {
   extern __shared__ char shared_raw[];
@@ -477,7 +476,7 @@ complexFormat* zernike_compute(
   if (!handle->initialized) return nullptr;
 
   zernike_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
-      (cuComplex*)phi, handle->width, handle->height, cx, cy, radius, handle->maxN, handle->nblocks, handle->block_coeff
+      (cuComplex*)phi, handle->width, handle->height, cx, cy, radius, handle->maxN, handle->block_coeff
       );
   int reduce_threads = handle->nthread;
   int reduce_blocks = (handle->nmodes + reduce_threads - 1) / reduce_threads;
@@ -515,7 +514,6 @@ __global__ void laguerre_project_mode(
     int width, int height, Real radius,
     Real cx, Real cy,
     int maxN, int maxM,
-    int nblocks,
     cuComplex* block_coeff_mode
     ) {
   extern __shared__ char shared_raw[];
@@ -669,7 +667,6 @@ complexFormat* laguerre_compute(void* handle_ptr, complexFormat* phi, Real cx, R
       handle->width, handle->height, radius,
       cx, cy,
       handle->maxN, handle->maxM,
-      handle->nblocks,
       handle->block_coeff
       );
 

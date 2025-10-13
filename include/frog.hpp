@@ -10,7 +10,7 @@ void updateE (complexFormat* E, complexFormat* gate, complexFormat* trace, Real 
 void initE (complexFormat* gate);
 void removeHighFreq (complexFormat* data);
 void shiftmid (complexFormat* Eprime, complexFormat* E, int tx);
-void average (complexFormat* Eprime, complexFormat* E, Real gamma);
+void average (complexFormat* Eprime, complexFormat* E);
 void applyModAbsxrange(complexFormat* source, Real* target, void* state, int xrange, Real gamma);
 void downSample (Real* out, Real* input, Real* colsel, int rowcut, int nfulldelay);
-void traceLambdaToFreq (Real* d_traceIntensity, Real* d_traceLambda, Real* d_freqs, int nspect, Real minfreq, Real maxfreq, Real freqspacing, int freqshift);
+void traceLambdaToFreq (Real* d_traceIntensity, Real* d_traceLambda, Real* d_freqs, int nspect, Real minfreq, Real freqspacing, int freqshift);

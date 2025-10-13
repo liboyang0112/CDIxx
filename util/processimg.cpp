@@ -92,7 +92,7 @@ int main(int argc, char** argv )
   getReal(tmp, tmp1);
   int finsize = outrow/nmerge;
   resize_cuda_image(finsize,finsize);
-  mergePixel(d_sig, tmp, outrow, outcol, nmerge);
+  mergePixel(d_sig, tmp, outcol, nmerge);
   plt.init(finsize, finsize);
   myCuDMalloc(complexFormat, xc, finsize*finsize);
   extendToComplex(d_sig,xc);

@@ -1,6 +1,6 @@
 #include "cudaDefs_h.cu"
 
-cuFunc(calcLambdas, (double* lambdas, double step_lambda, double* matrix, double* bi, bool debug), (lambdas, step_lambda, matrix, bi, debug), {
+cuFunc(calcLambdas, (double* lambdas, double step_lambda, double* matrix, double* bi), (lambdas, step_lambda, matrix, bi), {
   cuda1Idx();
   double tmp = lambdas[index];
   for(int x = index; x < cuda_row; x++){

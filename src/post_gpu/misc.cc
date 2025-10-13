@@ -139,13 +139,15 @@ void unwrapPhaseFFT(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, i
     myCuDMalloc(complexFormat, d_fft, bytes_cplx);
 
     // --- Step 2: Compute divergence b = ∂gx/∂x + ∂gy/∂y ---
-    phaseUnwrapping(d_wrapped_phase, d_b, width, height);
+    phaseUnwrapping(d_wrapped_phase);
 
     // --- Step 3: Forward FFT: b(x,y) → B(kx,ky) ---
     init_fft(width, height);
     myFFTR2C(d_b, d_fft);
     // --- Step 4: Solve in frequency domain: Ψ(k) = B(k) / |k|² ---
-    solve_poisson_frequency_domain(d_fft, width, height);
+    resize_cuda_image(width/2+1, height);
+    solve_poisson_frequency_domain(d_fft);
+    resize_cuda_image(width, height);
     // --- Step 5: Inverse FFT: Ψ(k) → ψ(x,y) ---
     myFFTC2R(d_fft, d_unwrapped_phase);
     applyNorm(d_unwrapped_phase, 1./(width * height));  // normalize IFFT

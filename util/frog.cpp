@@ -99,7 +99,7 @@ void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexForma
       myIFFTM(singleplan, traceprime, traceprime);
       add(traceprime, trace, -1);
       updateGE(E, gate, traceprime, thisdelay, step*(1.*randv/maxv));
-      //average(E,gate,0.5);
+      //average(E,gate);
       if(spectrum){
         myFFTM(singleplan, E, Eprime);
         applyModAbs(Eprime, spectrum);
@@ -285,7 +285,7 @@ int main()
       plt.init(nfulldelay, nspect);
       plt.plotFloat(d_traceLambda, MOD, 0, 1, "inputimg.png", 1, 0, 1);
       resize_cuda_image(nfulldelay, 1);
-      traceLambdaToFreq(d_fulltraceIntensity, d_traceLambda, d_freqs, nspect, minfreq, maxfreq, freqspacing, freqshift);
+      traceLambdaToFreq(d_fulltraceIntensity, d_traceLambda, d_freqs, nspect, minfreq, freqspacing, freqshift);
       resize_cuda_image(nfulldelay,nspect);
       applyNorm(d_fulltraceIntensity, 1./findMax(d_fulltraceIntensity));
       plt.plotFloat(d_fulltraceIntensity, MOD, 0, 1, "inputtrace", 1, 0, 1);

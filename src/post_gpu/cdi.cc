@@ -20,6 +20,18 @@
 using namespace std;
 //#define Bits 16
 
+void applySupport
+    (void *gkp1, void *gkprime, int algo, Real *spt)
+{
+    switch (algo) {
+      case RAAR:    ApplyRAARSupport  (gkp1, gkprime, spt);break;
+      case ER:      ApplyERSupport    (gkp1, gkprime, spt);break;
+      case POSER:   ApplyPOSERSupport (gkp1, gkprime, spt);break;
+      case POSHIO:  ApplyPOSHIOSupport(gkp1, gkprime, spt);break;
+      case HIO:     ApplyHIOSupport   (gkp1, gkprime, spt);break;
+      default:      ApplyFHIOSupport  (gkp1, gkprime, spt);break;
+    }
+}
 CDI::CDI(const char* configfile):experimentConfig(configfile){
   verbose(4, print())
     if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
@@ -336,8 +348,7 @@ void* CDI::phaseRetrieve(){
 
     myIFFT( (complexFormat*)patternWave, cuda_gkprime);
     applyNorm(cuda_gkprime, 1./(row*column));
-    if(costheta == 1) applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0);
-    else applySupportOblique(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support, iter, isFresnel? fresnelFactor:0, 1./costheta);
+    applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support);
     myFFT( cuda_gkp1, (complexFormat*)patternWave);
     if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
       plt.toVideo = vidhandle;

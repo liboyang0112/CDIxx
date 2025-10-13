@@ -25,7 +25,7 @@ void myMemcpyH2DAsync(void*, void*, size_t sz);
 void myMemcpyD2DAsync(void*, void*, size_t sz);
 void myMemcpyD2HAsync(void*, void*, size_t sz);
 void resize_cuda_image(int row, int col, int hei = 1);
-void init_cuda_image(int rcolor=0, Real scale=0);
+void init_cuda_image(int rcolor=65535, Real scale=1);
 void initRand(void *state,unsigned long long seed);
 void randMask(char* mask, void* state, Real ratio = .5);
 void* newRand(size_t sz);
@@ -116,7 +116,7 @@ void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
 void multiplyRegular(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha);
 void convertFOPhase(complexFormat* data, Real norm = 1);
-void mergePixel(Real* input, Real* output, int row, int col, int nmerge);
+void mergePixel(Real* input, Real* output, int col, int nmerge);
 void cropinner(Real* src, Real* dest, int row, int col, Real norm);
 void cropinner(complexFormat* src, complexFormat* dest, int row, int col, Real norm = 1);
 void padinner(Real* src, Real* dest, int row, int col, Real norm = 1);
@@ -137,8 +137,12 @@ void paste(Real* out, Real* in, int colout, int posx, int posy, bool replace = 0
 void paste(complexFormat* out, complexFormat* in, int colout, int posx, int posy, bool replace = 0);
 void takeMod2Diff(complexFormat* a, Real* b, Real *output, Real *bs);
 void takeMod2Sum(complexFormat* a, Real* b);
-void applySupportOblique(complexFormat *gkp1, complexFormat *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0, Real costheta_r = 1);
-void applySupport(void *gkp1, void *gkprime, int algo, Real *spt, int iter = 0, Real fresnelFactor = 0);
+void ApplyRAARSupport  (void* gkp1, void* gkprime, Real* spt);
+void ApplyERSupport    (void* gkp1, void* gkprime, Real* spt);
+void ApplyPOSERSupport (void* gkp1, void* gkprime, Real* spt);
+void ApplyPOSHIOSupport(void* gkp1, void* gkprime, Real* spt);
+void ApplyHIOSupport   (void* gkp1, void* gkprime, Real* spt);
+void ApplyFHIOSupport  (void* gkp1, void* gkprime, Real* spt);
 void getXYSlice(Real* slice, Real* data, int nx, int ny, int iz);
 void getXZSlice(Real* slice, Real* data, int nx, int ny, int nz, int iy);
 void getYZSlice(Real* slice, Real *data, int nx, int ny, int nz, int ix);
@@ -149,8 +153,8 @@ void multiplyx(Real* object, Real* out);
 void multiplyy(Real* object, Real* out);
 void getArg(Real* angle, complexFormat* amp);
 
-void phaseUnwrapping(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height);
-void solve_poisson_frequency_domain(complexFormat* d_fft_data, int width, int height);
+void phaseUnwrapping(Real* d_wrapped_phase);
+void solve_poisson_frequency_domain(complexFormat* d_fft_data);
 
 template<typename T>
 void crop(T* src, T* dest, int row, int col, Real midx = 0, Real midy = 0);

@@ -102,7 +102,7 @@ int main(){
     applyPMLx0_d(Hx, Hy, Hz, Ex, Ey, Ez);
     applyPMLy0(Hx, Hy, Hz, Ex, Ey, Ez, HxBdy0, HzBdy0, ny);
     resize_cuda_image(nx,ny);
-    applyPMLz0(Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0, nz);
+    applyPMLz0(Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0);
 
     resize_cuda_image(nx,ny,nz);
     updateE(Hx, Hy, Hz, Ex, Ey, Ez);  //------------UPDATE E-----------

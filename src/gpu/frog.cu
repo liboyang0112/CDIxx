@@ -118,7 +118,7 @@ cuFuncc(shiftmid, (complexFormat* Eprime, complexFormat* E, int tx),(cuComplex* 
   else E[index] = Eprime[tidx];
 })
 
-cuFuncc(average, (complexFormat* Eprime, complexFormat* E, Real gamma),(cuComplex* Eprime, cuComplex* E, Real gamma),((cuComplex*)Eprime, (cuComplex*)E, gamma),{
+cuFuncc(average, (complexFormat* Eprime, complexFormat* E),(cuComplex* Eprime, cuComplex* E),((cuComplex*)Eprime, (cuComplex*)E),{
   cuda1Idx();
   Eprime[index].x = E[index].x = (Eprime[index].x+E[index].x)/2;
   Eprime[index].y = E[index].y = (Eprime[index].y+E[index].y)/2;
@@ -163,7 +163,7 @@ cuFunc(downSample, (Real* out, Real* input, Real* colsel, int rowcut, int midpla
       out[index] = input[int(colsel[x]+midplace)*cuda_column+y];
     }
     })
-cuFunc(traceLambdaToFreq, (Real* d_traceIntensity, Real* d_traceLambda, Real* d_freqs, int nspect, Real minfreq, Real maxfreq, Real freqspacing, int freqshift), (d_traceIntensity, d_traceLambda, d_freqs, nspect, minfreq, maxfreq, freqspacing, freqshift), {
+cuFunc(traceLambdaToFreq, (Real* d_traceIntensity, Real* d_traceLambda, Real* d_freqs, int nspect, Real minfreq, Real freqspacing, int freqshift), (d_traceIntensity, d_traceLambda, d_freqs, nspect, minfreq, freqspacing, freqshift), {
     cuda1Idx();
     int idx = index*nspect;
     Real c_freq = minfreq, freq1, freq2, a;

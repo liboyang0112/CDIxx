@@ -5,8 +5,6 @@
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
-cudaVars* cudaVar = 0;
-cudaVars* cudaVarLocal = 0;
 dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
@@ -58,31 +56,10 @@ void resize_cuda_image(int rows, int cols, int layers){
   cuda_imgsz.z = layers;
   numBlocks.x=(rows*cols*layers-1)/threadsPerBlock.x+1;
 }
-void init_cuda_image(int rcolor, Real scale){
-  const int sz = sizeof(cudaVars);
-  if(!cudaVar){
-    cudaFree(0);
-    cudaVar = (cudaVars*) memMngr.borrowCache(sz);
-    myMalloc(cudaVars, cudaVarLocal, 1);
-    cudaVarLocal->threshold = 0.5;
-    cudaVarLocal->beta_HIO = 1;
-    if(scale==scale) cudaVarLocal->scale = scale;
-    if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
-    else cudaVarLocal->rcolor=65535;
-    cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
-    return;
-  }
-  if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
-  if(scale==scale) cudaVarLocal->scale = scale;
-  cudaMemcpy(cudaVar, cudaVarLocal, sz, cudaMemcpyHostToDevice);
-};
 size_t getGPUFreeMem(){
   size_t freeBytes, totalBytes;
   cudaMemGetInfo(&freeBytes, &totalBytes);
   return freeBytes >> 20;
-}
-void setThreshold(Real val){
-  myMemcpyH2D(&cudaVar->threshold, &val, sizeof(cudaVarLocal->threshold));
 }
 void* newRand(size_t sz){
   return memMngr.borrowCache(sz * sizeof(curandStateMRG32k3a));
@@ -226,7 +203,7 @@ template<> void cudaConvertFO<complexFormat>(complexFormat* data, complexFormat*
 }
 template<typename T1, typename T2>
 __global__ void multiplyWrap(int cuda_row, int cuda_column, int cuda_height, T1* store, T1* src, T2* target){
-  cuda1Idx();
+  cuda1Idx3D();
   store[index] = multiply_dev(src[index], target[index]);
 }
 template <typename T1, typename T2>
@@ -321,7 +298,7 @@ template<> void flipx<complexFormat>(complexFormat* data, complexFormat* out){
 
 template <typename T1, typename T2>
 __global__ void assignValWrap(int cuda_row, int cuda_column, int cuda_height, T1* out, T2* input){
-  cuda1Idx()
+  cuda1Idx3D()
     out[index] = input[index];
 }
 template <typename T1, typename T2>
@@ -524,7 +501,7 @@ cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat* t
     store[index] = cuCmulf(src[index], cuConjf(target[index]));
     })
 
-cuFuncc(multiplyRegular,(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha),(cuComplex* store, cuComplex* src, cuComplex* target, Real alpha),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target, alpha),{
+cuFuncc(multiplyRegular,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     Real fact = 1;//target[index].x*target[index].x + target[index].y*target[index].y + alpha;
     cuComplex tmp = cuCmulf(src[index], target[index]);
@@ -679,59 +656,6 @@ cuFunc(randMask,(char* mask, void* state, Real ratio),
     mask[index]=curand_uniform((curandStateMRG32k3a*)state+index)>ratio;
     })
 
-cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, void* state, Real exposure),
-    (data,wave,noiseLevel,state,exposure),{
-    cuda1Idx()
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*wave[index]*exposure);
-    if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
-    data[index] = dataint-noiseLevel;
-    });
-cuFuncc(ccdRecord, (uint16_t* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(uint16_t* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
-    (data,(cuComplex*)wave,noiseLevel,state,exposure),{
-    cuda1Idx()
-    cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
-    if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
-    data[index] = dataint-noiseLevel;
-    });
-cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exposure, int rcolor),
-    (data,wave,noiseLevel,state,exposure, rcolor),{
-    cuda1Idx()
-    if(rcolor == 0) rcolor = vars->rcolor;
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + rcolor*wave[index]*exposure);
-    if(dataint >= rcolor) dataint = rcolor-1;
-    data[index] = Real(dataint-noiseLevel)/rcolor;
-    });
-cuFuncc(ccdRecord, (Real* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(Real* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
-    (data,(cuComplex*)wave,noiseLevel,state,exposure),{
-    cuda1Idx()
-    cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
-    if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
-    data[index] = Real(dataint-noiseLevel)/vars->rcolor;
-    });
-cuFuncc(ccdRecord, (complexFormat* data, complexFormat* wave, int noiseLevel, void* state, Real exposure),(cuComplex* data, cuComplex* wave, int noiseLevel, void* state, Real exposure),
-    ((cuComplex*)data,(cuComplex*)wave,noiseLevel,state,exposure),{
-    cuda1Idx()
-    cuComplex tmp = wave[index];
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + vars->rcolor*(tmp.x*tmp.x+tmp.y*tmp.y)*exposure);
-    if(dataint >= vars->rcolor) dataint = vars->rcolor-1;
-    data[index].x = Real(dataint-noiseLevel)/vars->rcolor;
-    data[index].y = 0;
-    });
-cuFunc(applyPoissonNoise,(Real* wave, Real noiseLevel, void* state, Real scale),
-    (wave,noiseLevel,state,scale),{
-    cuda1Idx()
-    if(scale==0) scale = vars->scale;
-    wave[index]+=scale*(curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel)-noiseLevel)/vars->rcolor;
-    })
-cuFunc(applyPoissonNoise_WO,(Real* wave, Real noiseLevel, void* state, Real scale),
-    (wave,noiseLevel,state,scale),{
-    cuda1Idx()
-    if(scale==0) scale = vars->scale;
-    wave[index]=scale*(int(wave[index]*vars->rcolor/scale) + curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel)-noiseLevel)/vars->rcolor;
-    })
-
 cuFuncc(getMod,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,(cuComplex*)amp),{
     cuda1Idx()
     mod[index] = cuCabsf(amp[index]);
@@ -779,19 +703,6 @@ cuFuncc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(Real* mod2, cuCompl
 cuFunc(getMod2,(Real* mod2, Real* mod, Real norm),(mod2,mod,norm),{
     cuda1Idx()
     mod2[index] = sq(mod[index])*norm;
-    })
-
-cuFuncc(bitMap,(Real* store, complexFormat* amp, Real threshold),(Real* store, cuComplex* amp, Real threshold),(store,(cuComplex*)amp, threshold),{
-    cuda1Idx()
-    if(threshold == 0) threshold = vars->threshold;
-    cuComplex tmp = amp[index];
-    store[index] = tmp.x*tmp.x+tmp.y*tmp.y > threshold*threshold;
-    })
-
-cuFunc(bitMap,(Real* store, Real* amp, Real threshold),(store,amp, threshold),{
-    cuda1Idx()
-    if(threshold == 0) threshold = vars->threshold;
-    store[index] = amp[index] > threshold;
     })
 
 cuFunc(applyThreshold,(Real* store, Real* input, Real threshold),(store,input,threshold),{
@@ -852,53 +763,6 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     source[index].y *= rat;
     })
 
-cuFuncc(applyMod,
-    (complexFormat* source, Real* target, Real *bs, int noiseLevel, Real bsnorm),
-    (cuComplex* source, Real* target, Real *bs, int noiseLevel, Real bsnorm),
-    ((cuComplex*)source, target, bs, noiseLevel, bsnorm),
-{
-    cuda1Idx();
-
-    // Load data early
-    cuComplex sourcedata = source[index];
-    Real mod2 = fmaxf(0.0f, target[index]);
-
-    // Early return if blocked by bs flag (common case?)
-    if (bs && bs[index] > 0.5f) {
-        // Only write back scaled value if bsnorm was applied
-        if (bsnorm != 1.0f) {
-            sourcedata.x *= bsnorm;
-            sourcedata.y *= bsnorm;
-            source[index] = sourcedata;
-        }
-        return;
-    }
-    Real rx = sourcedata.x;
-    Real ry = sourcedata.y;
-    if (bsnorm != 1.0f) {
-        rx *= bsnorm;
-        ry *= bsnorm;
-    }
-    Real srcmod2 = rx*rx + ry*ry;
-    Real maximum = vars->scale * 0.95f;
-    if (mod2 >= maximum) {
-        mod2 = fmaxf(maximum, srcmod2);
-    }
-    Real tolerance = (1.0f + sqrtf((Real)noiseLevel)) * vars->scale / vars->rcolor;
-    Real diff = mod2 - srcmod2;
-    Real val = mod2;
-    if (diff > tolerance) {
-        val -= tolerance;
-    } else if (diff < -tolerance) {
-        val += tolerance;
-    }
-    if (srcmod2 == 0.0f) {
-        source[index] = make_cuComplex(val, 0.0f);
-        return;
-    }
-    Real scale = sqrtf(fmaxf(val, 0.0f) / srcmod2); // Clamp val to avoid NaN
-    source[index] = make_cuComplex(scale * rx, scale * ry);
-})
 cuFuncc(convertFOPhase, (complexFormat* data, Real norm),(cuComplex* data, Real norm),((cuComplex*)data, norm),{
     cudaIdx();
     if((x+y)%2==1) {
@@ -941,23 +805,7 @@ cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
     src[index] = 0;
     }
     });
-cuFuncc(applyRandomPhase,(complexFormat* wave, Real* beamstop, void* state),(cuComplex* wave, Real* beamstop, void* state),
-    ((cuComplex*)wave, beamstop, state),{
-    cuda1Idx()
-    cuComplex tmp = wave[index];
-    if(beamstop && beamstop[index]>vars->threshold) {
-    tmp.x = tmp.y = 0;
-    }
-    else{
-    Real mod = cuCabsf(wave[index]);
-    Real randphase = (curand_uniform((curandStateMRG32k3a*)state+index)>0.5)*M_PI;
-    Real c,s;
-    sincosf(randphase, &s, &c);
-    tmp.x = mod*c;
-    tmp.y = mod*s;
-    }
-    wave[index] = tmp;
-    })
+
 
 cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
     cudaIdx()
@@ -966,7 +814,7 @@ cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,
     int targetidx = targetx * col + targety;
     dest[index] = src[targetidx]*norm;
     })
-cuFunc(mergePixel, (Real* output, Real* input, int row, int col, int nmerge),(output, input, row, col, nmerge),{
+cuFunc(mergePixel, (Real* output, Real* input, int col, int nmerge),(output, input, col, nmerge),{
     cudaIdx()
     int idx0 = x*nmerge*col+y*nmerge;
     Real out = 0;
@@ -1033,23 +881,15 @@ cuFuncc(paste, (complexFormat* out, complexFormat* in, int colout, int posx, int
 void getXYSlice (Real * slice, Real *data, int nx, int ny, int iz){
   myMemcpyD2D(slice, data+nx*ny*iz, nx*ny*sizeof(Real));
 };
-cuFunc(getXZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int iy),
-    (slice, data, nx, ny, nz, iy), {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= nx * nz)
-    return;
-    int x = index % nx;
-    int z = index / nx;
-    slice[index] = data[x + nx * iy + nx * ny * z];
+cuFunc(getXZSlice, (Real * slice, Real *data, int ny, int iy),
+    (slice, data, ny, iy), {
+    cudaIdx()
+    slice[index] = data[y + cuda_column * iy + cuda_column * ny * x];
     });
-cuFunc(getYZSlice, (Real * slice, Real *data, int nx, int ny, int nz, int ix),
-    (slice, data, nx, ny, nz, ix), {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= ny * nz)
-    return;
-    int y = index % ny;
-    int z = index / ny;
-    int idx = ix + nx * y + nx * ny * z;
+cuFunc(getYZSlice, (Real * slice, Real *data, int nx, int ix),
+    (slice, data, nx, ix), {
+    cudaIdx()
+    int idx = ix + nx * y + nx * cuda_column * x;
     slice[index] = data[idx];
     })
 //-------colorbar-begin
@@ -1103,134 +943,19 @@ cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor
 
 //-------cdi.cc-begin
 
-cuFuncc(takeMod2Diff,(complexFormat* a, Real* b, Real *output, Real *bs),(cuComplex* a, Real* b, Real *output, Real *bs),((cuComplex*)a,b,output,bs),{
-    cuda1Idx()
-    Real mod2 = sq(a[index].x)+sq(a[index].y);
-    Real tmp = b[index]-mod2;
-    if(bs&&bs[index]>0.5) tmp=0;
-    else if(b[index]>vars->scale) tmp = vars->scale-mod2;
-    output[index] = tmp;
-    })
-
-cuFuncc(takeMod2Sum,(complexFormat* a, Real* b),(cuComplex* a, Real* b),((cuComplex*)a,b),{
-    cuda1Idx()
-    Real tmp = b[index]+sq(a[index].x)+sq(a[index].y);
-    if(tmp<0) tmp=0;
-    b[index] = tmp;
-    })
-__forceinline__ __device__ void ApplyHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
-  if(insideS){
-    rhonp1.x = rhoprime.x;
-    rhonp1.y = rhoprime.y;
-  }else{
-    rhonp1.x -= beta*rhoprime.x;
-    rhonp1.y -= beta*rhoprime.y;
-  }
-}
-__forceinline__ __device__ void ApplyFHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
-  if(insideS){
-    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
-    rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
-  }else{
-    rhonp1.x -= 1.2*rhoprime.x;
-    rhonp1.y -= 1.2*rhoprime.y;
-  }
-}
-__forceinline__ __device__ void ApplyRAARSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
-  if(insideS){
-    rhonp1.x = rhoprime.x;
-    rhonp1.y = rhoprime.y;
-  }else{
-
-    rhonp1.x = beta*rhonp1.x+(1-2*beta)*rhoprime.x;
-    rhonp1.y = beta*rhonp1.y+(1-2*beta)*rhoprime.y;
-    //    rhonp1.x = beta*(rhonp1.x-rhoprime.x);
-    //    rhonp1.y = beta*(rhonp1.y-rhoprime.y);
-  }
-}
-__forceinline__ __device__ void ApplyPOSERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
-  if(insideS && rhoprime.x > 0){
-    rhonp1.x = rhoprime.x;
-    rhonp1.y = rhoprime.y;
-  }else{
-    rhonp1.x = 0;
-    rhonp1.y = 0;
-  }
-}
-__forceinline__ __device__ void ApplyERSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime){
-  if(insideS){
-    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
-    rhonp1.y += 1.9*(rhoprime.y-rhonp1.y);
-  }else{
-    rhonp1.x = 0;
-    rhonp1.y = 0;
-  }
-}
-__forceinline__ __device__ void ApplyPOSHIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
-  if(rhoprime.x > 0 && insideS){
-    rhonp1.x += 1.9*(rhoprime.x-rhonp1.x);
-    //rhonp1.y = rhoprime.y;
-  }else{
-    rhonp1.x -= beta*rhoprime.x;
-  }
-  rhonp1.y -= beta*rhoprime.y;
-}
-__forceinline__ __device__ void ApplyPOS0HIOSupport(bool insideS, cuComplex &rhonp1, cuComplex &rhoprime, Real beta){
-  if(rhoprime.x > 0 && insideS){
-    rhonp1.x = rhoprime.x;
-    //rhonp1.y = rhoprime.y;
-  }else{
-    rhonp1.x -= beta*rhoprime.x;
-  }
-  rhonp1.y -= beta*rhoprime.y;
-}
-cuFuncc(applySupportOblique,(complexFormat *gkp1, complexFormat *gkprime, int algo, Real *spt, int iter, Real fresnelFactor, Real costheta_r),(cuComplex* gkp1, cuComplex* gkprime, int algo, Real *spt, int iter, Real fresnelFactor, Real costheta_r),((cuComplex*)gkp1,(cuComplex*)gkprime,algo,spt,iter,fresnelFactor,costheta_r),{
-    cudaIdx()
-    bool inside = spt[index] > vars->threshold;
-    cuComplex &gkp1data = gkp1[index];
-    cuComplex &gkprimedata = gkprime[index];
-    if(algo==RAAR) ApplyRAARSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
-    else if(algo==ER) ApplyERSupport(inside,gkp1data,gkprimedata);
-    else if(algo==HIO) ApplyHIOSupport(inside,gkp1data,gkprimedata,vars->beta_HIO);
-    if(fresnelFactor>1e-4 && iter < 400) {
-    if(inside){
-    Real phase = M_PI*fresnelFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
-    //Real mod = cuCabs(gkp1data);
-    Real c, s;
-    sincosf(phase, &s, &c);  // Single call: ~2x faster than separate sin/cos
-    Real mod = fabs(gkp1data.x*c+gkp1data.y*s); //use projection (Error reduction)
-    gkp1data.x=mod*c;
-    gkp1data.y=mod*s;
-    }
-    }
-    })
-cuFunc(applySupport,
-    (void *gkp1, void *gkprime, int algo, Real *spt, int iter, Real fresnelFactor),
-    (gkp1,gkprime,algo,spt,iter,fresnelFactor),
-{
-    cudaIdx();
-    cuComplex &gkp1data = ((cuComplex*)gkp1)[index];
-    cuComplex &gkprimedata = ((cuComplex*)gkprime)[index];
-    bool inside = spt[index] > vars->threshold;
-    switch (algo) {
-      case RAAR:    ApplyRAARSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);     break;
-      case ER:      ApplyERSupport(inside, gkp1data, gkprimedata);                       break;
-      case POSER:   ApplyPOSERSupport(inside, gkp1data, gkprimedata);                    break;
-      case POSHIO:  ApplyPOSHIOSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);   break;
-      case HIO:     ApplyHIOSupport(inside, gkp1data, gkprimedata, vars->beta_HIO);      break;
-      default:      ApplyFHIOSupport(inside, gkp1data, gkprimedata);                     break;
-    }
+/*
     if (!(fresnelFactor > 1e-4f && iter < 400)) return;
     if (!inside) return;
     int dx = x - (cuda_row >> 1);
     int dy = y - (cuda_column >> 1);
+    //oblique: Real phase = M_PI*fresnelFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
     Real phase = (Real)M_PI * fresnelFactor * (dx*dx + dy*dy);
     Real c, s;
     sincosf(phase, &s, &c);  // Single call: ~2x faster than separate sin/cos
     Real mod = fabsf(gkp1data.x * c + gkp1data.y * s);  // Real part after rotation
     gkp1data.x = mod * c;
     gkp1data.y = mod * s;
-})
+    */
 //-------cdi.cc-end
 
 //-------FISTA.cc-------begin
@@ -1324,12 +1049,6 @@ cuFuncc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(cuCo
     mom[index].x = m;
     })
 
-cuFuncc(overExposureZeroGrad, (complexFormat* deltab, complexFormat* b, int noiseLevel),(cuComplex* deltab, cuComplex* b, int noiseLevel),((cuComplex*)deltab, (cuComplex*)b, noiseLevel),{
-    cuda1Idx();
-    if(b[index].x >= vars->scale*0.99 && deltab[index].x < 0) deltab[index].x = 0;
-    //if(fabs(deltab[index].x)*vars->rcolor < sqrtf(noiseLevel)) deltab[index].x = 0;
-    deltab[index].y = 0;
-    })
 
 cuFuncc(assignRef_d, (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n), (cuComplex* wavefront, uint32_t* mmap, cuComplex* rf, int n),((cuComplex*)wavefront, mmap, (cuComplex*)rf, n), {
     cuda1Idx()
@@ -1358,7 +1077,7 @@ cuFuncc(saveRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row
     rf[index].x = amp[x*col+y].x*norm;
     rf[index].y = amp[x*col+y].y*norm;
     })
-cuFuncc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, int n, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, n, norm),{
+cuFuncc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int col0, int n, Real norm),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int col0, int n, Real norm),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, col0, n, norm),{
     cuda1Idx()
     if(index >= n) return;
     int idx = mmap[index];
@@ -1369,33 +1088,6 @@ cuFuncc(saveRef_Real, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, in
     })
 //-------monoChromo.cc-------end
 //-------holo.cc-------begin
-cuFuncc(applySupportBarHalf,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-    cudaIdx();
-    int hr = cuda_row>>1;
-    int hc = cuda_column>>1;
-    if(x > hr) x -= hr;
-    else x += hr;
-    if(y > hc) y -= hc;
-    else y += hc;
-    if(spt[index] > vars->threshold || x + y > cuda_row)
-    img[index].x = img[index].y = 0;
-    })
-
-
-cuFuncc(applySupportBar_Flip,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-    cuda1Idx();
-    if(spt[index] > vars->threshold){
-    img[index].x *= -0.3;
-    img[index].y *= -0.3;
-    }
-    })
-
-cuFuncc(applySupport,(complexFormat* img, Real* spt),(cuComplex* img, Real* spt),((cuComplex*)img,spt),{
-    cuda1Idx();
-    if(spt[index] < vars->threshold)
-    img[index].x = img[index].y = 0;
-    })
-
 cuFuncc(dillate, (complexFormat* data, Real* support, int wid, int hit), (cuComplex* data, Real* support, int wid, int hit), ((cuComplex*)data,support,wid,hit),{
     cudaIdx();
     if(abs(data[index].x) < 0.5 && abs(data[index].y) < 0.5) return;

@@ -1,5 +1,4 @@
 #include <string>
-#include <stdio.h>
 #include "cuPlotter.hpp"
 #include "fmt/core.h"
 #include "memManager.hpp"

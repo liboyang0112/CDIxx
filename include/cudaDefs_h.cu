@@ -2,14 +2,20 @@
 #define __CUDADEFS_H__
 #include "format.hpp"
 #include <cuComplex.h>
-#include <stdio.h>
 #define cuComplex float2
-#define addVar(args...) cudaVar, cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, args
-#define addVarArg(x...) cudaVars* vars, int cuda_row, int cuda_column, int cuda_height, x
+#define addVar(args...) cuda_imgsz.x, cuda_imgsz.y, args
+#define addVarArg(x...) int cuda_row, int cuda_column, x
+#define addVar3D(args...) cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, args
+#define addVarArg3D(x...) int cuda_row, int cuda_column, int cuda_height, x
 #define cuFunc(name,args,param,content...)\
   __global__ void name##Wrap(addVarArg args) content \
   void name args{\
     name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
+  }
+#define cuFunc3D(name,args,param,content...)\
+  __global__ void name##Wrap(addVarArg3D args) content \
+  void name args{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar3D param);\
   }
 #define cuFuncc(name,argsf,argsw,param,content...)\
   __global__ void name##Wrap(addVarArg argsw) content \
@@ -44,6 +50,9 @@
   }
 #define cuda1Idx() \
   int index = blockIdx.x * blockDim.x + threadIdx.x;\
+  if(index >= cuda_row*cuda_column) return;
+#define cuda1Idx3D() \
+  int index = blockIdx.x * blockDim.x + threadIdx.x;\
   if(index >= cuda_row*cuda_column*cuda_height) return;
 #define cudaIdx() \
   int index = blockIdx.x * blockDim.x + threadIdx.x;\
@@ -65,7 +74,7 @@ struct cudaVars{
   Real scale;
   Real threshold;
 };
-extern cudaVars* cudaVar;
+extern __constant__ cudaVars vars;
 extern cudaVars* cudaVarLocal;
 extern int3 cuda_imgsz;
 #endif

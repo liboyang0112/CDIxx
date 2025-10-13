@@ -1,5 +1,5 @@
 #include "cudaDefs_h.cu"
-cuFunc(initV,(Real* V, Real val), (V, val), {
+cuFunc3D(initV,(Real* V, Real val), (V, val), {
   cuda3Idx()
   int &nx = cuda_row;
   int &ny = cuda_column;
@@ -21,7 +21,7 @@ cuFunc(initV,(Real* V, Real val), (V, val), {
   if(r21 < 0.5 || r22 < 0.5) printf("V=%f\n", V[index]);
 })
 
-cuFunc(Hpsifunc, (Real * psi, Real *V, Real *Hpsi, Real Eshift),
+cuFunc3D(Hpsifunc, (Real * psi, Real *V, Real *Hpsi, Real Eshift),
        (psi, V, Hpsi, Eshift), {
          cuda3Idx();
          Hpsi[index] = (Eshift + 6 + V[index]) * psi[index];

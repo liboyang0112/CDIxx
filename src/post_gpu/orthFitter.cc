@@ -23,7 +23,7 @@ void runIter_cu(int n, int niter, Real step_lambda, double* bi, double* prods, d
   myMemcpyH2D(d_matrix,matrix,szmat*sizeof(double));
   resize_cuda_image(n,1);
   for(int iter = 0; iter < niter; iter++){
-    calcLambdas(lambdas, step_lambda, d_matrix, d_bi, iter == niter - 1);
+    calcLambdas(lambdas, step_lambda, d_matrix, d_bi);
     calcbs(d_bi, d_matrix, lambdas, d_prods);
   }
   myMemcpyD2H(bi,d_bi,sz);

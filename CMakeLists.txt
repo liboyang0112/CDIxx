@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
-project(CDIxx LANGUAGES CXX C)
+set(CUDACXX "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+project(CDIxx LANGUAGES CXX C CUDA)
 
 #Prerequisite: gsl freetype libpng libtiff
 #Optional: Python(Numpy, skbuild, Cython), VTK, GTK
@@ -68,11 +69,6 @@ include_directories(${NUMPY_DIR})
 endif(Python_FOUND)
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 
-#for debug
-#get_property( dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES )
-#foreach( dir ${dirs} )
-#    message( STATUS "include dir=${dir}" )
-#endforeach()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_BUILD_TYPE Release)
@@ -94,13 +90,12 @@ foreach( sourcefile ${APP_SOURCES})
   add_library( ${libname} SHARED ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
-#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --cuda-gpu-arch=sm_80")
-file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu )
-set_source_files_properties(${APP_SOURCES} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS "--cuda-path=/usr/local/cuda;-Wno-unused-parameter;-Wno-unknown-cuda-version;-x;cu;--cuda-gpu-arch=sm_86") #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+set(CMAKE_CUDA_ARCHITECTURES native) #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version") 
 set(libname "cudaLibcommon_cu")
+file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu)
 add_library(${libname} SHARED ${APP_SOURCES})
-target_link_libraries(${libname} ${CUFFTLIB})
-target_link_libraries(cudaLibcommon_cu memManager_cc imgio_cc cudart cufft cusolver)
+target_link_libraries(${libname} memManager_cc imgio_cc cudart cufft cusolver)
 
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/post_gpu/*c)
 foreach( sourcefile ${APP_SOURCES})

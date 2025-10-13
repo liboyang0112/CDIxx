@@ -61,7 +61,7 @@ class ptycho : public experimentConfig{
       shiftx = shifts;
       shifty = shifts+scanx*scany;
       d_shift = (Real*)memMngr.borrowCache(scansz*2);
-      if(positionUncertainty > 1e-4){
+      if(runSim && positionUncertainty > 1e-4){
         initPosition();
       }
     }
@@ -113,7 +113,6 @@ class ptycho : public experimentConfig{
       multiplyFresnelPhase(pupilpatternWave, d);
     }
     void initPosition(){
-      if(runSim && positionUncertainty>1e-4){
         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
         std::default_random_engine generator(seed);
         std::normal_distribution<double> distribution(0.0, 1.);
@@ -122,7 +121,6 @@ class ptycho : public experimentConfig{
           shifty[i]+= distribution(generator)*positionUncertainty;
           if(verbose >=3 ) fmt::println("shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
         }
-      }
     }
     void resetPosition(){
       for(int i = 0 ; i < scanx*scany; i++){
@@ -150,9 +148,15 @@ class ptycho : public experimentConfig{
           if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
           getMod2(patterns[idx], esw, 1./(row*column));
           if(useBS) applySupport(patterns[idx], beamstop);
-          if(simCCDbit) applyPoissonNoise_WO(patterns[idx], noiseLevel, devstates, 1./exposure);
-          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
-          verbose(4, plt.plotFloat(patterns[idx], MOD, 1, exposure, (common.Pattern+to_string(i)+"_"+to_string(j)+"log").c_str(),1));
+          if(simCCDbit) {
+            //applyPoissonNoise_WO(patterns[idx], noiseLevel, devstates, 1./exposure);
+            ccdRecord(patterns[idx], patterns[idx], noiseLevel, devstates, exposure);
+          }else{
+            applyNorm(patterns[idx], exposure);
+          }
+          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
+          verbose(4, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"_"+to_string(j)+"log").c_str(),1));
+          applyNorm(patterns[idx], 1./exposure);
           idx++;
         }
       }
@@ -232,7 +236,7 @@ class ptycho : public experimentConfig{
         }
         //complexFormat* coeff = NULL, *projection = NULL;
         int positionUpdateIter = 50;
-        bool doUpdatePosition = iter % 10 == 0 && iter >= positionUpdateIter;
+        bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
             int shiftxpix = shiftx[idx]-round(shiftx[idx]);
@@ -266,7 +270,7 @@ class ptycho : public experimentConfig{
         }
         if(doUpdatePosition){
           resize_cuda_image(scanx*scany*2, 1);
-          add(d_shifts, d_shift, 0.9);
+          add(d_shifts, d_shift, 1.);
           resize_cuda_image(row, column);
         }
         if(iter >= update_probe_iter){
@@ -281,32 +285,28 @@ class ptycho : public experimentConfig{
           h_norm[1] /= N;
           linearConst(d_shifts, d_shifts, 1, -h_norm[0]);
           linearConst(d_shifts+N, d_shifts+N, 1, -h_norm[1]);
-          resize_cuda_image(row, column);
-          angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
-          getMod2(tmp, (complexFormat*)pupilpatternWave);
-          findSum(tmp, row*column, d_norm);
-          if(iter == nIter -1) {
-            plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
-            plt.saveComplex(pupilpatternWave, "pupilwave");
-          }
           resize_cuda_image(row_O, column_O);
           Real biasx = crealf(middle), biasy = cimagf(middle);
           shiftWave(objFFT,(complexFormat*)objectWave, -h_norm[0]-biasx*row, -h_norm[1]-biasy*column);
-          resize_cuda_image(pupildiameter, pupildiameter);
-          crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
-          if(iter < 100){
-          zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1, pupildiameter>>1);
-          zernike_reconstruct(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1);
-          }
           resize_cuda_image(row, column);
-          pad(zernikeCrop, (complexFormat*)pupilpatternWave, pupildiameter, pupildiameter);
-          getMod2(tmp, (complexFormat*)pupilpatternWave);
-          findSum(tmp, row*column, d_norm+1);
-          myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
-          Real norm = h_norm[0]/h_norm[1];
-          if(norm > 2 || norm < 0.5) applyNorm((complexFormat*)pupilpatternWave, sqrt(norm));
-          if(iter == nIter -1) plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
-          angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+          if(iter < 200){
+            angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
+            getMod2(tmp, (complexFormat*)pupilpatternWave);
+            findSum(tmp, row*column, d_norm);
+            resize_cuda_image(pupildiameter, pupildiameter);
+            crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
+            zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1, pupildiameter>>1);
+            zernike_reconstruct(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1);
+            resize_cuda_image(row, column);
+            pad(zernikeCrop, (complexFormat*)pupilpatternWave, pupildiameter, pupildiameter);
+            getMod2(tmp, (complexFormat*)pupilpatternWave);
+            findSum(tmp, row*column, d_norm+1);
+            myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
+            Real norm = h_norm[0]/h_norm[1];
+            if(norm > 2 || norm < 0.5) applyNorm((complexFormat*)pupilpatternWave, sqrt(norm));
+            if(iter == 200 -1) plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
+            angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+          }
         }
         if(doUpdatePosition || iter >= update_probe_iter){
           myMemcpyD2H(shifts, d_shifts, scanx*scany*sizeof(Real)*2);
@@ -320,6 +320,9 @@ class ptycho : public experimentConfig{
           plt.init(row, column);
         }
       }
+      angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
+      plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
+      plt.saveComplex(pupilpatternWave, "pupilwave");
       if(verbose>=3){
         for(int i = 0 ; i < scanx*scany; i++){
           fmt::println("recon shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);

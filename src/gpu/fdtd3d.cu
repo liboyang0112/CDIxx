@@ -3,7 +3,7 @@
 #include "cudaDefs_h.cu"
 #include "fdtd3d.hpp"
 __forceinline__ __device__ Real getmH(int x, int y, int z){
-  Real ret = 0.4;
+  Real ret = 0.4+(x+y+z)*0;
   return ret;
 }
 __forceinline__ __device__ Real getmE(int x, int y, int z){
@@ -12,11 +12,11 @@ __forceinline__ __device__ Real getmE(int x, int y, int z){
   //if(sqSum(y-100,z-100)<100) return 2./9;
   //if(abs(y-100)<90) return 0.2;
   //if(y>120 && y < 140) return 2./9;
-  Real ret = 0.5;
+  Real ret = 0.5+(x+y+z)*0;
   return ret;
   //return 0.2;
 }
-cuFunc(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
+cuFunc3D(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
   cuda3Idx();
 #ifdef secondOrder
   Real ismid = x>=3&&x<cuda_row-3&&y>=3&&y<cuda_column-3&&z>=3&&z<cuda_height-3;
@@ -47,7 +47,7 @@ cuFunc(updateH,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx
     Hz[index] -= mH*dH; //dEz/dx
   }
 })
-cuFunc(updateE,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez),{
+cuFunc3D(updateE,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez),{
   cuda3Idx();
   Real mE = getmE(x,y,z);
 #ifdef secondOrder
@@ -78,7 +78,7 @@ cuFunc(updateE,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx
     Ez[index] += mE*dE;
   }
 })
-cuFunc(applyPMLx0_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
+cuFunc3D(applyPMLx0_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez), (Hx, Hy, Hz, Ex, Ey, Ez), {
   cuda3Idx();
   index = x + 1 + cuda_row*y + cuda_row*cuda_column*z;
   Real sf = b_PML+x*k_PML;
@@ -89,7 +89,7 @@ cuFunc(applyPMLx0_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez
   Hx[index] *= sf;
   Hz[index] *= sf;
 })
-cuFunc(applyPMLx1_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, nx), {
+cuFunc3D(applyPMLx1_d, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, nx), {
   cuda3Idx();
   index = nx-x-2 + nx*y + cuda_row*cuda_column*z;
   Real sf = b_PML+x*k_PML;
@@ -118,6 +118,7 @@ cuFunc(applyPMLx1, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, 
   EyBdx1[y+x*cuda_row] = a;
   Ey[index] = 0;
   Ex[index-1] = 0;
+  if(Hx) return;
 })
 cuFunc( applyPMLx0, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HyBdx0, Real* HzBdx0, int nx), (Hx, Hy, Hz, Ex, Ey, Ez, HyBdx0, HzBdx0, nx), {
   cudaIdx();
@@ -135,6 +136,7 @@ cuFunc( applyPMLx0, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez,
   HyBdx0[y+x*cuda_row] = a;
   Hy[index] = 0;
   Hx[index+1] = 0;
+  if(Ex) return;
 })
 cuFunc( applyPMLy1, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* ExBdy1, Real* EzBdy1, int ny), (Hx, Hy, Hz, Ex, Ey, Ez, ExBdy1, EzBdy1, ny), {
   cudaIdx()
@@ -224,7 +226,7 @@ cuFunc( applyPMLz1, (Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez,
     sf+=k_PML;
   }
 })
-cuFunc(applyPMLz0,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdz0, Real* HyBdz0, int nz), (Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0, nz),{
+cuFunc(applyPMLz0,(Real* Hx, Real* Hy, Real* Hz, Real* Ex, Real* Ey, Real* Ez, Real* HxBdz0, Real* HyBdz0), (Hx, Hy, Hz, Ex, Ey, Ez, HxBdz0, HyBdz0),{
     cudaIdx();
   int step = cuda_row*cuda_column;
   index = cuda_row*y + x;
@@ -315,6 +317,7 @@ __global__ void applyPeriodicz_E(Real* Ex, Real* Ey, Real* Ez, int nx, int ny, i
   Ey[index] = Ey[index1];
 }
 cuFunc(applySource,(Real* Ez, size_t idx, Real val), (Ez, idx, val), {
+    cuda1Idx();
   Ez[idx] += val;
 })
 __global__ void applySourceV(Real* Ez, int nx, int ny, int nz, int pos, Real val){
