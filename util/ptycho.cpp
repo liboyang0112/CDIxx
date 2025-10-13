@@ -99,7 +99,7 @@ class ptycho : public experimentConfig{
       memMngr.returnCache(d_intensity);
       if(d_phase) memMngr.returnCache(d_phase);
       plt.init(row_tmp,column_tmp);
-      plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilIntensity", 0);
+      plt.plotComplexColor(pupilobjectWave, 0, 1, "pupilWave", 0);
       init_fft(row_tmp,column_tmp);
       //opticalPropagate((complexFormat*)pupilobjectWave, lambda, dpupil, beamspotsize*oversampling, row_tmp*column_tmp); //granularity changes
       angularSpectrumPropagate(pupilobjectWave, pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda, row_tmp*column_tmp); //granularity is the same
@@ -205,11 +205,12 @@ class ptycho : public experimentConfig{
       myCuDMalloc(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
+      int positionUpdateIter = 50;
       int objFFT;
       createPlan(&objFFT, row_O, column_O); 
-      int pupildiameter = 180;
+      int pupildiameter = 192;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
-      void* zernike = zernike_init(pupildiameter, pupildiameter, 40, 0); //40 is already high enough for modelling complex beams
+      void* zernike = zernike_init(pupildiameter, pupildiameter, 60, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
       for(int iter = 0; iter < nIter; iter++){
@@ -235,7 +236,6 @@ class ptycho : public experimentConfig{
           objMax = probeMax = sqrt(objMax*probeMax);
         }
         //complexFormat* coeff = NULL, *projection = NULL;
-        int positionUpdateIter = 50;
         bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
         for(int i = 0; i < scanx; i++){
           for(int j = 0; j < scany; j++){
@@ -289,7 +289,7 @@ class ptycho : public experimentConfig{
           Real biasx = crealf(middle), biasy = cimagf(middle);
           shiftWave(objFFT,(complexFormat*)objectWave, -h_norm[0]-biasx*row, -h_norm[1]-biasy*column);
           resize_cuda_image(row, column);
-          if(iter < 200){
+          if(iter < 300){
             angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
             getMod2(tmp, (complexFormat*)pupilpatternWave);
             findSum(tmp, row*column, d_norm);
@@ -297,6 +297,9 @@ class ptycho : public experimentConfig{
             crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
             zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1, pupildiameter>>1);
             zernike_reconstruct(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1);
+            
+            //zernike_compute(zernike, (complexFormat*)zernikeCrop, pupildiameter>>1, pupildiameter>>1, 30);
+            //zernike_reconstruct(zernike, (complexFormat*)zernikeCrop, 30);
             resize_cuda_image(row, column);
             pad(zernikeCrop, (complexFormat*)pupilpatternWave, pupildiameter, pupildiameter);
             getMod2(tmp, (complexFormat*)pupilpatternWave);
@@ -322,7 +325,6 @@ class ptycho : public experimentConfig{
       }
       angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
       plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
-      plt.saveComplex(pupilpatternWave, "pupilwave");
       if(verbose>=3){
         for(int i = 0 ; i < scanx*scany; i++){
           fmt::println("recon shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);

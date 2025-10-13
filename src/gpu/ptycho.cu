@@ -71,8 +71,11 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
   curand_init(1,index,0,state+index);
-  object[index].x = curand_uniform(&state[index]);
-  object[index].y = curand_uniform(&state[index]);
+  Real phaseshift = curand_uniform(&state[index]);
+  Real c, s;
+  sincosf(phaseshift, &s, &c);
+  object[index].x = c;
+  object[index].y = s;
 })
 
 cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{

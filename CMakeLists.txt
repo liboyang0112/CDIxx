@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.22)
-set(CUDACXX "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
+set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CUDA_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 project(CDIxx LANGUAGES CXX C CUDA)
 
 #Prerequisite: gsl freetype libpng libtiff
 #Optional: Python(Numpy, skbuild, Cython), VTK, GTK
 
-set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
-set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 set(compileVTK FALSE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
