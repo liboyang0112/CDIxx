@@ -69,7 +69,10 @@ int main(int argc, char** argv )
   if(argc >= 7){
     midx += std::stof(argv[7]);
     midy -= std::stof(argv[6]);
+  }else{
+    midx = midy = 0;
   }
+
   int step = nmerge*4;
   int outrow = (row-int(std::abs(midx))*2)/step*step;
   int outcol = (col-int(std::abs(midy))*2)/step*step;
