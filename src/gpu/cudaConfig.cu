@@ -496,6 +496,11 @@ cuFuncc(multiplyReal,(Real* store, complexFormat* src, complexFormat* target),(R
     store[index] = src[index].x*target[index].x;
     })
 
+cuFuncc(divide_sqrt,(Real* store, complexFormat* src, Real* target, Real* bs),(Real* store, cuComplex* src, Real* target, Real* bs),(store,(cuComplex*)src,target, bs),{
+    cuda1Idx();
+    store[index] = (bs && bs[index]>0.5)?0:(cuCabsf(src[index])*rsqrt(target[index]+1e-6));
+    })
+
 cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     store[index] = cuCmulf(src[index], cuConjf(target[index]));
@@ -778,6 +783,18 @@ cuFuncc(add,(complexFormat* a, complexFormat* b, Real c ),(cuComplex* a, cuCompl
     a[index].x+=b[index].x*c;
     a[index].y+=b[index].y*c;
     })
+cuFuncc(addPhase,(complexFormat* a, complexFormat* b, Real phi0),(cuComplex* a, cuComplex* b, Real phi0),((cuComplex*)a,(cuComplex*)b, phi0),{
+    cuda1Idx()
+    Real mod = cuCabsf(b[index]);
+    if(mod>1e-6){
+    Real r,i,c,s;
+    r = b[index].x/mod;
+    i = b[index].y/mod;
+    sincosf(phi0, &s, &c);
+    a[index].x+=r*c-i*s;
+    a[index].y+=r*s+i*c;
+    }
+    })
 cuFuncc(add,(complexFormat* store, complexFormat* a, complexFormat* b, Real c ),(cuComplex* store, cuComplex* a, cuComplex* b, Real c ),((cuComplex*)store,(cuComplex*)a,(cuComplex*)b,c),{
     cuda1Idx()
     store[index].x=a[index].x + b[index].x*c;
@@ -892,6 +909,43 @@ cuFunc(getYZSlice, (Real * slice, Real *data, int nx, int ix),
     int idx = ix + nx * y + nx * cuda_column * x;
     slice[index] = data[idx];
     })
+__forceinline__ __device__ float bilinear(const float* img, int width, int height, float x, float y) {
+    x += width>>1;
+    y += height>>1;
+    int x0 = (int)floorf(x);
+    int y0 = (int)floorf(y);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+    float fx = x - x0;
+    float fy = y - y0;
+    if (x0 < 0 || x1 >= width || y0 < 0 || y1 >= height)
+        return 0.0f;
+    int idx0 = x0*height + y0;
+    float v00 = img[idx0];
+    float v01 = img[idx0+1];
+    float v10 = img[idx0+height];
+    float v11 = img[idx0+height+1];
+    return (1 - fx) * (1 - fy) * v00 +
+           (1 - fx) * fy       * v01 +
+           fx       * (1 - fy) * v10 +
+           fx       * fy       * v11;
+}
+
+// Kernel: Cartesian → Polar (each thread = one (r,θ))
+cuFunc(cart2polar_kernel,(Real* d_cart, Real* d_polar,int width, int height),(d_cart, d_polar, width, height), {
+    cudaIdx()
+    Real c,s;
+    sincosf(x * (2.0f * M_PI / cuda_row), &s, &c);
+    d_polar[index] = bilinear(d_cart, width, height, y*c, y*s);
+})
+
+cuFunc(edgeReduce,(Real* out, Real* in, int ny),(out, in, ny),{
+    cuda1Idx();
+    for(int iy = 0; iy < ny; iy++){
+    out[index] += in[index + iy*cuda_row*cuda_column];
+    }
+
+    })
 //-------colorbar-begin
 cuFuncc(createColorbar, (complexFormat* output), (cuComplex *output), ((cuComplex*)output),{
     cudaIdx();
@@ -942,7 +996,6 @@ cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor
 //-------experimentConfig.cc-end
 
 //-------cdi.cc-begin
-
 /*
     if (!(fresnelFactor > 1e-4f && iter < 400)) return;
     if (!inside) return;
@@ -1123,6 +1176,19 @@ cuFuncc(devideStar, (complexFormat* obj, complexFormat* refer, complexFormat* xc
     })
 
 //-------holo.cc-------end
+cuFuncTemplate(addMask, (Real* data, T* spt, bool isFrequency),(data,spt,isFrequency),{
+    cudaIdx()
+    if(isFrequency){
+    if(x>=cuda_row/2) x-=cuda_row/2;
+    else x+=cuda_row/2;
+    if(y>=cuda_column/2) y-=cuda_column/2;
+    else y+=cuda_column/2;
+    }
+    data[index]+=spt->isInside(x,y);
+    })
+template void addMask<rect>(Real*, rect*, bool isFrequency);
+template void addMask<C_circle>(Real*, C_circle*, bool isFrequency);
+template void addMask<diamond>(Real*, diamond*, bool isFrequency);
 cuFuncTemplate(createMask, (Real* data, T* spt, bool isFrequency),(data,spt,isFrequency),{
     cudaIdx()
     if(isFrequency){

@@ -13,11 +13,6 @@ struct pngdata{
   png_structp png_ptr;
   png_infop info_ptr;
 };
-void* allocpngrow(void* pngfilei){
-    struct pngdata* pngfile = pngfilei;
-    png_bytep rowbuf = (png_bytep)png_malloc(pngfile->png_ptr, png_get_rowbytes(pngfile->png_ptr, pngfile->info_ptr));
-    return rowbuf;
-}
 
 Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   void* (*cmalloc)(size_t) = malloc;
@@ -99,10 +94,10 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     struct pngdata* pngfile = readpng(name, fdata);
     png_structp png_ptr = pngfile->png_ptr;
     png_infop info_ptr = pngfile->info_ptr;
-    void* rowbuf = allocpngrow(pngfile);
+    void* rowbuf = png_malloc(pngfile->png_ptr, png_get_rowbytes(pngfile->png_ptr, pngfile->info_ptr));
     ret = (Real*) cmalloc(fdata->rows*fdata->cols*sizeof(Real));
     for(int i = 0; i < fdata->cols; i++){
-      readpngrow(pngfile, rowbuf);
+      png_read_row(((struct pngdata*)pngfile)->png_ptr, rowbuf, NULL);
       int idx = i*fdata->rows;
       for(int j = 0; j < fdata->cols; j++){
         if(fdata->nchann == 1) {
@@ -129,9 +124,6 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     abort();
   }
   return ret;
-}
-void readpngrow(void* pngfile, void* buffer){
-  png_read_row(((struct pngdata*)pngfile)->png_ptr, buffer, NULL);
 }
 
 void* readpng(const char* fname, struct imageFile* fdata){

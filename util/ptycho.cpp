@@ -24,7 +24,7 @@ class ptycho : public experimentConfig{
     int row_O = 512;  //in ptychography this is different from row (the size of probe).
     int column_O = 512;
     int sz = 0;
-    int stepSize = 32;
+    int stepSize = 16;
     int doPhaseModulationPupil = 0;
     int scanx = 0;
     int scany = 0;
@@ -201,16 +201,17 @@ class ptycho : public experimentConfig{
       Real probeMax;
       complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
       complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
-      Real *maxCache = (Real*)memMngr.borrowCache(row_O*column_O*sizeof(Real));
+      Real *maxCache = (Real*)memMngr.borrowCache(max(row_O*column_O/4, row*column)*sizeof(Real));
+      myCuDMalloc(complexFormat, cropObj, row_O*column_O/4);
       myCuDMalloc(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
       int positionUpdateIter = 50;
       int objFFT;
       createPlan(&objFFT, row_O, column_O); 
-      int pupildiameter = 192;
+      int pupildiameter = 161;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
-      void* zernike = zernike_init(pupildiameter, pupildiameter, 60, 0); //40 is already high enough for modelling complex beams
+      void* zernike = zernike_init(pupildiameter, pupildiameter, 40, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
       for(int iter = 0; iter < nIter; iter++){
@@ -218,9 +219,10 @@ class ptycho : public experimentConfig{
         getMod2(maxCache, (complexFormat*)pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
-          resize_cuda_image(row_O,column_O);
-          getMod2(maxCache, (complexFormat*)objectWave);
-          findMax(maxCache, row_O*column_O, d_norm+1);
+          resize_cuda_image(row_O>>1,column_O>>1);
+          crop((complexFormat*)objectWave, cropObj, row_O, column_O);
+          getMod2(maxCache, cropObj);
+          findMax(maxCache, row_O*column_O/4, d_norm+1);
           resize_cuda_image(row,column);
           myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
           objMax = h_norm[1];
@@ -228,7 +230,7 @@ class ptycho : public experimentConfig{
           myMemcpyD2H(h_norm, d_norm, sizeof(Real));
         }
         probeMax = h_norm[0];
-        if(iter >= update_probe_iter && iter%50==0){
+        if(iter >= update_probe_iter && iter%50==5){
           resize_cuda_image(row_O,column_O);
           applyNorm((complexFormat*)objectWave, pow(probeMax/objMax, 0.25));
           resize_cuda_image(row,column);
@@ -289,7 +291,7 @@ class ptycho : public experimentConfig{
           Real biasx = crealf(middle), biasy = cimagf(middle);
           shiftWave(objFFT,(complexFormat*)objectWave, -h_norm[0]-biasx*row, -h_norm[1]-biasy*column);
           resize_cuda_image(row, column);
-          if(iter < 300){
+          if(iter < 100){
             angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
             getMod2(tmp, (complexFormat*)pupilpatternWave);
             findSum(tmp, row*column, d_norm);

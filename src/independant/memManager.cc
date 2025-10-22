@@ -89,6 +89,7 @@ void memManager::returnCache(void* mem){
     abort();
   }
   int siz = iter->second;
+  rentBook.erase(iter);
   auto &nele = storage[siz];
   auto &maxele = maxstorage[siz];
   if(nele == maxele) {
@@ -98,7 +99,6 @@ void memManager::returnCache(void* mem){
     memory[siz][nele] = mem;
   }
   nele++;
-  rentBook.erase(iter);
 }
 void ccMemManager::c_malloc(void* &ptr, size_t sz){ptr = malloc(sz);}
 void ccMemManager::c_memset(void* &ptr, size_t sz){memset(ptr, 0, sz);}

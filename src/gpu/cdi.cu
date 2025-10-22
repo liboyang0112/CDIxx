@@ -176,6 +176,62 @@ cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real dec
   value = (1-mod) + mod*value;
   hsvToRGB(phase, mod, value, col);
 })
+__forceinline__ __device__ void encode_float_to_rgb_interleaved(float x, col_rgb* out) {
+    // Extract top 24 bits of IEEE 754 representation
+    uint32_t bits = __float_as_uint(x);  // Raw 32-bit float bits
+    bits = bits & 0xFFFFFF00u;           // Zero out lowest 8 bits (will be restored as zero)
+    uint32_t top24 = bits >> 8;          // Shift down → now top 24 bits are in position [23:0]
+
+    uint8_t r = 0, g = 0, b = 0;
+
+    int bit_pos = 7;
+    for (int global_bit = 0; global_bit < 24; ++global_bit) {
+        int channel = global_bit % 3;           // 0=R, 1=G, 2=B
+        uint8_t bit = (top24 >> (23 - global_bit)) & 1;
+
+        if (channel == 0) {
+            r |= (bit << bit_pos);
+        } else if (channel == 1) {
+            g |= (bit << bit_pos);
+        } else {
+            b |= (bit << bit_pos);
+            bit_pos -= 1;
+        }
+    }
+
+    out->r = r;
+    out->g = g;
+    out->b = b;
+}
+cuFunc(process_24bit,
+       (void* cudaData, col_rgb* cache, bool isFrequency = 0, bool isFlip = 0),
+       (cudaData, cache, isFrequency, isFlip),
+{
+    cudaIdx();  // Defines x,y,index from blockIdx/threadIdx
+
+    int halfrow = cuda_row >> 1;
+    int halfcol = cuda_column >> 1;
+    int targetx = x;
+    int targety = y;
+
+    // Handle frequency domain shift if needed
+    if (isFrequency) {
+        targetx = (x < halfrow) ? x + halfrow : x - halfrow;
+        targety = (y < halfcol) ? y + halfcol : y - halfcol;
+    }
+
+    // Handle flip
+    if (isFlip) {
+        targetx = cuda_row - x - 1;
+    }
+
+    // Get input float
+    float val = ((float*)cudaData)[index];
+
+    // Encode to RGB using interleaved top 24 bits
+    col_rgb* pixel = &cache[targetx * cuda_column + targety];
+    encode_float_to_rgb_interleaved(val, pixel);
+})
 void setThreshold(Real val){
   cudaMemcpyToSymbol(vars, &val, sizeof(Real), offsetof(cudaVars, threshold));
 }

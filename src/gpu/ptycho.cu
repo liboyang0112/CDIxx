@@ -1,10 +1,9 @@
 #include "cudaDefs_h.cu"
 #include <curand_kernel.h>
 
-#define ALPHA 0.5
+#define ALPHA 0.08
 #define BETA 0.5
 #define DELTA 1e-3
-#define GAMMA 0.5
 
 __forceinline__ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
   return exp(-(x*x+y*y)/2/(sigma*sigma));
@@ -44,7 +43,7 @@ __forceinline__ __device__ void ePIE(cuComplex &target, cuComplex source, cuComp
 __forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = 1./((1-param)*denom+param*maxi);
+  denom = 0.5/((1-param)*denom+param*maxi);
   target.x -= (source.x*diff.x + source.y*diff.y)*denom;
   target.y -= (source.x*diff.y - source.y*diff.x)*denom;
 }
@@ -70,10 +69,9 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
-  curand_init(1,index,0,state+index);
   Real phaseshift = curand_uniform(&state[index]);
   Real c, s;
-  sincosf(phaseshift, &s, &c);
+  sincosf(phaseshift*2*M_PI, &s, &c);
   object[index].x = c;
   object[index].y = s;
 })
@@ -82,7 +80,7 @@ cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)objec
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
-  object[index].x = 3*gaussian(shiftx,shifty,cuda_row/8);
+  object[index].x = 3*gaussian(shiftx,shifty,cuda_row/4);
   object[index].y = 0;
 })
 

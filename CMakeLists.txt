@@ -181,7 +181,6 @@ target_link_libraries(simLineSpectrumImaging_run cdi_cc spectImaging_cc material
 target_link_libraries(spectImaging_run cudaLibcommon_cu spectImaging_cc material_cc)
 target_link_libraries(spectImaging_point_run cudaLibcommon_cu spectImaging_cc material_cc)
 target_link_libraries(spectphase_run readConfig_cc spectPhase_cc material_cc)
-target_link_libraries(readCCDResponse_run imgio_cc memManager_cc)
 target_link_libraries(bandwidthtest_run cudaLibcommon_cu)
 target_link_libraries(cup_run cuPlotter_cc FISTA_cc)
 target_link_libraries(testCXI_run readCXI_cc)

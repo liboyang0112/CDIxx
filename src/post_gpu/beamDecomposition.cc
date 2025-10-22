@@ -1,6 +1,5 @@
 #include "cudaConfig.hpp"
 #include "cub_wrap.hpp"
-#include <cmath>
 #include "beamDecomposition.hpp"
 
 complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, complexFormat* coefficient, complexFormat* projected){

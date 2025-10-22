@@ -1,7 +1,9 @@
 #ifndef __FORMAT_H__
 #define __FORMAT_H__
 #define Bits 16
-
+#ifndef M_PI
+  #define M_PI 3.14159265358979323846
+#endif
 #define VTK_TYPE VTK_FLOAT
 
 #if Bits==12 || Bits==16

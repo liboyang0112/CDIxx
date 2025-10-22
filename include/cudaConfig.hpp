@@ -8,10 +8,10 @@
 #define myCufftExec cufftExecC2C
 #define myCufftExecR2C cufftExecR2C
 #define myCufftExecC2R cufftExecC2R
-#define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
-#define myCuDMallocClean(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCleanCache(size*sizeof(fmt));
-#define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache(size*sizeof(fmt));
-#define myCuMallocClean(fmt, var, size) var = (fmt*)memMngr.borrowCleanCache(size*sizeof(fmt));
+#define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache((size)*sizeof(fmt));
+#define myCuDMallocClean(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCleanCache((size)*sizeof(fmt));
+#define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache((size)*sizeof(fmt));
+#define myCuMallocClean(fmt, var, size) var = (fmt*)memMngr.borrowCleanCache((size)*sizeof(fmt));
 #define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
 #include "memManager.hpp"
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -62,6 +62,7 @@ void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
 void add(Real* store, Real* a, Real* b, Real c = 1);
 void add(complexFormat* a, complexFormat* b, Real c = 1);
+void addPhase(complexFormat* a, complexFormat* b, Real phi0 = 0);
 void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
 void normAdd(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1, Real d = 1);
 void addRemoveOE(Real* src, Real* sub, Real mult);
@@ -113,6 +114,7 @@ void applyRandomPhase(complexFormat* wave, Real* beamstop, void *state);
 template <typename T1, typename T2>
 void multiply(T1* store, T1* source, T2* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
+void divide_sqrt(Real* store, complexFormat* src, Real* target, Real* bs = 0);
 void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
 void multiplyRegular(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha);
 void convertFOPhase(complexFormat* data, Real norm = 1);
@@ -153,6 +155,9 @@ void multiplyx(Real* object, Real* out);
 void multiplyy(Real* object, Real* out);
 void getArg(Real* angle, complexFormat* amp);
 
+void cart2polar_kernel(Real* d_cart, Real* d_polar,int width, int height);
+void edgeReduce(Real* out, Real* in, int ny);
+
 void phaseUnwrapping(Real* d_wrapped_phase);
 void solve_poisson_frequency_domain(complexFormat* d_fft_data);
 
@@ -184,6 +189,8 @@ template<typename T>
 void flipx(T* data, T* out = 0);
 template<typename T>
 void createMask(Real* data, T* spt, bool isFrequency=0);
+template<typename T>
+void addMask(Real* data, T* spt, bool isFrequency=0);
 template<typename T>
 void createMaskBar(Real* data, T* spt, bool isFrequency);
 

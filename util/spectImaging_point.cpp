@@ -19,6 +19,9 @@ int main(){
   int mrow = 256;
   int mcol = 256;
   init_cuda_image();
+  resize_cuda_image(row, col);
+  void* seed = newRand(row*col);
+  initRand(seed, 1);
   resize_cuda_image(mrow, mcol);
   const int nlambda = 7;
   double lambdas[nlambda] = {1, 1.1, 11./9, 11./8, 11./7, 11./6, 11./5};
@@ -49,8 +52,6 @@ int main(){
   myCuDMalloc(Real, mask, mrow*mcol);
   myCuDMalloc(Real, support, mrow*mcol);
   createMask(support , &m);
-  void* seed = newRand(mrow*mcol);
-  initRand(seed, 1);
   randZero(support, mask, seed, 0.5, 1);
   plt.init(mrow, mcol);
   plt.plotFloat(mask, MOD, 0, 1, "mask");
@@ -81,10 +82,8 @@ int main(){
   }
   myCuDMalloc(Real, d_patternSum, row*col);
   workspace.generateMWLPattern(d_patternSum, 1);
-  void* state = newRand(row*col);
-  initRand(state, 0);
   resize_cuda_image(row, col);
-  //ccdRecord((Real*)d_patternSum, (Real*)d_patternSum, 1, state, 0.02);
+  //ccdRecord((Real*)d_patternSum, (Real*)d_patternSum, 1, seed, 0.02);
   plt.plotFloat(d_patternSum, MOD, 0, 1, "mergedlog", 1, 0, 1);
   plt.plotFloat(d_patternSum, MOD, 0, 1, "merged", 0, 0, 0);
   //applyNorm((Real*)d_patternSum, 50);

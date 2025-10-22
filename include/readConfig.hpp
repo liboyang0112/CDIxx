@@ -23,7 +23,7 @@ struct CDIfiles{
 #define DECSTR(x,y) const char* x = y;
 
 #define INTVAR(F) \
-F(beamStopSize,5)F(nIter,1)F(nIterpupil,1)F(noiseLevel,0)F(noiseLevel_pupil,0)F(verbose,2)F(mnistN,3)F(cropPattern,0)F(spectrumSamplingStep,10)F(saveVideoEveryIter,0)
+F(beamStopSize,5)F(nIter,1)F(nIterpupil,1)F(noiseLevel,0)F(noiseLevel_pupil,0)F(verbose,2)F(mnistN,3)F(cropPattern,0)F(spectrumSamplingStep,10)F(saveVideoEveryIter,0)F(prtfIter, 1000)
 
 #define BOOLVAR(F) \
 F(isFlip,0)F(runSim,0)F(simCCDbit,0)F(isFresnel,0)F(doIteration,0)F(useGaussionLumination,0)F(useGaussionHERALDO,0)F(doCentral,0)F(useRectHERALDO,0)F(dopupil,0)F(useDM,0)F(useBS,0)F(reconAC,0)F(phaseModulation_pupil,0)F(intensityModulation,1)F(phaseModulation,0)F(restart,0)F(saveIter,0)F(domnist,0)F(saveLMDB, 0)F(solveSpectrum,0)

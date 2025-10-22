@@ -35,28 +35,30 @@ int main(int argc, char** argv )
     cuda_pupilAmp = (complexFormat*)memMngr.borrowCache(sz);
     if(setups.runSim) myMemcpyD2D(cuda_pupilAmp, setups.objectWave, sz);
   }
-  if(setups.doIteration) {
     if(setups.runSim && setups.domnist){
       for(int i = 0; i < setups.mnistN; i++){
         setups.save_suffix = to_string(i);
         setups.prepareIter();
-        setups.phaseRetrieve();
+        if(setups.doIteration) setups.phaseRetrieve();
       }
     }else{
       setups.prepareIter();
-      setups.phaseRetrieve();
-      setups.saveState();
+      if(setups.doIteration){
+        setups.phaseRetrieve();
+        setups.saveState();
+      }
       double smallresidual = setups.residual;
       for(int i = 0; i < setups.nIter; i++){
         setups.prepareIter();
-        setups.phaseRetrieve();
-        if(smallresidual > setups.residual){
-          smallresidual = setups.residual;
-          setups.saveState();
+        if(setups.doIteration){
+          setups.phaseRetrieve();
+          if(smallresidual > setups.residual){
+            smallresidual = setups.residual;
+            setups.saveState();
+          }
         }
       }
     }
-  }
   setups.checkAutoCorrelation();
 
   //Now let's do pupil

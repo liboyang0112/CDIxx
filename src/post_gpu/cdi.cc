@@ -1,6 +1,6 @@
 #include <cassert>
+#include <fmt/os.h>
 #include <stdio.h>
-#include <time.h>
 #include <chrono>
 #include <stdio.h>
 #include "cudaDefs_h.cu"
@@ -185,19 +185,19 @@ void CDI::prepareIter(){
     convertFOPhase( (complexFormat*)patternWave, 1./sqrt(row*column));
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
     getMod2(patternData, (complexFormat*)patternWave);
-    if(useBS) applyMaskBar(patternData, beamstop);
+    if(useBS) {
+      myCuDMalloc(Real, patterncache, row*column);
+      linearConst(patterncache, beamstop, -1, 1);
+      plt.plotFloat(patterncache, MOD, 1, 1, "beamstop");
+      multiply(patternData, patternData, patterncache);
+      myCuFree(patterncache);
+    }
     plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern", 0);
     plt.plotFloat(patternData, MOD, 1, exposure, "theory_pattern_log", 1);
-    if(simCCDbit){
-      verbose(4,fmt::println("Applying Poisson noise"));
-      auto img = readImage("theory_pattern.png", row, column);
-      myMemcpyH2D(patternData, img, row*column*sizeof(Real));
-      ccmemMngr.returnCache(img);
-      applyPoissonNoise_WO(patternData, noiseLevel, devstates,1);
-      applyNorm(patternData, 1./exposure);
-      cudaConvertFO(patternData);
-    }
     cudaConvertFO(patternData);
+    if(simCCDbit){
+      applyPoissonNoise_WO(patternData, noiseLevel, devstates);
+    }
     applyNorm(patternData, exposure);
     plt.saveFloat(patternData, "sim_pattern");
     applyNorm(patternData, 1./exposure);
@@ -269,15 +269,15 @@ void CDI::saveState(){
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   bitMap( support, support);
   plt.plotFloat(support, MOD, 0, 1, "support", 0);
-  complex<float> mid = findMiddle(support, row*column);
+  complexFormat mid = findMiddle(support, row*column);
   int row_spt = row/oversampling_spt;
   int col_spt = column/oversampling_spt;
   size_t sptsz = row_spt*col_spt*sizeof(Real);
   resize_cuda_image(row_spt,col_spt);
   complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sptsz<<1);
   Real* tmp1 = (Real*)memMngr.borrowCache(sptsz);
-  fmt::println("mid= {:f},{:f}",mid.real(), mid.imag());
-  crop(cuda_gkp1, tmp, row, column,mid.real(), mid.imag());
+  fmt::println("mid= {:f},{:f}",crealf(mid), cimagf(mid));
+  crop(cuda_gkp1, tmp, row, column,crealf(mid), cimagf(mid));
   getMod2(tmp1, tmp);
   Real maxnorm = 1./min(1.f,findMax(tmp1,row_spt*col_spt));
   plt.init(row_spt,col_spt);
@@ -310,13 +310,22 @@ void* CDI::phaseRetrieve(){
 
   size_t sz = row*column;
   myCuDMalloc(complexFormat, cuda_gkprime, sz);
+  myCuDMallocClean(complexFormat, prtf_map, sz);
+  myCuDMalloc(complexFormat, gamma0, sz);
+  myCuDMalloc(complexFormat, cache, sz);
   myCuDMalloc(Real, cuda_diff, sz);
 
   AlgoParser algo(algorithm);
   applyNorm(cuda_gkp1, 1./sqrt(row*column));
   Real gaussianSigma = 3;
-  Real avg = 0;
-  for(int iter = 0; ; iter++){
+  Real avg = 0, phi0;
+  int iter = 0;
+  myCuDMalloc(Real, cuda_objMod, sz);
+  myCuDMalloc(Real, d_polar, row*column);
+  myCuDMalloc(Real, d_prtf, row>>1);
+  myDMalloc(Real, prtf, row>>1);
+  myDMalloc(Real, weights, row>>1);
+  for(; ; iter++){
     int ialgo = algo.next();
     if(ialgo<0) break;
     //start iteration
@@ -349,6 +358,32 @@ void* CDI::phaseRetrieve(){
     myIFFT( (complexFormat*)patternWave, cuda_gkprime);
     applyNorm(cuda_gkprime, 1./(row*column));
     applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support);
+    if(iter == prtfIter){
+      applySupport(gamma0, cuda_gkprime, ER, support);
+      multiply(cache, gamma0, gamma0);
+      complexFormat sum = findSum(cache);
+      phi0 = -atan2(cimagf(sum), crealf(sum))/2;
+      addPhase(prtf_map, (complexFormat*)patternWave, phi0);
+
+      getMod(cuda_objMod, (complexFormat*)patternWave);
+      bitMap(cuda_objMod, cuda_objMod, 1e-6);
+      cudaConvertFO(cuda_objMod);
+      plt.plotFloat(cuda_objMod, MOD, 0, 1, "prtf_bitmap");
+      resize_cuda_image(column<<1, row>>1);
+      plt.init(column<<1,row>>1);
+      cart2polar_kernel(cuda_objMod, d_polar, row, column);
+      plt.plotFloat(d_polar, MOD, 0, 1, "prtf_bitmap_polar");
+      resize_cuda_image(row>>1,1);
+      edgeReduce(d_prtf, d_polar, column<<1);
+      myMemcpyD2H(weights, d_prtf, (row>>1)*sizeof(Real));
+      resize_cuda_image(row, column);
+    }else if(iter > prtfIter) {
+      applySupport(cache, cuda_gkprime, ER, support);
+      multiplyConj(cache, cache, gamma0);
+      complexFormat sum = findSum(cache);
+      Real phi = atan2(cimagf(sum), crealf(sum));
+      addPhase(prtf_map, (complexFormat*)patternWave, phi0+phi);
+    }
     myFFT( cuda_gkp1, (complexFormat*)patternWave);
     if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
       plt.toVideo = vidhandle;
@@ -381,7 +416,6 @@ void* CDI::phaseRetrieve(){
     myFFT(cuda_gkprime, cuda_gkprime);
     plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
   }
-  myCuDMalloc(Real, cuda_objMod, sz);
   getMod2(cuda_objMod, (complexFormat*)patternWave);
   addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
   if(useBS){
@@ -390,9 +424,29 @@ void* CDI::phaseRetrieve(){
   }
   plt.plotFloat(cuda_objMod, MOD, 1, 1, "residual", 0, 0, 1);
   getMod2(cuda_objMod, cuda_objMod);
-  initCub();
   residual = findSum(cuda_objMod);
   fmt::println("residual= {:f}",residual);
+  
+  getMod(cuda_objMod,prtf_map);
+  cudaConvertFO(cuda_objMod);
+  applyNorm(cuda_objMod, 1./(iter - prtfIter));
+  plt.plotFloat(cuda_objMod, MOD, 0, 1, "prtf");
+  resize_cuda_image(column<<1, row>>1);
+  cart2polar_kernel(cuda_objMod, d_polar, row, column);
+  resize_cuda_image(row>>1,1);
+  clearCuMem(d_prtf, (row>>1)*sizeof(Real));
+  edgeReduce(d_prtf, d_polar, column<<1);
+  myMemcpyD2H(prtf, d_prtf, (row>>1)*sizeof(Real));
+
+
+  fmt::ostream prtffile = fmt::output_file("prtf.txt");
+  for(int i = 0; i < row>>1; i++){
+    prtffile.print("{}, {:f}\n", i, prtf[i]/weights[i]);
+  }
+  prtffile.close();
+
+  plt.init(row, column);
+  resize_cuda_image(row, column);
 
   memMngr.returnCache(cuda_gkprime);
   memMngr.returnCache(cuda_objMod);
