@@ -39,7 +39,7 @@ int main () {
   myMemcpyD2D(img2, img, row*col*sizeof(complexFormat));
   int maxn = 40;
   Real radius = 500;
-  multiplyZernikeConj(img, img, radius, 10, 0);
+  multiplyZernikeConj(img, img, radius, 20, 0);
   //multiplyLaguerreConj(img, img, 20, 10, 10);
   //multiplyLaguerreConj(img2, img2, 20, 0, -1);
   //multiplyHermit(img, img, 200, 9, 9);

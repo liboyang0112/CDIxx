@@ -1,5 +1,6 @@
 #include "experimentConfig.hpp"
 #include "cudaConfig.hpp"
+#include "misc.hpp"
 #include "fmt/core.h"
 #include <math.h>
 
@@ -23,16 +24,8 @@ void angularSpectrumPropagate(void* input, void*field, Real imagesize_over_lambd
 
 void experimentConfig::createBeamStop(){
   fmt::println("Creating default circular beamstop!");
-  C_circle cir;
-  cir.x0=row/2;
-  cir.y0=column/2;
-  cir.r=beamStopSize;
-  decltype(cir) *cuda_spt;
-  cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
-  myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  createMask(beamstop, cuda_spt,1);
-  memMngr.returnCache(cuda_spt);
+  createCircleMask(beamstop, row>>1, column>>1, beamStopSize, 1);
 }
 void experimentConfig::angularPropagate(void* datain, void* dataout, bool isforward){
   angularSpectrumPropagate(datain, dataout, beamspotsize*oversampling/lambda, (isforward?d:-d)/lambda, row*column);

@@ -5,6 +5,7 @@ void getWindow(complexFormat* object, int shiftx, int shifty, int objrow, int ob
 void updateWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window);
 void updateObject(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe);
 void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj);
+void updateObjectAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj);
 void random(complexFormat* object, void *state);
 void pupilFunc(complexFormat* object);
 void multiplyx(complexFormat* object, complexFormat* out);

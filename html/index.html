@@ -95,6 +95,7 @@ button[disabled] {
     <br>
     Working folder:<div class="autocomplete"><input type="text" autocomplete="off" placeholder="Your Subdirectory" id="path"><!-- onchange="loadlog(event)"--></div>
     <button id="setpath">Confirm Folder</button>
+    <button id="reload">Load images</button>
     <a href="images">Show repository</a>
     <p><a href="" id="showpath"></a></p>
     Select GPU:<div class="autocomplete"><input type="text" autocomplete="off" placeholder="0" id="iGPU"><!-- onchange="loadlog(event)"--></div>
@@ -174,7 +175,7 @@ button[disabled] {
     <button id="cdi_btn">Run CDI</button>
     <button id="compute_prtf">Compute PRTF</button>
     <p><img class="images" id="recon_input" width="200" border="0"><img class="images" id="recon" width="200" border="0"><img class="images" id="recon_phase" width="200" border="0"></p>
-    <p><img class="images" id="recon_wave" width="300" border="0"><img class="images" id="colorbar" width="200" border="0"></p>
+    <!--p><img class="images" id="recon_wave" width="300" border="0"><img class="images" id="colorbar" width="200" border="0"></p-->
     <p><embed id="prtf_plt" type="application/pdf" width="600" height = "300"></p>
     <p>Prepare log:</p><code id="preparelog"></code>
     <p>Monochromatization log:</p><code id="monolog"></code>
@@ -231,8 +232,10 @@ button[disabled] {
   if(workpath != null) {
     setPath(workpath);
     document.getElementById('path').value = workpath;
-    loadImage();
   }
+  document.getElementById("reload").addEventListener('click',async ()=>{
+    loadImage();
+  })
   document.getElementById("setpath").addEventListener('click',async ()=>{
     console.log(document.getElementById('path').value);
     workpath=document.getElementById('path').value;
@@ -257,9 +260,6 @@ button[disabled] {
     }).then(response => {
       return response.text();
     }).then(data=>{
-      if(data == "exists"){
-        loadImage();
-      }
       fetch(url_read, {
         method: 'POST',
         body: path+"/pulse.cfg"
@@ -453,7 +453,7 @@ button[disabled] {
   selectListener("recon");
   selectListener("recon_phase");
   selectListener("recon_input");
-  selectListener("recon_wave");
+  //selectListener("recon_wave");
   selectListener("solved");
   selectListener("residual_img");
   selectListener("logimg");
@@ -494,8 +494,9 @@ button[disabled] {
       document.getElementById('recon_input').title = "CDI input";
       document.getElementById('recon_phase').src = path+"recon_phase_cropped.png?t=" + timestamp;
       document.getElementById('recon_phase').title = "CDI reconstruction phase";
-      document.getElementById('recon_wave').src = path+"recon_wave.png?t=" + timestamp;
+      /*document.getElementById('recon_wave').src = path+"recon_wave.png?t=" + timestamp;
       document.getElementById('recon_wave').title = "CDI reconstruction";
+      */
       button.removeAttribute("disabled");
     });
     return;

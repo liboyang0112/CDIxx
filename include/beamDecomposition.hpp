@@ -8,6 +8,7 @@ void multiplyLaguerreConj(complexFormat* store,complexFormat* data, Real pupilsi
 void addZernike(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
 void addLaguerre(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
 void multiplyHermit(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
+void multiplyHermit(Real* store, Real* data, Real pupilsize, int n, int m);
 void* zernike_init(int width, int height, int maxN, int max_blocks);
 void zernike_destroy(void* handle_ptr);
 complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius);

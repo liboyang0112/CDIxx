@@ -4,6 +4,7 @@
 #include <random>
 #include <stdint.h>
 #include <string.h>
+#include "beamDecomposition.hpp"
 #include "cuPlotter.hpp"
 #include "cudaConfig.hpp"
 const uint16_t maxpix = 0xffff;
@@ -89,24 +90,23 @@ int main() {
   //setHoleArray(image, rows, cols, 0);
   writePng("mask.png", image, rows, cols, 16, 0);
   */ 
-  int rows = 1024, cols = 1024;
+  int rows = 384, cols = 384;
   init_cuda_image();
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
-  C_circle spt, spt1;
-  //spt.r = 192;
-  spt.r = 13;
+  myCuDMalloc(Real, image1, rows*cols);
+  C_circle spt;
+  spt.r = 80;
+  //spt.r = 13;
   spt.x0=spt.y0 = (rows>>1);
-  spt1.r = 13;
-  spt1.x0 = (rows>>1)+21;
-  spt1.y0 = (rows>>1)-10;
   myCuDMalloc(C_circle, d_spt, 1);
-  myCuDMalloc(C_circle, d_spt1, 1);
   myMemcpyH2D(d_spt, &spt, sizeof(C_circle));
-  myMemcpyH2D(d_spt1, &spt1, sizeof(C_circle));
   createMask(image, d_spt);
-  addMask(image, d_spt1);
-  //applyGaussMult(image, image, 85, 0);
+  applyGaussMult(image, image, 85, 0);
+  multiplyHermit(image, image, 100, 3,3);
+  rotate(image, image1, M_PI/4);
+  applyNorm(image1,4);
+  getMod2(image, image1);
   plt.init(rows, cols);
   plt.plotFloat(image, MOD, 0, 1, "image");
   plt.saveFloat(image, "image");

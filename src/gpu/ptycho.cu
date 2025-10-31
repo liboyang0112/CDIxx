@@ -5,10 +5,6 @@
 #define BETA 0.5
 #define DELTA 1e-3
 
-__forceinline__ __device__ __host__ Real gaussian(Real x, Real y, Real sigma){
-  return exp(-(x*x+y*y)/2/(sigma*sigma));
-}
-
 cuFuncc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(cuComplex* object, cuComplex* probe, cuComplex* U, int shiftx, int shifty, int objrow, int objcol, cuComplex* window),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,shiftx,shifty,objrow,objcol,(cuComplex*)window),{
   cudaIdx();
   cuComplex tmp;
@@ -40,12 +36,19 @@ __forceinline__ __device__ void ePIE(cuComplex &target, cuComplex source, cuComp
   target.y -= source.y*denom;
 }
 
-__forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
+__forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param, Real stepsize = 1){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = 0.5/((1-param)*denom+param*maxi);
+  denom = stepsize/((1-param)*denom+param*maxi);
   target.x -= (source.x*diff.x + source.y*diff.y)*denom;
   target.y -= (source.x*diff.y - source.y*diff.x)*denom;
+}
+__forceinline__ __device__ void rPIE_step(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
+  Real denom = source.x*source.x+source.y*source.y;
+//  if(denom < 8e-4*maxi) return;
+  denom = 1./((1-param)*denom+param*maxi);
+  target.x =-(source.x*diff.x + source.y*diff.y)*denom;
+  target.y =-(source.x*diff.y - source.y*diff.x)*denom;
 }
 
 cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
@@ -61,9 +64,22 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
   cuComplex diff= U[index];
   //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
   //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
-  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA);
-  rPIE(probedat, objectdat, diff, mod2maxObj, BETA);
+  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA, 0.5);
+  rPIE(probedat, objectdat, diff, mod2maxObj, BETA,0.5);
   probe[index] = probedat;
+  object[index] = objectdat;
+})
+
+cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj),{
+  cuda1Idx()
+  cuComplex objectdat= object[index];
+  cuComplex probedat= probe[index];
+  cuComplex diff= U[index];
+  //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
+  //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
+  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA);
+  rPIE_step(probedat, objectdat, diff, mod2maxObj, BETA);
+  probeStep[index] = cuCaddf(probeStep[index], probedat);
   object[index] = objectdat;
 })
 
@@ -76,6 +92,9 @@ cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandSt
   object[index].y = s;
 })
 
+__device__ Real gaussian(float x, float y, float sigma){
+  return exp(-(x*x+y*y)/2/(sigma*sigma));
+}
 cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{
   cudaIdx()
   int shiftx = x - cuda_row/2;

@@ -1,5 +1,6 @@
 #include "cudaConfig.hpp"
 #include "cudaDefs_h.cu"
+#include <cmath>
 #include <complex.h>
 #include <fmt/base.h>
 
@@ -170,6 +171,14 @@ cuFuncc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsiz
     Real factor = Hermit(xp, n) * Hermit(yp, m);
     store[index].x = factor*data[index].x;
     store[index].y = factor*data[index].y;
+    })
+
+cuFunc(multiplyHermit,(Real* store, Real* data, Real pupilsize, int n, int m),(store, data,pupilsize, n, m),{
+    cudaIdx()
+    Real xp = Real(x - (cuda_row>>1))/pupilsize;
+    Real yp = Real(y - (cuda_column>>1))/pupilsize;
+    Real factor = Hermit(xp, n) * Hermit(yp, m);
+    store[index] = factor*data[index];
     })
 
 cuFuncc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
@@ -413,6 +422,40 @@ __global__ void reduce_coefficients(
   final_coeff[mode].y = sum.y*norm;
 }
 
+__global__ void regularize_zernike_coefficients(
+    int max_l,
+    Real regl,
+    Real regm,
+    cuComplex* final_coeff
+    ) {
+  int mode = blockIdx.x * blockDim.x + threadIdx.x;
+  if (mode >= (max_l+2)*(max_l+1)/2) return;
+  int p,m = 0;
+  if(mode <= (max_l>>1)){
+    p = 2*mode;
+  }else{
+    if(max_l%2==1 && mode < (max_l+1)*3/2){
+      m = 1;
+      p = 1+((mode - (max_l>>1)-1)>>1<<1);
+    }else{
+      p = ceilf((1+sqrtf((3+max_l)*max_l-2*mode+3))/2)*2;
+      int k = mode - ((3+max_l)*max_l + (2-p)*p)/2 - 1;
+      m = 3 + (max_l - p);
+      if(k >= p-2) {
+        m++;
+        k-=p-2;
+      }
+      p = m+(k>>1<<1);
+    }
+  }
+  Real factor = 0;
+  if(p>=10) factor = regl*p*p + regm*m*m;
+  Real tmp = final_coeff[mode].x;
+  final_coeff[mode].x = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
+  tmp = final_coeff[mode].y;
+  final_coeff[mode].y = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
+}
+
 __global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, int height, Real cx, Real cy, Real radius, int maxN, const cuComplex* coeff, int nmodes) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   int npixels = width * height;
@@ -483,6 +526,9 @@ complexFormat* zernike_compute(
   reduce_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
       handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff, 1./(M_PI*radius*radius)
       );
+  //regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
+  //    handle->nmodes, 1e-8, 1e-8, handle->final_coeff
+  //    );
 
   return (complexFormat*)handle->final_coeff;  // return device pointer
 }

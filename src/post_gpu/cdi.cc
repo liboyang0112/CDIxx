@@ -72,6 +72,9 @@ void CDI::readObjectWave(){
   row = objrow*oversampling;
   column = objcol*oversampling;
   allocateMem();
+  if(phaseModulation){
+    applyNorm(d_phase, phaseModulation);
+  }
   createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave, objrow, objcol);
   if(d_phase) memMngr.returnCache(d_phase);
   if(d_intensity) memMngr.returnCache(d_intensity);

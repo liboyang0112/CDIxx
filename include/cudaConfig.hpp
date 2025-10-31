@@ -88,6 +88,7 @@ void applyGaussMult(complexFormat* input, complexFormat* output, Real sigma, boo
 void applyGaussMult(Real* input, Real* output, Real sigma, bool isFreq);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void getMod(Real* mod, complexFormat* amp);
+void getMod(Real* mod, Real* amp);
 void getImag(Real* mod, complexFormat* amp);
 void assignReal(Real* mod, complexFormat* amp);
 void assignImag(Real* mod, complexFormat* amp);
@@ -109,6 +110,7 @@ void applyMod(complexFormat* source, Real* target, Real *bs = 0, int noiseLevel 
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);
 void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
+void addProbability(Real* data, Real* value, Real norm, Real sigma);
 void linearConst(complexFormat* store, complexFormat* data, complexFormat factor, complexFormat b);
 void applyRandomPhase(complexFormat* wave, Real* beamstop, void *state);
 template <typename T1, typename T2>
@@ -229,4 +231,9 @@ class diamond{
     bool isInside(int x, int y);
 #endif // CUDACC
 };
+#ifdef __CUDADEFS_H__
+__device__ __host__
+#endif // CUDACC
+ Real gaussian(Real x, Real y, Real sigma);
+
 #endif

@@ -14,6 +14,10 @@ void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void*
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
 cuMemManager::cuMemManager():memManager(){}
 cuMemManager memMngr;
+
+__host__ __device__ Real gaussian(float x, float y, float sigma){
+  return exp(-(x*x+y*y)/2/(sigma*sigma));
+}
 void gpuAssert(int code, const char *file, int line)
 {
   if (code != cudaSuccess)
@@ -665,6 +669,10 @@ cuFuncc(getMod,(Real* mod, complexFormat* amp),(Real* mod, cuComplex* amp),(mod,
     cuda1Idx()
     mod[index] = cuCabsf(amp[index]);
     })
+cuFunc(getMod,(Real* mod, Real* amp),(mod,amp),{
+    cuda1Idx()
+    mod[index] = fabsf(amp[index]);
+    })
 cuFuncc(getReal,(Real* mod, complexFormat* amp, Real norm),(Real* mod, cuComplex* amp, Real norm),(mod,(cuComplex*)amp, norm),{
     cuda1Idx()
     mod[index] = amp[index].x*norm;
@@ -718,6 +726,17 @@ cuFunc(applyThreshold,(Real* store, Real* input, Real threshold),(store,input,th
 cuFunc(linearConst,(Real* store, Real* data, Real fact, Real shift),(store, data, fact, shift),{
     cuda1Idx();
     store[index] = fact*data[index]+shift;
+    })
+
+cuFunc(addProbability,(Real* data, Real* value, Real norm, Real sigma),(data, value, norm, sigma),{
+    cuda1Idx();
+    Real d = data[index];
+    Real v = value[index]*norm;
+    if(fabsf(d+v) > fabsf(d)){
+      data[index] = d + v*gaussian(d+v, 0, sigma);
+    }else{
+      data[index] = d+v;
+    }
     })
 
 cuFuncc(linearConst,(complexFormat* store, complexFormat* data, complexFormat fact, complexFormat shift),(cuComplex* store, cuComplex* data, cuComplex fact, cuComplex shift),((cuComplex*)store, (cuComplex*)data, *(cuComplex*)&fact, *(cuComplex*)&shift),{

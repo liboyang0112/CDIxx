@@ -154,3 +154,15 @@ void unwrapPhaseFFT(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, i
     myCuFree(d_b);
     myCuFree(d_fft);
 }
+
+void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq){
+  C_circle cir;
+  cir.x0=x0;
+  cir.y0=y0;
+  cir.r=r;
+  C_circle *cuda_spt;
+  cuda_spt = (C_circle*)memMngr.borrowCache(sizeof(cir));
+  myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
+  createMask(data, cuda_spt,isFreq);
+  myCuFree(cuda_spt);
+}
