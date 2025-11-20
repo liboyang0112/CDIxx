@@ -257,7 +257,7 @@ void broadBand_constRatio::writeSpectra(const char* filename, Real factor){
   }
   spectrafile.close();
 }
-void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
+void broadBand::generateMWL(Real* d_input, Real* d_patternSum, complexFormat* single){
   myCuDMalloc(Real, d_pattern, row*column);
   myCuDMalloc(complexFormat, d_intensity, rows[nlambda-1]*cols[nlambda-1]);
   myCuDMalloc(complexFormat, d_patternAmp, row*column);
@@ -289,15 +289,15 @@ void broadBand::generateMWL(void* d_input, void* d_patternSum, void* single){
     if(i==0) {
       getMod2((Real*)d_patternSum, d_patternAmp);
       if(single!=0) {
-        extendToComplex((Real*)d_patternSum, (complexFormat*)single);
-        applyNorm((complexFormat*)single, 1./spectra[i]);
+        extendToComplex((Real*)d_patternSum, single);
+        applyNorm(single, 1./spectra[i]);
       }
     }else{
       getMod2(d_pattern, d_patternAmp);
       add((Real*)d_patternSum, (Real*)d_pattern, 1);
       if(single!=0 && i == 0 ) {
-        extendToComplex((Real*)d_pattern, (complexFormat*)single);
-        applyNorm((complexFormat*)single, 1./spectra[i]);
+        extendToComplex((Real*)d_pattern, single);
+        applyNorm(single, 1./spectra[i]);
       }
     }
   }
@@ -380,7 +380,7 @@ char broadBand_constRatio::skipPattern(){
   }
   return 1;
 }
-void broadBand_constRatio::generateMWL(void* d_input, void* d_patternSum, void* single){
+void broadBand_constRatio::generateMWL(Real* d_input, Real* d_patternSum, complexFormat* single){
   myCuDMalloc(complexFormat, d_inputWave, row*column);
   resize_cuda_image(row, column);
   extendToComplex( (Real*)d_input, d_inputWave);

@@ -17,12 +17,13 @@ class cuPlotter
 
   
   void *videoWriterVec[100];
+  const char* prefix = 0;
   int nvid = 0;
   public:
   int toVideo = -1;
   int showVid = 0;
   cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_data(0){};
-  void init(int rows_, int cols_);
+  void init(int rows_, int cols_, const char* prefix_ = "./");
   void* getCache(){return cv_cache;}
   int initVideo(const char* filename, int fps = 24);
   void videoFrame(void* cudaData);

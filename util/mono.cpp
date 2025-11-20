@@ -313,7 +313,7 @@ int main(int argc, char** argv){
          */
 
       for(int i = 0; i < 0; i++){
-        getMod2(cdi.patternData, (complexFormat*)cdi.patternWave);
+        getMod2(cdi.patternData, cdi.patternWave);
         applyNorm(cdi.patternData, cdi.exposure);
         extendToComplex(cdi.patternData, d_solved);
         cudaConvertFO(d_solved);

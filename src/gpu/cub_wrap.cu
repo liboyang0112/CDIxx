@@ -45,6 +45,7 @@ store(findRootSumSq);
 store(findSumComplex);
 store(findMod2Max);
 store(findSumReal);
+store(findMaxIdx);
 
 #define initStore(name)\
   if(store_##name##_n) {\
@@ -61,6 +62,7 @@ void initCub(){
   initStore(findMod2Max);
   initStore(findSumReal);
   initStore(findSumComplex);
+  initStore(findMaxIdx);
 }
 #define FUNC(T,OP,INIT,STORE)\
 bool hascache = 1;\
@@ -86,6 +88,28 @@ Real findMax(Real* d_in, int num, void* d_out)
 {
   FUNC(Real, max_op, Real(0), store_findMax);
   return output;
+}
+
+int findMaxIdx(Real* d_in, int num, void* d_out)
+{
+  cub::KeyValuePair<int, float> output;
+  bool hascache = 1;
+  if(!d_out) {
+    d_out = memMngr.borrowCache(sizeof(cub::KeyValuePair<int, float>));
+    hascache = 0;
+  }
+  size_t num_items = num;
+  if(num_items == 0) num_items = memMngr.getSize(d_in)/sizeof(Real);
+  if(!store_findMaxIdx_n){
+    gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items));
+    store_findMaxIdx = memMngr.borrowCache(store_findMaxIdx_n);
+  }
+  gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items));
+  if(!hascache){
+    cudaMemcpy(&output, d_out, sizeof(Real), cudaMemcpyDeviceToHost);
+    if (d_out) memMngr.returnCache(d_out);
+  }
+  return output.key;
 }
 
 int findMax(int* d_in, int num, void* d_out)

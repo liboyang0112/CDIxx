@@ -526,9 +526,9 @@ complexFormat* zernike_compute(
   reduce_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
       handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff, 1./(M_PI*radius*radius)
       );
-  //regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-  //    handle->nmodes, 1e-8, 1e-8, handle->final_coeff
-  //    );
+  regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
+      handle->nmodes, 1e-7, 1e-7, handle->final_coeff
+      );
 
   return (complexFormat*)handle->final_coeff;  // return device pointer
 }

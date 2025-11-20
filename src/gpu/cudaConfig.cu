@@ -365,6 +365,18 @@ cuFuncc(applyGaussMult,(complexFormat* input, complexFormat *output, Real sigma,
     output[index].y=factor*input[index].y;
     })
 
+cuFuncc(applyThreshold,(complexFormat* input, complexFormat *output, Real threshold),(cuComplex* input, cuComplex* output, Real threshold),((cuComplex*)input,(cuComplex*)output, threshold),{
+    cuda1Idx()
+    cuComplex dat = input[index];
+    Real mod2 = dat.x*dat.x+dat.y*dat.y;
+    if(mod2 > threshold){
+    mod2 = sqrtf(threshold/mod2);
+    output[index].x = mod2*dat.x;
+    output[index].y = mod2*dat.y;
+    }
+    })
+
+
 cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq),(input,output,sigma,isFreq),{
     cudaIdx()
     Real xrel, yrel;

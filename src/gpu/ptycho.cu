@@ -1,7 +1,7 @@
 #include "cudaDefs_h.cu"
 #include <curand_kernel.h>
 
-#define ALPHA 0.08
+#define ALPHA 0.5
 #define BETA 0.5
 #define DELTA 1e-3
 

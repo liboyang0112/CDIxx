@@ -166,3 +166,10 @@ void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq){
   createMask(data, cuda_spt,isFreq);
   myCuFree(cuda_spt);
 }
+
+void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache){
+  myFFT(input1, store);
+  myFFT(input2, cache);
+  multiplyConj(store, store, cache);
+  myIFFT(store, store);
+}

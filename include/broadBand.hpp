@@ -25,7 +25,7 @@ class broadBand : public broadBand_base{
     void init(int nrow, int ncol, double minlambda, double maxlambda);
     void init(int nrow, int ncol, int nlambda_, double* lambdas_, double* spectra_);
     Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray);
-    void generateMWL(void* d_input, void* d_patternSum, void* single = 0);
+    void generateMWL(Real* d_input, Real* d_patternSum, complexFormat* single = 0);
     broadBand() : broadBand_base(){};
 };
 class broadBand_constRatio : public broadBand_base{
@@ -45,7 +45,7 @@ class broadBand_constRatio : public broadBand_base{
     void reorderSpect();
     void applyAT(complexFormat* src, complexFormat* dest, char zoomout = 0);
     void applyA(complexFormat* src, complexFormat* dest, char zoomout = 0);
-    void generateMWL(void* d_input, void* d_patternSum, void* single = 0);
+    void generateMWL(Real* d_input, Real* d_patternSum, complexFormat* single = 0);
 };
 void assignRef_d (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n);
 void expandRef (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0);

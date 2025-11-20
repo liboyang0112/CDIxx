@@ -11,9 +11,9 @@
 
 using namespace std;
 
-Real innerProd(void* a, void* b, void* param){
+Real innerProd(complexFormat* a, complexFormat* b, Real* param){
   Real* tmp = (Real*)memMngr.borrowCache(memMngr.getSize(a)/2);
-  multiplyReal(tmp,(complexFormat*)a, (complexFormat*)b);
+  multiplyReal(tmp,a, b);
   applyMask(tmp, (Real*)param);
   Real sum = findSum(tmp);
   myCuFree(tmp);
@@ -25,7 +25,7 @@ void applyC(Real* input, Real* output){
   //forcePositive( output);
 }
 
-void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
+void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
 {
   bool writeResidual = 1;
   int monoidx = 0;
@@ -47,12 +47,12 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
     sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
     createMaskBar(sptimg, cuda_spt, 0);
     myCuFree(cuda_spt);
-    applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
+    applyMaskBar(sptimg, d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
   if(nlambda<0) fmt::println("nlambda not initialized: {}",nlambda);
-  size_t sz = row*column*sizeof(complexFormat);
-  complexFormat *fftb = (complexFormat*)memMngr.borrowCache(sz);
+  size_t sz = row*column;
+  myCuDMalloc(complexFormat, fftb, sz);
   init_fft(row,column);
   resize_cuda_image(row, column);
   Real lr = 1.4;
@@ -63,27 +63,27 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   Real adamepsilon = 1e-4;
   if(restart) {
     //myMemcpyD2D(d_output, d_input, sz);
-    //zeroEdge( (complexFormat*)d_output, 150);
-    clearCuMem(d_output,  sz);
+    //zeroEdge( d_output, 150);
+    clearCuMem(d_output,  sz*sizeof(complexFormat));
   }
-  complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
+  myCuDMalloc(complexFormat, deltab, sz);
   complexFormat *momentum = 0;
   Real *adamv = 0;
   if(beta1) {
-    momentum = (complexFormat*)memMngr.borrowCleanCache(sz);
+  myCuMallocClean(complexFormat, momentum, sz);
   }
   if(beta2) {
-    adamv = (Real*)memMngr.borrowCleanCache(sz/2);
+  myCuMallocClean(Real, adamv, sz);
   }
   complexFormat *padded = padding_cache;
-  complexFormat *patternstep = (complexFormat*)memMngr.borrowCache(sz);
-  Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
+  myCuDMalloc(complexFormat, patternstep, sz);
+  myCuDMalloc(Real, multiplied, sz);
   Real *momentum_a = 0;
   float step_a = 0;
   fmt::ostream* fresidual;
   if(writeResidual) fresidual = new fmt::ostream(fmt::output_file("residual.txt"));
   if(updateA){
-    getMod2(multiplied, (complexFormat*)d_input);
+    getMod2(multiplied, d_input);
     Real mod2ref = findSum(multiplied);
     fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
@@ -92,36 +92,36 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   }
   complexFormat *fbi = 0;
   if(!updateX) {
-    myIFFT((complexFormat*)d_output, fftb);
+    myIFFT(d_output, fftb);
     cudaConvertFO(fftb);
   }
   int nmem = nlambda/8;
   if(updateA) {
-    gs = (void**)ccmemMngr.borrowCache((nmem+1)*sizeof(void*));
+    gs = (complexFormat**)ccmemMngr.borrowCache((nmem+1)*sizeof(complexFormat*));
     for(int j = 0; j < nmem+1; j++){
-      gs[j] = memMngr.borrowCache(sz);
+      myCuMalloc(complexFormat, gs[j], sz);
     }
-  }else fbi = (complexFormat*)memMngr.borrowCache(sz);
+  }else myCuMalloc(complexFormat, fbi, sz);
   // Real tk = 1;
   bool calcDeltab = 0;
   double* matrix = (double*) ccmemMngr.borrowCache(nlambda*nlambda*sizeof(double));
   double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
   for(int i = 0; i < nIter; i++){
     if(updateX||i==0||!gs) {
-      myIFFT((complexFormat*)d_output, fftb);
+      myIFFT(d_output, fftb);
     }
     if(gs && monoidx < nmem)
-      myMemcpyD2D(gs[monoidx], d_output, sz);
+      myMemcpyD2D(gs[monoidx], d_output, sz*sizeof(complexFormat));
     if(updateX){
-      myMemcpyD2D(deltab, d_input, sz);
-      add(deltab, (complexFormat*)d_output, -spectra[monoidx]);
+      myMemcpyD2D(deltab, d_input, sz*sizeof(complexFormat));
+      add(deltab, d_output, -spectra[monoidx]);
     }
     for(int j = 0; j < nlambda; j++){
       if(j != monoidx){
         if(!updateA && spectra[j]<=0) continue;
         size_t N = rows[j]*cols[j];
         if(gs){
-          if(j <= nmem) fbi = (complexFormat*)gs[j];
+          if(j <= nmem) fbi = gs[j];
         }
         if(!gs || updateX || i==0){
           resize_cuda_image(rows[j], cols[j]);
@@ -134,7 +134,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         }
       }
       if(gs){
-        if(j==monoidx) fbi = (complexFormat*)d_output;
+        if(j==monoidx) fbi = d_output;
         for(int i = 0; i < min(j+1,nmem); i++){
           matrix[i+j*nlambda] = innerProd(fbi, gs[i], sptimg);
         }
@@ -146,9 +146,9 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       int nblk = (nlambda-1)/nmem+1;
       for(int iblk = 1; iblk < nblk; iblk++){
         if(monoidx >= iblk*nmem && monoidx < iblk*nmem+nmem)
-          myMemcpyD2D(gs[monoidx-iblk*nmem], d_output, sz);
+          myMemcpyD2D(gs[monoidx-iblk*nmem], d_output, sz*sizeof(complexFormat));
         for(int j = iblk*nmem; j < nlambda; j++){
-          if(j <= iblk*nmem+nmem) fbi = (complexFormat*)gs[j-iblk*nmem];
+          if(j <= iblk*nmem+nmem) fbi = gs[j-iblk*nmem];
           if(j != monoidx){
             size_t N = rows[j]*cols[j];
             resize_cuda_image(rows[j], cols[j]);
@@ -193,26 +193,26 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
       }
     }
     if(updateX){
-      //overExposureZeroGrad( deltab, (complexFormat*)d_input, noiseLevel);
+      //overExposureZeroGrad( deltab, d_input, noiseLevel);
       if(i > 20 && noiseLevel){
         getReal( (Real*)fbi,deltab);
         FISTA((Real*)fbi, (Real*)fbi, 1e-5*sqrt(noiseLevel), 20, &applyC);
         extendToComplex( (Real*)fbi, deltab);
       }
-      clearCuMem(patternstep,  sz);
+      clearCuMem(patternstep,  sz*sizeof(complexFormat));
       add( patternstep, deltab, spectra[monoidx]);
       for(int j = 1; j < nlambda; j++){
         if(j == monoidx) continue;
         if(spectra[j]<=0) continue;
         resize_cuda_image(rows[j], cols[j]);
-        if(rows[j] > row) pad((complexFormat*)deltab, padded, row, column);
-        else crop((complexFormat*)deltab, padded, row, column);
+        if(rows[j] > row) pad(deltab, padded, row, column);
+        else crop(deltab, padded, row, column);
         myIFFTM(locplan[j], padded, padded);
         resize_cuda_image(row, column);
         if(rows[j] > row) cropinner(padded, fbi, rows[j], cols[j], 1./(row*column));
         else padinner(padded, fbi, rows[j], cols[j], 1./(row*column));
         myFFT(fbi, fbi);
-        add((complexFormat*)patternstep, fbi, spectra[j]);
+        add(patternstep, fbi, spectra[j]);
       }
       if(beta1){
         //updateMomentum( patternstep, momentum, 2*beta1);
@@ -220,34 +220,34 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
         applyNorm(momentum, k);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
-          adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
-        }else add((complexFormat*)d_output, momentum, 1);
+          adamUpdate( d_output, momentum, adamv, lr, adamepsilon);
+        }else add(d_output, momentum, 1);
       }else{
-        add( (complexFormat*)d_output, patternstep, lr);
+        add( d_output, patternstep, lr);
       }
-      forcePositive((complexFormat*)d_output);
+      forcePositive(d_output);
       /* //FISTA update, not quite effective
-         add( patternstep, (complexFormat*)d_output, 1);
+         add( patternstep, d_output, 1);
          getReal( (Real*)fbi,patternstep);
          FISTA((Real*)fbi, (Real*)patternstep, 1e-6, 70, &applyC);
          extendToComplex( (Real*)patternstep, fbi);
          Real tmp = 0.5+sqrt(0.25+tk*tk);
          Real fact1 = (tk-1)/tmp;
          tk = tmp;
-         applyNorm( (complexFormat*)d_output, -fact1);
-         add( (complexFormat*)d_output, fbi, 1+fact1);
+         applyNorm( d_output, -fact1);
+         add( d_output, fbi, 1+fact1);
          */
     }
     //myFFT(d_output, d_output);
-    //cudaConvertFO((complexFormat*)d_output);
-    //zeroEdge( (complexFormat*)d_output, 30);
-    //cudaConvertFO((complexFormat*)d_output);
-    //applyNorm((complexFormat*)d_output, 1./(row*column));
+    //cudaConvertFO(d_output);
+    //zeroEdge( d_output, 30);
+    //cudaConvertFO(d_output);
+    //applyNorm(d_output, 1./(row*column));
     //myIFFT(d_output, d_output);
   }
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
-    add(deltab,(complexFormat*)d_input, -1);
+    add(deltab,d_input, -1);
     fresidual->close();
     delete fresidual;
   }
@@ -264,7 +264,7 @@ void monoChromo::solveMWL(void* d_input, void* d_output, int noiseLevel, bool re
   myCuFree(deltab);
 
 }
-void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
+void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
 {
   bool writeResidual = 1;
   int d = row/2-20;
@@ -279,7 +279,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
     sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
     createMaskBar(sptimg, cuda_spt, 0);
     myCuFree(cuda_spt);
-    applyMaskBar(sptimg, (complexFormat*)d_input, 0.99);
+    applyMaskBar(sptimg, d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
   size_t sz = row*column*sizeof(complexFormat);
@@ -308,7 +308,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   fmt::ostream* fresidual;
   if(writeResidual) fresidual = new fmt::ostream(fmt::output_file("residual.txt"));
   if(updateA){
-    getMod2(multiplied, (complexFormat*)d_input);
+    getMod2(multiplied, d_input);
     Real mod2ref = findSum(multiplied);
     fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
@@ -320,9 +320,9 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
 
   int nmem = 0;
   if(updateA) {
-    gs = (void**)ccmemMngr.borrowCache((nlambda)*sizeof(void*));
+    gs = (complexFormat**)ccmemMngr.borrowCache((nlambda)*sizeof(complexFormat*));
     for(int j = 0; j < nlambda; j++){
-      gs[j] = memMngr.borrowCache(sz);
+      myCuMalloc(complexFormat, gs[j], row*column);
       nmem++;
       if(getGPUFreeMem()<1000) break;
     }
@@ -335,7 +335,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
   double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
   for(int iter = 0; iter < nIter; iter++){
     if(updateX){
-      add(deltab, (complexFormat*)d_input, (complexFormat*)d_output, -spectra[0]);
+      add(deltab, d_input, d_output, -spectra[0]);
     }
     if(updateA){
       matrix[0] = innerProd(d_output, d_output, sptimg);
@@ -344,10 +344,10 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
     initptr();
     for(int j = 1; j < nlambda; j++){
       if(gs && j <= nmem) {
-        fbi = j>1?(complexFormat*)gs[j-2]:(complexFormat*)d_output;
-        fbj = (complexFormat*)gs[j-1];
+        fbi = j>1?gs[j-2]:d_output;
+        fbj = gs[j-1];
       }else fbi = fbj;
-      nextPattern(fbi, fbj, (complexFormat*)d_output);
+      nextPattern(fbi, fbj, d_output);
       if(updateA){
         for(int i = 1; i < min(j+1,nmem); i++){
           matrix[i+j*nlambda] = innerProd(fbj, gs[i-1], sptimg);
@@ -367,15 +367,15 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       for(int iblk = 1; iblk < nblk; iblk++){
         int offset = 1+iblk*(nmem-1);
         patternptr = (offset-1<=nmiddle)?nmiddle+1-offset:(offset-1);
-        nextPattern((complexFormat*)gs[nmem-2], (complexFormat*)gs[0],(complexFormat*) d_output);
+        nextPattern(gs[nmem-2], gs[0], d_output);
         matrix[offset*(1+nlambda)] = innerProd(gs[0], gs[0],sptimg);
         for(int j = 1+offset; j < nlambda; j++){
           int subidx = j - offset;
           if(subidx < nmem) {
-            fbi = (complexFormat*)gs[subidx-1];
-            fbj = (complexFormat*)gs[subidx];
+            fbi = gs[subidx-1];
+            fbj = gs[subidx];
           }else fbi = fbj;
-          nextPattern(fbi, fbj, (complexFormat*)d_output);
+          nextPattern(fbi, fbj, d_output);
           int nprod = min(subidx+1,nmem);
           for(int i = 0; i < nprod; i++){
             matrix[i+offset+j*nlambda] = innerProd(fbj, gs[i],sptimg);
@@ -410,7 +410,7 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       }
     }
     if(updateX){
-      //overExposureZeroGrad( deltab, (complexFormat*)d_input, noiseLevel);
+      //overExposureZeroGrad( deltab, d_input, noiseLevel);
       if(iter > 20 && noiseLevel){
         getReal( (Real*)fbi,deltab);
         FISTA((Real*)fbi, (Real*)fbi, 1e-5*sqrt(noiseLevel), 20, &applyC);
@@ -421,30 +421,30 @@ void monoChromo_constRatio::solveMWL(void* d_input, void* d_output, int noiseLev
       initptr();
       for(int j = 1; j < nlambda; j++){
         nextPattern(fbi, fbi, deltab, 1);
-        add((complexFormat*)patternstep, fbi, spectra[j]);
+        add(patternstep, fbi, spectra[j]);
       }
       if(beta1){
         updateMomentum( patternstep, momentum, 2*beta1);
         applyNorm(momentum, k);
         if(beta2) {
           adamUpdateV( adamv, patternstep, beta2);
-          adamUpdate( (complexFormat*)d_output, momentum, adamv, lr, adamepsilon);
-        }else add((complexFormat*)d_output, momentum, 1);
+          adamUpdate( d_output, momentum, adamv, lr, adamepsilon);
+        }else add(d_output, momentum, 1);
       }else{
-        add( (complexFormat*)d_output, patternstep, lr);
+        add( d_output, patternstep, lr);
       }
-      forcePositive((complexFormat*)d_output);
+      forcePositive(d_output);
     }
   }
   //myFFT(d_output, d_output);
-  //cudaConvertFO((complexFormat*)d_output);
-  //zeroEdge( (complexFormat*)d_output, 30);
-  //cudaConvertFO((complexFormat*)d_output);
-  //applyNorm((complexFormat*)d_output, 1./(row*column));
+  //cudaConvertFO(d_output);
+  //zeroEdge( d_output, 30);
+  //cudaConvertFO(d_output);
+  //applyNorm(d_output, 1./(row*column));
   //myIFFT(d_output, d_output);
   if(writeResidual) {
     plt.plotComplex(deltab, REAL, 0, 1, "residual_pulseGen", 1, 0, 1);
-    add(deltab,(complexFormat*)d_input, -1);
+    add(deltab,d_input, -1);
     fresidual->close();
     delete fresidual;
   }

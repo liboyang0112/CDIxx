@@ -1,3 +1,5 @@
+#include <filesystem>
+#include <fmt/base.h>
 #include <string>
 #include "cuPlotter.hpp"
 #include "fmt/core.h"
@@ -73,7 +75,27 @@ int cuPlotter::initVideo(const char* filename, int fps){
 void cuPlotter::saveVideo(int handle){
   ::saveVideo(videoWriterVec[handle]);
 }
-void cuPlotter::init(int rows_, int cols_){
+bool ensureDirExists(const std::string& path) {
+    if (!path.empty()) {
+        try {
+            if (!std::filesystem::exists(path)) {
+                if (std::filesystem::create_directories(path)) {
+                    return true; // Successfully created
+                } else {
+                    return false; // Failed to create (permissions, etc.)
+                }
+            } else if (std::filesystem::is_directory(path)) {
+                return true; // Already exists and is a directory
+            } else {
+                return false; // Path exists but is not a directory
+            }
+        } catch (const std::filesystem::filesystem_error&) {
+            return false; // Handle error (e.g. permission denied)
+        }
+    }
+    return false; // Empty path or other invalid input
+}
+void cuPlotter::init(int rows_, int cols_, const char* prefix_){
   if(rows==rows_ && cols==cols_) return;
   freeMem();
   fmt::println("init plot {}, {}",rows_,cols_);
@@ -82,6 +104,13 @@ void cuPlotter::init(int rows_, int cols_){
   cv_cache = ccmemMngr.borrowCache(rows*cols*3);
   cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
   cuCache_data = memMngr.borrowCache(rows*cols*3);
+  if (prefix) {        // Free previous string if reinitializing
+    free(const_cast<char*>(prefix));
+  }
+  prefix = prefix_ ? strdup(prefix_) : nullptr;
+  if(!ensureDirExists(prefix)){
+    fmt::print(stderr, "Director failed to create: {}, please check permission or if it's already exists as a file\n", prefix);
+  }
 }
 
 void cuPlotter::freeMem(){
@@ -131,7 +160,7 @@ void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, c
   if(toVideo>=0) {
     flushVideo(videoWriterVec[toVideo], cv_cache);
   }else
-    writePng((std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
+    writePng((prefix + std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
@@ -191,17 +220,20 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
       return;
     }
     else if(std::string(fname).find(".png")!=std::string::npos)
-      writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
+      writePng((prefix + fname).c_str(), cv_cache, rows, cols, 8, 1);
     else if(std::string(fname).find(".jpg")!=std::string::npos)
-      writeJPEG(fname.c_str(), cv_cache, rows, cols, 25);
+      writeJPEG((prefix + fname).c_str(), cv_cache, rows, cols, 25);
   }else{
     pixeltype color = -1;
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);
-    writePng(fname.c_str(), cv_data, rows, cols, Bits, 0);
+    writePng((prefix + fname).c_str(), cv_data, rows, cols, Bits, 0);
   }
-  fmt::println("written to file {}", fname);
+  fmt::println("written to file {}", prefix + fname);
 }
 cuPlotter::~cuPlotter(){
+  if (prefix) {
+    free(const_cast<char*>(prefix));
+  }
   freeMem();
 }
 

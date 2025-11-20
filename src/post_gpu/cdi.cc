@@ -10,6 +10,7 @@
 #include <ctime>
 #include "cudaConfig.hpp"
 #include "experimentConfig.hpp"
+#include "memManager.hpp"
 #include "mnistData.hpp"
 #include "tvFilter.hpp"
 #include "cuPlotter.hpp"
@@ -36,21 +37,21 @@ CDI::CDI(const char* configfile):experimentConfig(configfile){
   verbose(4, print())
     if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
 }
-void CDI::multiplyPatternPhaseMid(void* amp, Real distance){
+void CDI::multiplyPatternPhaseMid(complexFormat* amp, Real distance){
   multiplyPatternPhase_factor(amp, resolution*resolution*M_PI/(distance*lambda), 2*distance*M_PI/lambda);
 }
-void CDI::multiplyFresnelPhaseMid(void* amp, Real distance){
+void CDI::multiplyFresnelPhaseMid(complexFormat* amp, Real distance){
   Real fresfactor = M_PI*lambda*distance/(sq(resolution*row));
   multiplyFresnelPhase_factor(amp, fresfactor);
 }
 void CDI::allocateMem(){
   if(objectWave) return;
   fmt::println("allocating memory");
-  int sz = row*column*sizeof(Real);
-  objectWave = memMngr.borrowCache(sz*2);
-  patternWave = memMngr.borrowCache(sz*2);
-  autoCorrelation = memMngr.borrowCache(sz*2);
-  patternData = (Real*)memMngr.borrowCache(sz);
+  int sz = row*column;
+  myCuMalloc(complexFormat, objectWave, sz);
+  myCuMalloc(complexFormat, patternWave, sz);
+  myCuMalloc(complexFormat, autoCorrelation, sz);
+  myCuMalloc(Real, patternData, sz);
   fmt::println("initializing cuda image");
   resize_cuda_image(row,column);
   init_cuda_image(rcolor,1./exposure);
@@ -75,7 +76,7 @@ void CDI::readObjectWave(){
   if(phaseModulation){
     applyNorm(d_phase, phaseModulation);
   }
-  createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave, objrow, objcol);
+  createWaveFront( d_intensity, d_phase, objectWave, objrow, objcol);
   if(d_phase) memMngr.returnCache(d_phase);
   if(d_intensity) memMngr.returnCache(d_intensity);
 }
@@ -127,16 +128,16 @@ void CDI::readFiles(){
     readPattern();
   }
 }
-void CDI::setPattern_c(void* pattern){
-  cudaConvertFO((complexFormat*)pattern,(complexFormat*)patternWave);
-  getMod2(patternData, (complexFormat*)patternWave);
-  applyRandomPhase((complexFormat*)patternWave, useBS?beamstop:NULL, devstates);
+void CDI::setPattern_c(complexFormat* pattern){
+  cudaConvertFO(pattern,patternWave);
+  getMod2(patternData, patternWave);
+  applyRandomPhase(patternWave, useBS?beamstop:NULL, devstates);
 }
 
-void CDI::setPattern(void* pattern){
+void CDI::setPattern(Real* pattern){
   cudaConvertFO((Real*)pattern,patternData);
-  createWaveFront(patternData, 0, (complexFormat*)patternWave, 1);
-  applyRandomPhase((complexFormat*)patternWave, useBS?beamstop:NULL, devstates);
+  createWaveFront(patternData, 0, patternWave, 1);
+  applyRandomPhase(patternWave, useBS?beamstop:NULL, devstates);
 }
 void CDI::init(){
   allocateMem();
@@ -168,26 +169,26 @@ void CDI::init(){
 void CDI::prepareIter(){
   if(runSim) {
     if(domnist){
-      void* intensity = memMngr.borrowCache(row*column*sizeof(Real));
-      void* phase = 0;
+      myCuDMalloc(Real, intensity, row*column);
+      Real* phase = 0;
       ((cuMnist*)mnist_dat)->cuRead(intensity);
       if(phaseModulation) {
-        phase = memMngr.borrowCache(row*column*sizeof(Real));
+        myCuMalloc(Real, phase, row*column);
         ((cuMnist*)mnist_dat)->cuRead(phase);
       }
-      createWaveFront((Real*)intensity, (Real*)phase, (complexFormat*)objectWave, 1);
+      createWaveFront((Real*)intensity, (Real*)phase, objectWave, 1);
       memMngr.returnCache(intensity);
       if(phaseModulation) memMngr.returnCache(phase);
     }
     if(isFresnel) multiplyFresnelPhase(objectWave, d);
-    //applyRandomPhase((complexFormat*)objectWave, 0, devstates);
+    //applyRandomPhase(objectWave, 0, devstates);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
     verbose(4,fmt::println("Generating diffraction pattern"));
-    myFFT(objectWave,(complexFormat*)patternWave);
-    convertFOPhase( (complexFormat*)patternWave, 1./sqrt(row*column));
+    myFFT(objectWave,patternWave);
+    convertFOPhase( patternWave, 1./sqrt(row*column));
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
-    getMod2(patternData, (complexFormat*)patternWave);
+    getMod2(patternData, patternWave);
     if(useBS) {
       myCuDMalloc(Real, patterncache, row*column);
       linearConst(patterncache, beamstop, -1, 1);
@@ -227,10 +228,10 @@ void CDI::prepareIter(){
       restart = 0;
     }
   }else{
-    createWaveFront(patternData, 0, (complexFormat*)patternWave, 1);
-    applyRandomPhase((complexFormat*)patternWave, useBS?beamstop:NULL, devstates);
+    createWaveFront(patternData, 0, patternWave, 1);
+    applyRandomPhase(patternWave, useBS?beamstop:NULL, devstates);
   }
-  propagate((complexFormat*)patternWave, objectWave, 0);
+  propagate(patternWave, objectWave, 0);
   initSupport();
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1, 0, 1));
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0));
@@ -239,7 +240,7 @@ void CDI::checkAutoCorrelation(){
   size_t sz = row*column*sizeof(Real);
   auto tmp = (complexFormat*)memMngr.useOnsite(sz);
   myFFTR2C(patternData, tmp);
-  fillRedundantR2C(tmp,  (complexFormat*)autoCorrelation, 1./sqrt(row*column));
+  fillRedundantR2C(tmp,  autoCorrelation, 1./sqrt(row*column));
   plt.plotComplex(autoCorrelation, IMAG, 1, 1, "autocorrelation_imag", 1);
   plt.plotComplex(autoCorrelation, REAL, 1, exposure, "autocorrelation_real", 1);
   plt.plotComplex(autoCorrelation, MOD, 1, exposure, "autocorrelation", 1);
@@ -260,13 +261,12 @@ void CDI::initSupport(){
   createMask(support, (rect*)cuda_spt,0);
 }
 void CDI::saveState(){
-  size_t sz = row*column*sizeof(complexFormat);
-  void* outputData = ccmemMngr.borrowCache(sz);
-  myMemcpyD2H(outputData, patternWave, sz);
+  myDMalloc(complexFormat, outputData, row*column);
+  myMemcpyD2H(outputData, patternWave, row*column*sizeof(complexFormat));
   writeComplexImage(common.restart, outputData, row, column);//save the step
   ccmemMngr.returnCache(outputData);
 
-  complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
+  complexFormat *cuda_gkp1 = objectWave;
   verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, 0, 1))
   plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
@@ -294,22 +294,22 @@ void CDI::saveState(){
     multiplyFresnelPhase(cuda_gkp1, -d);
     plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
   }
-  Real* tmp2 = (Real*)memMngr.useOnsite(sz>>1);
-  getMod2( tmp2, (complexFormat*)patternWave);
-  extendToComplex(tmp2, (complexFormat*)autoCorrelation);
-  myFFT((complexFormat*)autoCorrelation,(complexFormat*)autoCorrelation);
+  Real* tmp2 = (Real*)memMngr.useOnsite(row*column*sizeof(Real));
+  getMod2( tmp2, patternWave);
+  extendToComplex(tmp2, autoCorrelation);
+  myFFT(autoCorrelation,autoCorrelation);
   plt.plotComplex(autoCorrelation, MOD2, 1, exposure/(row*column), "autocorrelation_recon", 1);
 }
 
 
-void* CDI::phaseRetrieve(){
+complexFormat* CDI::phaseRetrieve(){
   int vidhandle = 0;
   if(saveVideoEveryIter){
     vidhandle = plt.initVideo("recon_intensity.mp4",24);
     plt.showVid = -1;
   }
 
-  complexFormat *cuda_gkp1 = (complexFormat*)objectWave;
+  complexFormat *cuda_gkp1 = objectWave;
 
   size_t sz = row*column;
   myCuDMalloc(complexFormat, cuda_gkprime, sz);
@@ -333,7 +333,7 @@ void* CDI::phaseRetrieve(){
     if(ialgo<0) break;
     //start iteration
     if(ialgo == shrinkWrap){
-      applyGaussMult((complexFormat*)patternWave, cuda_gkprime, Real(row>>2)/gaussianSigma, 1); //multiply a gaussian in frequency domain, equivalent to convolution in spatial domain.
+      applyGaussMult(patternWave, cuda_gkprime, Real(row>>2)/gaussianSigma, 1); //multiply a gaussian in frequency domain, equivalent to convolution in spatial domain.
       myIFFT(cuda_gkprime, cuda_gkprime);
       getMod2(support,cuda_gkprime);
       Real maxs = findMax(support,row*column);
@@ -352,13 +352,13 @@ void* CDI::phaseRetrieve(){
       getMod2(cuda_diff, cuda_gkp1);
       FISTA(cuda_diff, cuda_diff, 0.1, 1, 0);
       applyModAbs(cuda_gkp1,cuda_diff);
-      myFFT( cuda_gkp1, (complexFormat*)patternWave);
+      myFFT( cuda_gkp1, patternWave);
       continue;
     }
-    if(simCCDbit) applyMod((complexFormat*)patternWave,patternData, useBS? beamstop:NULL, noiseLevel);
-    else applyModAbs((complexFormat*)patternWave,patternData);
+    if(simCCDbit) applyMod(patternWave,patternData, useBS? beamstop:NULL, noiseLevel);
+    else applyModAbs(patternWave,patternData);
 
-    myIFFT( (complexFormat*)patternWave, cuda_gkprime);
+    myIFFT( patternWave, cuda_gkprime);
     applyNorm(cuda_gkprime, 1./(row*column));
     applySupport(cuda_gkp1, cuda_gkprime, (Algorithm)ialgo, support);
     if(iter == prtfIter){
@@ -366,9 +366,9 @@ void* CDI::phaseRetrieve(){
       multiply(cache, gamma0, gamma0);
       complexFormat sum = findSum(cache);
       phi0 = -atan2(cimagf(sum), crealf(sum))/2;
-      addPhase(prtf_map, (complexFormat*)patternWave, phi0);
+      addPhase(prtf_map, patternWave, phi0);
 
-      getMod(cuda_objMod, (complexFormat*)patternWave);
+      getMod(cuda_objMod, patternWave);
       bitMap(cuda_objMod, cuda_objMod, 1e-6);
       cudaConvertFO(cuda_objMod);
       plt.plotFloat(cuda_objMod, MOD, 0, 1, "prtf_bitmap");
@@ -385,9 +385,9 @@ void* CDI::phaseRetrieve(){
       multiplyConj(cache, cache, gamma0);
       complexFormat sum = findSum(cache);
       Real phi = atan2(cimagf(sum), crealf(sum));
-      addPhase(prtf_map, (complexFormat*)patternWave, phi0+phi);
+      addPhase(prtf_map, patternWave, phi0+phi);
     }
-    myFFT( cuda_gkp1, (complexFormat*)patternWave);
+    myFFT( cuda_gkp1, patternWave);
     if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
       plt.toVideo = vidhandle;
       plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
@@ -401,13 +401,13 @@ void* CDI::phaseRetrieve(){
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
       }
       if(0 && iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
-        takeMod2Diff((complexFormat*)patternWave,patternData, cuda_diff, useBS? beamstop:NULL);
+        takeMod2Diff(patternWave,patternData, cuda_diff, useBS? beamstop:NULL);
         cudaConvertFO(cuda_diff);
         FISTA(cuda_diff, cuda_diff, 0.01, 80, 0);
         //plt.plotFloat(cuda_diff, MOD, 0, exposure, ("smootheddiff"+iterstr).c_str(), 1);
         cudaConvertFO(cuda_diff);
         //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("diff"+iterstr).c_str(), 1);
-        takeMod2Sum((complexFormat*)patternWave, cuda_diff);
+        takeMod2Sum(patternWave, cuda_diff);
         //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("smoothed"+iterstr).c_str(), 1);
       }
     }
@@ -419,7 +419,7 @@ void* CDI::phaseRetrieve(){
     myFFT(cuda_gkprime, cuda_gkprime);
     plt.plotComplex(cuda_gkprime, PHASE, 1, 1, "recon_pattern_phase", 0, 0);
   }
-  getMod2(cuda_objMod, (complexFormat*)patternWave);
+  getMod2(cuda_objMod, patternWave);
   addRemoveOE( cuda_objMod, patternData, -1);  //ignore overexposed pixels when getting difference
   if(useBS){
     invert(beamstop);
