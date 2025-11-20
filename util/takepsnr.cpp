@@ -1,4 +1,4 @@
-#include <complex>
+#include <complex.h>
 #include <stdio.h>
 #include <stdio.h>
 #include "fmt/core.h"
@@ -35,7 +35,8 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   myCuDMalloc(Real, d_bit, sz);
   resize_cuda_image(row,col);
   bitMap(d_bit, img, 0.2);
-  std::complex<Real> mid(findMiddle(d_bit, row*col)+shiftx-shifty*1.0i);
+  std::complex<Real> mid(findMiddle(d_bit, row*col));
+  mid += std::complex<Real>(shiftx, -shifty);
   fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
   memMngr.returnCache(d_bit);
   if(!outrow || !outcol){

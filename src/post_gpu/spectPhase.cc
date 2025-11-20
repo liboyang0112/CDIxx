@@ -128,7 +128,7 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
     int thiscol = cols[j];
     Real rat = Real(thisrow)/row;
     complexFormat amp = 1;
-    if(0) amp = cexp(1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
+    //if(0) amp = cexp(1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
     file1.print("{} {} {} {} {} {}\n", j, rat, creal(amp), cimag(amp), cabs(amp), carg(amp));
     resize_cuda_image(pixCount, 1);
     expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, amp);

@@ -12,7 +12,7 @@
 #define myCuDMallocClean(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCleanCache((size)*sizeof(fmt));
 #define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache((size)*sizeof(fmt));
 #define myCuMallocClean(fmt, var, size) var = (fmt*)memMngr.borrowCleanCache((size)*sizeof(fmt));
-#define myCuFree(ptr) memMngr.returnCache(ptr); ptr = 0
+#define myCuFree(ptr) do {memMngr.returnCache(ptr); ptr = 0;} while(0)
 #include "memManager.hpp"
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 void gpuAssert(int code, const char *file, int line);

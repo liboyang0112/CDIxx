@@ -30,7 +30,7 @@ int main(int argc, char** argv )
   fmt::println("Fresnel Number = {:f}",fresnelNumber);
 
   int sz = setups.row*setups.column*sizeof(complexFormat);
-  complexFormat* cuda_pupilAmp, *cuda_ESW, *cuda_ESWP, *cuda_ESWPattern, *cuda_pupilAmp_SIM;
+  complexFormat* cuda_pupilAmp = 0, *cuda_ESW = 0, *cuda_ESWP = 0, *cuda_ESWPattern = 0, *cuda_pupilAmp_SIM = 0;
   if(setups.dopupil){
     cuda_pupilAmp = (complexFormat*)memMngr.borrowCache(sz);
     if(setups.runSim) myMemcpyD2D(cuda_pupilAmp, setups.objectWave, sz);
