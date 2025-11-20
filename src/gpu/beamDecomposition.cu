@@ -1,4 +1,5 @@
 #include "cudaConfig.hpp"
+#include <cuComplex.h>
 #include "cudaDefs_h.cu"
 #include <cmath>
 #include <complex.h>

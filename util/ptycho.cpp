@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <random>
 #include <chrono>
-#include "cudaDefs_h.cu"
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"

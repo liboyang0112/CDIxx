@@ -46,7 +46,7 @@ find_package(Fontconfig REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package(Python3 REQUIRED COMPONENTS Interpreter NumPy)
+find_package(Python REQUIRED COMPONENTS Interpreter NumPy)
 if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(

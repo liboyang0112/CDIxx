@@ -1,5 +1,4 @@
 #include "imgio.hpp"
-#include "imageFile.hpp"
 #include <tiffio.h>
 #include <png.h>
 #include <stdlib.h>

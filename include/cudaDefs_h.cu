@@ -1,7 +1,6 @@
 #ifndef __CUDADEFS_H__
 #define __CUDADEFS_H__
 #include "format.hpp"
-#include <cuComplex.h>
 #define cuComplex float2
 #define addVar(args...) cuda_imgsz.x, cuda_imgsz.y, args
 #define addVarArg(x...) int cuda_row, int cuda_column, x
@@ -68,13 +67,5 @@
   int y = idxxy/cuda_row;
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
-struct cudaVars{
-  int rcolor;
-  Real beta_HIO;
-  Real scale;
-  Real threshold;
-};
-extern __constant__ cudaVars vars;
-extern cudaVars* cudaVarLocal;
-extern int3 cuda_imgsz;
+extern dim3 cuda_imgsz;
 #endif

@@ -1,7 +1,6 @@
 #include <cstring>
 #include <string>
 #include <math.h>
-#include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
 #include "fdtd3d.hpp"
@@ -13,13 +12,13 @@ int main(){
   const int nx = 150;
   const int ny = 150;
   const int nz = 150;
-  dim3 nblkx,nblky,nblkz, nthd2d;
-  //---------inner dimensions--------
-  //-----boundary dimensions---------
-  nthd2d.x = 256;
-  nblkx.x = (ny*nz-1)/nthd2d.x+1;
-  nblky.x = (nx*nz-1)/nthd2d.x+1;
-  nblkz.x = (nx*ny-1)/nthd2d.x+1;
+  //dim3 nblkx,nblky,nblkz, nthd2d;
+  ////---------inner dimensions--------
+  ////-----boundary dimensions---------
+  //nthd2d.x = 256;
+  //nblkx.x = (ny*nz-1)/nthd2d.x+1;
+  //nblky.x = (nx*nz-1)/nthd2d.x+1;
+  //nblkz.x = (nx*ny-1)/nthd2d.x+1;
 
   size_t nnode = nx*ny*nz;
   size_t memsz = nnode*sizeof(Real);

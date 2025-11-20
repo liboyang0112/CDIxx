@@ -9,7 +9,7 @@ dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
 static cufftHandle *plan = 0, *planR2C = 0;
-int3 cuda_imgsz = {0,0,1};
+dim3 cuda_imgsz = {0,0,1};
 void cuMemManager::c_malloc(void*& ptr, size_t sz) { gpuErrchk(cudaMalloc((void**)&ptr, sz)); }
 void cuMemManager::c_memset(void*& ptr, size_t sz) { gpuErrchk(cudaMemset(ptr, 0, sz)); }
 cuMemManager::cuMemManager():memManager(){}

@@ -1,4 +1,3 @@
-#include "cudaDefs_h.cu"
 #include "experimentConfig.hpp"
 #include <string>
 

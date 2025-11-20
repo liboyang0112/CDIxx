@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <chrono>
 #include <stdio.h>
-#include "cudaDefs_h.cu"
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "imageFile.hpp"
@@ -321,7 +320,7 @@ complexFormat* CDI::phaseRetrieve(){
   AlgoParser algo(algorithm);
   applyNorm(cuda_gkp1, 1./sqrt(row*column));
   Real gaussianSigma = 3;
-  Real avg = 0, phi0;
+  Real avg = 0, phi0 = 0;
   int iter = 0;
   myCuDMalloc(Real, cuda_objMod, sz);
   myCuDMalloc(Real, d_polar, row*column);

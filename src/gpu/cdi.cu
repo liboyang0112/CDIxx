@@ -1,8 +1,15 @@
 #include "format.hpp"
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cudaDefs_h.cu"
+#include "cuComplex.h"
 #include "memManager.hpp"
 #include <curand_kernel.h>
+struct cudaVars{
+  int rcolor;
+  Real beta_HIO;
+  Real scale;
+  Real threshold;
+};
 __constant__ cudaVars vars;
 cudaVars* cudaVarLocal = 0;
 void init_cuda_image(int rcolor, Real scale){

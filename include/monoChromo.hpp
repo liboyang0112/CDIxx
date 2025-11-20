@@ -1,4 +1,3 @@
-#include "format.hpp"
 #include "broadBand.hpp"
 class monoChromo : public broadBand{
   public:

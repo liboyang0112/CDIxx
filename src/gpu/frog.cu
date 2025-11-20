@@ -1,4 +1,5 @@
 #include "cudaDefs_h.cu"
+#include "cuComplex.h"
 #include <curand_kernel.h>
 
 cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay),(cuComplex* gate, cuComplex* E, cuComplex* trace, Real delay), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)trace,delay), {
