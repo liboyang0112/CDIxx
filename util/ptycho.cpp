@@ -1,5 +1,7 @@
 #include <complex.h>
 #include <fmt/base.h>
+#include <fmt/os.h>
+#include <fstream>
 #include <stdio.h>
 #include <random>
 #include <chrono>
@@ -21,12 +23,16 @@ using namespace std;
 
 class ptycho : public experimentConfig{
   public:
-    int row_O = 512;  //in ptychography this is different from row (the size of probe).
-    int column_O = 512;
+    int row_O = 1024;  //in ptychography this is different from row (the size of probe).
+    int column_O = 1024;
     int sz = 0;
     int doPhaseModulationPupil = 0;
-    int scanx = 0;
-    int scany = 0;
+    complexFormat* registerCache = 0;
+    int registerFFTHandle = 0;
+    int nscan = 0;
+    Real *scanpos = 0;
+    Real *scanposx = 0;
+    Real *scanposy = 0;
     Real *shiftx = 0;
     Real *shifty = 0;
     Real *shifts = 0;
@@ -41,30 +47,88 @@ class ptycho : public experimentConfig{
 
     ptycho(const char* configfile):experimentConfig(configfile){}
     Real computeErrorSim();
+    void readScan(){
+      std::ifstream file(distFile);
+      if (!file.is_open()) {
+        throw std::runtime_error(fmt::format("Could not open file '{}' for reading.", distFile));
+      }
+      std::vector<std::vector<float>> distances;
+      std::string line;
+      std::getline(file, line);
+      std::istringstream iss(line);
+      iss >> stepSize;
+      while (std::getline(file, line)) {
+        int i; 
+        float x, y;
+        std::istringstream iss(line);
+        if (iss >> i >> x >> y) {
+          distances.push_back({x, y});
+        } else {
+          throw std::runtime_error(fmt::format("Failed to parse line: {}", line));
+        }
+      }
+      nscan = distances.size();
+      size_t scansz = nscan*sizeof(Real);
+      patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
+      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      scanpos = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      scanposx = scanpos;
+      scanposy = scanpos + nscan;
+      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
+      shiftx = shifts;
+      shifty = shifts+nscan;
+      d_shift = (Real*)memMngr.borrowCache(scansz*2);
+      for(int i = 0; i < nscan; i++){
+        scanposx[i] = distances[i][0]*stepSize;
+        scanposy[i] = distances[i][1]*stepSize;
+        fmt::println("scan position: ({}, {}) ", scanposx[i], scanposy[i]);
+      }
+    }
+    void initScan(){
+      int scanx = (row_O-row)/stepSize+1;
+      int scany = (column_O-column)/(stepSize*sqrtf(3)/2)+1;
+      nscan = scanx*scany;
+      size_t scansz = nscan*sizeof(Real);
+      patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
+      fmt::println("scanning {} x {} steps", scanx, scany);
+      scanpos = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      scanposx = scanpos;
+      scanposy = scanpos + nscan;
+      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
+      shiftx = shifts;
+      shifty = shifts+nscan;
+      d_shift = (Real*)memMngr.borrowCache(scansz*2);
+
+      fmt::ostream scanFile(fmt::output_file("scan.txt"));
+      scanFile.print("{}\n", stepSize);
+      int iscan = 0;
+      for(int i = 0; i < scanx; i++){
+        for(int j = 0; j < scany; j++){
+          Real xstep = (i+(j%2 == 0? 0:0.5));
+          Real ystep = j*sqrtf(3)/2;
+          scanFile.print("{} {} {}\n", iscan ,xstep,ystep);
+          scanposx[iscan] = xstep*stepSize;
+          scanposy[iscan] = ystep*stepSize;
+          fmt::println("scan position: ({}, {}) ", scanposx[iscan], scanposy[iscan]);
+          iscan++;
+        }
+      }
+    }
     void allocateMem(){
       if(devstates) return;
       devstates = newRand(column_O * row_O);
       fmt::println("allocating memory");
-      scanx = (row_O-row)/stepSize+1;
-      scany = (column_O-column)/(stepSize*sqrtf(3)/2)+1;
-      size_t scansz = scanx*scany*sizeof(Real);
-      fmt::println("scanning {} x {} steps", scanx, scany);
       objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
       objectWave_t = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
       pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(sz*2);
       esw = (complexFormat*) memMngr.borrowCache(sz*2);
-      patterns = (Real**)ccmemMngr.borrowCleanCache(scanx*scany*sizeof(Real*));
       fmt::println("initializing cuda image");
       resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       initRand(devstates,seed);
-      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
-      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
-      shiftx = shifts;
-      shifty = shifts+scanx*scany;
-      d_shift = (Real*)memMngr.borrowCache(scansz*2);
       if(runSim && positionUncertainty > 1e-4){
         initPosition();
       }
@@ -77,6 +141,7 @@ class ptycho : public experimentConfig{
       sz = row*column*sizeof(Real);
       int row_tmp=row*oversampling;
       int column_tmp=column*oversampling;
+      initScan();
       allocateMem();
       createWaveFront(d_object_intensity, d_object_phase, objectWave_t, 1);
       memMngr.returnCache(d_object_intensity);
@@ -114,20 +179,19 @@ class ptycho : public experimentConfig{
       plt.init(row,column, outputDir);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "probeWave", 0);
       calculateParameters();
-      //multiplyFresnelPhase(pupilpatternWave_t, d);
     }
     void initPosition(){
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       std::default_random_engine generator(seed);
       std::normal_distribution<double> distribution(0.0, 1.);
-      for(int i = 0 ; i < scanx*scany; i++){
+      for(int i = 0 ; i < nscan; i++){
         shiftx[i]+= distribution(generator)*positionUncertainty;
         shifty[i]+= distribution(generator)*positionUncertainty;
-        if(verbose >=3 ) fmt::println("shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
+        if(verbose >=3 ) fmt::println("shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
       }
     }
     void resetPosition(){
-      for(int i = 0 ; i < scanx*scany; i++){
+      for(int i = 0 ; i < nscan; i++){
         shiftx[i] = shifty[i] = 0;
       }
     }
@@ -138,10 +202,9 @@ class ptycho : public experimentConfig{
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
       complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
-      for(int i = 0; i < scanx; i++){
-        for(int j = 0; j < scany; j++){
-          Real posx = i*stepSize+(j%2 == 1? 0:(Real(stepSize)/2)) + shiftx[idx];
-          Real posy = j*stepSize*sqrtf(3)/2 + shifty[idx];
+      for(int i = 0; i < nscan; i++){
+          Real posx = scanposx[i] + shiftx[idx];
+          Real posy = scanposy[i] + shifty[idx];
           int shiftxpix = posx-round(posx);
           int shiftypix = posy-round(posy);
           getWindow(objectWave_t, +round(posx), round(posy), row_O, column_O, window);
@@ -149,7 +212,8 @@ class ptycho : public experimentConfig{
             shiftWave(window, shiftxpix, shiftypix);
           }
           multiply(esw, pupilpatternWave_t, window);
-          verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)+"_"+to_string(j)).c_str()));
+          verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
+          multiplyFresnelPhase(esw, d);
           myFFT(esw,esw);
           if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
           getMod2(patterns[idx], esw, 1./(row*column));
@@ -160,19 +224,20 @@ class ptycho : public experimentConfig{
           }else{
             applyNorm(patterns[idx], exposure);
           }
-          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"_"+to_string(j)).c_str()));
-          verbose(4, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"_"+to_string(j)+"log").c_str(),1));
+          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)).c_str()));
+          verbose(4, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
           applyNorm(patterns[idx], 1./exposure);
           idx++;
         }
-      }
       memMngr.returnCache(window);
     }
     void initObject(){
       resize_cuda_image(row_O,column_O);
       random(objectWave, devstates);
+      linearConst(objectWave, objectWave, 0.5, 0.0);
       resize_cuda_image(row,column);
       pupilFunc(pupilpatternWave);
+      angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
     }
     void updatePosition(int scanidx, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){
       size_t siz = memMngr.getSize(obj);
@@ -195,7 +260,7 @@ class ptycho : public experimentConfig{
       calcPartial(cache, cachex, Fn, pattern, beamstop);
       findSum(cache, 0, d_shift+scanidx);
       calcPartial(cache, cachey, Fn, pattern, beamstop);
-      findSum(cache, 0, d_shift+scanidx+scanx*scany);
+      findSum(cache, 0, d_shift+scanidx+nscan);
       memMngr.returnCache(cachex);
       memMngr.returnCache(cachey);
       memMngr.returnCache(cache);
@@ -225,7 +290,7 @@ class ptycho : public experimentConfig{
       resize_cuda_image(row,column);
       bool mPIE = 0;
       Real probeStepSize = 4;
-      Real zernikeStepSize = 6;
+      Real zernikeStepSize = 4;
       myCuDMalloc(Real, d_norm, 2);
       findSum(tmp, row*column, d_norm);
       myDMalloc(Real, h_norm, 2);
@@ -274,10 +339,9 @@ class ptycho : public experimentConfig{
         }
         //complexFormat* coeff = NULL, *projection = NULL;
         bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
-        for(int i = 0; i < scanx; i++){
-          for(int j = 0; j < scany; j++){
-            Real posx = i*stepSize+(j%2 == 1? 0:(Real(stepSize)/2)) + shiftx[idx];
-            Real posy = j*stepSize*sqrtf(3)/2 + shifty[idx];
+        for(int i = 0; i < nscan; i++){
+          Real posx = scanposx[i] + shiftx[idx];
+          Real posy = scanposy[i] + shifty[idx];
             int shiftxpix = posx-round(posx);
             int shiftypix = posy-round(posy);
             getWindow(objectWave, posx, posy, row_O, column_O, objCache);
@@ -286,7 +350,11 @@ class ptycho : public experimentConfig{
               shiftWave(objCache, shiftxpix, shiftypix);
             }
             multiply(esw, pupilpatternWave, objCache);
+            multiplyFresnelPhase(esw, d);
             myFFT(esw,Fn);
+            if(iter == nIter - 1){
+              plt.plotComplex(Fn, MOD2, 1, 1./(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1);
+            }
             if(doUpdatePosition) {
               applyNorm(Fn, norm);
               updatePosition(idx, objCache, pupilpatternWave, patterns[idx], Fn);
@@ -294,10 +362,11 @@ class ptycho : public experimentConfig{
             }else applyModAccurate(Fn, patterns[idx],beamstop, norm);
             myIFFT(Fn,Fn);
             add(esw, Fn, -norm);
+            multiplyFresnelPhase(esw, -d);
             if(iter < update_probe_iter) updateObject(objCache, pupilpatternWave, esw, probeMax);
             else {
               updateObjectAndProbeStep(objCache, pupilpatternWave, probeStep, esw,probeMax, objMax);
-            //updateObjectAndProbe(objCache, pupilpatternWave, esw,probeMax, objMax);
+              //updateObjectAndProbe(objCache, pupilpatternWave, esw,probeMax, objMax);
               if(mPIE){
                 applyNorm(probeStep, 0.6);
                 add(pupilpatternWave, probeStep);
@@ -309,14 +378,12 @@ class ptycho : public experimentConfig{
             updateWindow(objectWave, posx, posy, row_O, column_O, objCache);
             idx++;
           }
-        }
-
         resize_cuda_image(row_O, column_O);
         //FISTA((complexFormat*) objectWave, (complexFormat*) objectWave, 3e-4, 1, 0);
         resize_cuda_image(row, column);
-        if(!mPIE && iter >= update_probe_iter) add(pupilpatternWave, probeStep,(iter > zernikeIter?probeStepSize:zernikeStepSize)/(scanx*scany));
+        if(!mPIE && iter >= update_probe_iter) add(pupilpatternWave, probeStep,(iter > zernikeIter?probeStepSize:zernikeStepSize)/(nscan));
         if(doUpdatePosition){
-          resize_cuda_image(scanx*scany*2, 1);
+          resize_cuda_image(nscan*2, 1);
           addProbability(d_shifts, d_shift, 0.8, positionUncertainty);
           resize_cuda_image(row, column);
         }
@@ -326,16 +393,15 @@ class ptycho : public experimentConfig{
             plt.plotComplexColor(pupilpatternWave, 0, 1, ("recon_probe"+to_string(iter)).c_str(), 0, isFlip);
             plt.toVideo = -1;
           }
-          const int N = scanx * scany;
-          findSum(d_shifts, N, d_norm);
-          findSum(d_shifts+N, N, d_norm+1);
+          findSum(d_shifts, nscan, d_norm);
+          findSum(d_shifts+nscan, nscan, d_norm+1);
           myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
-          resize_cuda_image(scanx*scany, 1);
-          h_norm[0] /= N;
-          h_norm[1] /= N;
+          resize_cuda_image(nscan, 1);
+          h_norm[0] /= nscan;
+          h_norm[1] /= nscan;
           linearConst(d_shifts, d_shifts, 1, -h_norm[0]);
-          linearConst(d_shifts+N, d_shifts+N, 1, -h_norm[1]);
-          resize_cuda_image(scanx*scany*2, 1);
+          linearConst(d_shifts+nscan, d_shifts+nscan, 1, -h_norm[1]);
+          resize_cuda_image(nscan*2, 1);
           resize_cuda_image(row_O, column_O);
           shiftWave(objFFT,objectWave, -h_norm[0], -h_norm[1]);
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
@@ -371,7 +437,7 @@ class ptycho : public experimentConfig{
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
         }
         if(doUpdatePosition || iter >= update_probe_iter){
-          myMemcpyD2H(shifts, d_shifts, scanx*scany*sizeof(Real)*2);
+          myMemcpyD2H(shifts, d_shifts, nscan*sizeof(Real)*2);
         }
         if(iter == positionUpdateIter){
           resize_cuda_image(row_O,column_O);
@@ -380,18 +446,18 @@ class ptycho : public experimentConfig{
           resize_cuda_image(row,column);
         }
       }
+      plt.plotComplexColor(pupilpatternWave, 0, 1, "ptycho_probe_afterIter", 1);
       angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
       plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
       if(verbose>=3){
-        for(int i = 0 ; i < scanx*scany; i++){
-          fmt::println("recon shifts ({}, {}): ({:f}, {:f})", i/scany, i%scany, shiftx[i],shifty[i]);
+        for(int i = 0 ; i < nscan; i++){
+          fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
         }
       }
       myCuFree(d_norm);
       myFree(h_norm);
       memMngr.returnCache(Fn);
       memMngr.returnCache(objCache);
-      plt.plotComplexColor(pupilpatternWave, 0, 0.12, "ptycho_probe_afterIter", 0);
       Real crop_ratio = 0.65;
       int rowc = row_O*crop_ratio;
       int colc = column_O*crop_ratio;
@@ -409,27 +475,26 @@ class ptycho : public experimentConfig{
       plt.plotComplexColor(cropped, 0, 1, "ptycho_afterIterwave");
     }
     void readPattern(){
-      Real* pattern = readImage((outputDir + string(common.Pattern)+"0_0.png").c_str(), row, column);
+      Real* pattern = readImage((outputDir + string(common.Pattern)+"0.png").c_str(), row, column);
       plt.init(row,column, outputDir);
       init_fft(row,column);
       sz = row*column*sizeof(Real);
+      readScan();
       allocateMem();
       resize_cuda_image(row,column);
       if(useBS) {
         createBeamStop();
       }
       int idx = 0;
-      for(int i = 0; i < scanx; i++){
-        for(int j = 0; j < scany; j++){
-          if(idx!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+"_"+to_string(j)+".png").c_str(), row, column);
+      for(int i = 0; i < nscan; i++){
+          if(idx!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".png").c_str(), row, column);
           if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
           myMemcpyH2D(patterns[idx], pattern, sz);
           ccmemMngr.returnCache(pattern);
           cudaConvertFO(patterns[idx]);
           applyNorm(patterns[idx], 1./exposure);
-          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)+"_"+to_string(j)).c_str()));
+          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
           idx++;
-        }
       }
       fmt::println("Created pattern data");
       calculateParameters();
@@ -437,16 +502,30 @@ class ptycho : public experimentConfig{
     void calculateParameters(){
       resolution = lambda*dpupil/beamspotsize/oversampling;
       if(runSim){
-        d = resolution*pixelsize*row/lambda;
-        fmt::println("Desired d = {}", d);
+        //d = resolution*pixelsize*row/lambda;
+        //fmt::println("Desired d = {}", d);
       }
       experimentConfig::calculateParameters();
     }
 };
 Real ptycho::computeErrorSim(){
+  int upsampling = 3;
+  if(!registerFFTHandle){
+    createPlan(&registerFFTHandle, row*upsampling, column*upsampling);
+    myCuMalloc(complexFormat, registerCache, upsampling*upsampling*row*column);
+  } 
   myCuDMalloc(complexFormat, convoluted, row*column);
-  myCuDMalloc(complexFormat, cache, row*column);
-  convolute(convoluted, pupilpatternWave_t, pupilpatternWave, cache);
+  convolute(convoluted, pupilpatternWave_t, pupilpatternWave, registerCache, upsampling, registerFFTHandle);
+  getMod2((Real*)registerCache, convoluted);
+  int index = findMaxIdx((Real*)registerCache, row*column);
+  Real x = index/column;
+  Real y = index%column;
+  x = (x-row/2)/upsampling+row/2;
+  y = (y-column/2)/upsampling+column/2;
+  shiftWave(pupilpatternWave, -x, -y);
+  shiftWave(objectWave, -x, -y);
+  //getPhaseDiff(registerCache, pupilpatternWave_t, pupilpatternWave);
+  //myFFT
   return 0;
 }
 int main(int argc, char** argv )

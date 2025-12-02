@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-#define ALPHA 0.5
+#define ALPHA 0.6
 #define BETA 0.5
 #define DELTA 1e-3
 
@@ -100,7 +100,7 @@ cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)objec
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
-  object[index].x = 3*gaussian(shiftx,shifty,cuda_row/4);
+  if(shiftx*shiftx + shifty*shifty < cuda_row*cuda_row/50) object[index].x = 3*gaussian(shiftx,shifty,cuda_row/4);
   object[index].y = 0;
 })
 

@@ -300,6 +300,22 @@ template<> void flipx<complexFormat>(complexFormat* data, complexFormat* out){
   flipxWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
 }
 
+cuFuncTemplate(flipy, (T* data, T* out),(data,out==0?data:out),{
+    cuda1Idx()
+    if(index >= (cuda_row*cuda_column)/2) return;
+    int y = index%(cuda_column>>1);
+    int x = index/(cuda_column>>1);
+    int indexp1 = x*cuda_column + y;
+    int indexp2 = x*cuda_column + cuda_column-y-1;
+    T tmp = data[indexp1];
+    out[indexp1]=data[indexp2];
+    out[indexp2]=tmp;
+    })
+template void flipy<Real>(Real*, Real*);
+template<> void flipy<complexFormat>(complexFormat* data, complexFormat* out){
+  flipyWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)data, (cuComplex*)(out==0?data:out)));
+}
+
 template <typename T1, typename T2>
 __global__ void assignValWrap(int cuda_row, int cuda_column, int cuda_height, T1* out, T2* input){
   cuda1Idx3D()

@@ -192,6 +192,8 @@ void transpose(T* data, T* out = 0);
 template<typename T>
 void flipx(T* data, T* out = 0);
 template<typename T>
+void flipy(T* data, T* out = 0);
+template<typename T>
 void createMask(Real* data, T* spt, bool isFrequency=0);
 template<typename T>
 void addMask(Real* data, T* spt, bool isFrequency=0);

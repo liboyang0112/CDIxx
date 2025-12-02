@@ -1,5 +1,6 @@
 #include "experimentConfig.hpp"
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include "misc.hpp"
 #include "fmt/core.h"
 #include <math.h>
@@ -62,11 +63,7 @@ void experimentConfig::multiplyPatternPhase_factor(complexFormat* amp, Real fact
 }
 void experimentConfig::multiplyFresnelPhase(complexFormat* amp, Real distance){
   Real fresfactor = M_PI*lambda*distance/(sq(pixelsize*row));
-  if(costheta == 1){
-    multiplyFresnelPhase_Device(amp, fresfactor);
-  }else{
-    multiplyFresnelPhaseOblique_Device(amp, fresfactor, 1./costheta);
-  }
+  multiplyFresnelPhase_factor(amp, fresfactor);
 }
 void experimentConfig::multiplyFresnelPhase_factor(complexFormat* amp, Real factor){
   if(costheta == 1){

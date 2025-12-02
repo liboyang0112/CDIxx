@@ -167,9 +167,22 @@ void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq){
   myCuFree(cuda_spt);
 }
 
-void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache){
+void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache, int upsample, int handle){
   myFFT(input1, store);
   myFFT(input2, cache);
   multiplyConj(store, store, cache);
-  myIFFT(store, store);
+  if(upsample > 1){
+    int row0 = getCudaRows();
+    int col0 = getCudaCols();
+    int row1 = row0*upsample;
+    int col1 = col0*upsample;
+    cudaConvertFO(store);
+    resize_cuda_image(row1, col1);
+    pad(store, cache, row0, col0);
+    cudaConvertFO(cache);
+    myIFFTM(handle, cache, cache);
+    resize_cuda_image(row0, col0);
+    crop(cache, store, row1, col1);
+  }else
+    myIFFT(store, store);
 }
