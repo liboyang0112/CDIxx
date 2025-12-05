@@ -1,3 +1,4 @@
+#include "cudaConfig.hpp"
 #include "format.hpp"
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cudaDefs_h.cu"
@@ -15,7 +16,7 @@ cudaVars* cudaVarLocal = 0;
 void init_cuda_image(int rcolor, Real scale){
   const int sz = sizeof(cudaVars);
   if(!cudaVarLocal){
-    cudaFree(0);
+    gpuErrchk(cudaFree(0));
     myMalloc(cudaVars, cudaVarLocal, 1);
     cudaVarLocal->threshold = 0.5;
     cudaVarLocal->beta_HIO = 1;
@@ -25,7 +26,7 @@ void init_cuda_image(int rcolor, Real scale){
     if(rcolor!=0) cudaVarLocal->rcolor = rcolor;
     if(scale==scale) cudaVarLocal->scale = scale;
   }
-  cudaMemcpyToSymbol(vars, cudaVarLocal, sz);
+  gpuErrchk(cudaMemcpyToSymbol(vars, cudaVarLocal, sz));
 };
 __forceinline__ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
     H*=6;
@@ -240,7 +241,7 @@ cuFunc(process_24bit,
     encode_float_to_rgb_interleaved(val, pixel);
 })
 void setThreshold(Real val){
-  cudaMemcpyToSymbol(vars, &val, sizeof(Real), offsetof(cudaVars, threshold));
+  gpuErrchk(cudaMemcpyToSymbol(vars, &val, sizeof(Real), offsetof(cudaVars, threshold)));
 }
 cuFunc(ccdRecord, (uint16_t* data, Real* wave, int noiseLevel, void* state, Real exposure),
     (data,wave,noiseLevel,state,exposure),{

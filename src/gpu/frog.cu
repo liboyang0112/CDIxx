@@ -146,7 +146,7 @@ cuFuncc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int
       if(rat > 1e-3) {
         Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
         Real c, s;
-        sincos(randphase, &s, &c);
+        sincosf(randphase, &s, &c);
         source[index].x = rat*c;
         source[index].y = rat*s;
       }

@@ -3,6 +3,7 @@
 #include "cuPlotter.hpp"
 #include "fmt/core.h"
 #include "fmt/os.h"
+#include "memManager.hpp"
 #include <gsl/gsl_spline.h>
 #include <math.h>
 
@@ -32,7 +33,7 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
   rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   plt.init(row,column);
-  locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  myMalloc(void*, locplan, nlambda);
   fmt::ostream file = fmt::output_file("spectrum_raw.txt");
   for(int i = 0; i < nlambda; i++){
     rows[i] = nearestEven(row*lambdas_[i]);
@@ -56,7 +57,7 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
   spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
-  locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  myMalloc(void*, locplan, nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+(i+(minlambda-1)/stepsize)*2*jump;
     cols[i] = column+(i+(minlambda-1)/stepsize)*2*jump;
@@ -79,7 +80,7 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
     fmt::println("Max lambda is shorter than 1, please check your middle lambda and lambda range");
     abort();
   }
-  myMalloc(int, locplan, 2);
+  myMalloc(void*, locplan, 2);
   if(minlambda > 1) {
     fmt::println(stderr, "ERROR: minimum lambda > 1 detected, please reset it to 1");
   }else if(minlambda < factor){
@@ -102,7 +103,7 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
   myCuMalloc(complexFormat, cache, thisrow*thiscol);
 }
 
-void broadBand_base::applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, int plan, char freq){
+void broadBand_base::applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, void* plan, char freq){
   complexFormat* cache = padding_cache;
   if(trow == row && tcol == column) {
     myMemcpyD2D(output, image, row*column*sizeof(complexFormat));
@@ -176,7 +177,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
   myMalloc(double, lambdas, nlambda);
   plt.init(row,column);
-  locplan = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  locplan = (void**)ccmemMngr.borrowCache(sizeof(void*)*nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+i*2*jump;
     cols[i] = column+i*2*jump;
@@ -227,7 +228,7 @@ Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* sp
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 
-  myMalloc(int, locplan, 1);
+  myMalloc(void*, locplan, 1);
   createPlan(locplan, thisrow, thiscol);
   fmt::ostream spectrafile = fmt::output_file("spectra.txt");
   for(int i = 0; i < nlambda; i++){

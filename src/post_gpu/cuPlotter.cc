@@ -194,7 +194,7 @@ void cuPlotter::videoFrame(void* cudaData){
 void* cuPlotter::cvtTurbo(void* icache){
   char* cache = (char*)(icache?icache:cv_cache);
   for(int i = 0 ; i < rows*cols; i++){
-    getTurboColor(((pixeltype*)cv_data)[i], Bits, cache);
+    getTurboColor(((pixeltype*)cv_data)[i], CCDBits, cache);
     cache+=3;
   }
   return cv_cache;
@@ -202,7 +202,7 @@ void* cuPlotter::cvtTurbo(void* icache){
 void* cuPlotter::cvt8bit(void* icache){
   char* cache = (char*)(icache?icache:cv_cache);
   for(int i = 0 ; i < rows*cols; i++){
-    *cache = *(cache+1) = *(cache+2) = ((pixeltype*)cv_data)[i] >> (Bits-8);
+    *cache = *(cache+1) = *(cache+2) = ((pixeltype*)cv_data)[i] >> (CCDBits-8);
     cache+=3;
   }
   return cv_cache;
@@ -226,7 +226,7 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
   }else{
     pixeltype color = -1;
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);
-    writePng((prefix + fname).c_str(), cv_data, rows, cols, Bits, 0);
+    writePng((prefix + fname).c_str(), cv_data, rows, cols, CCDBits, 0);
   }
   fmt::println("written to file {}", prefix + fname);
 }

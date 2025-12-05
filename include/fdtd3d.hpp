@@ -1,10 +1,10 @@
 #define n_PML 1
 #define k_PML 0.0035
 //#define secondOrder
-#ifdef secondOrder
+//#ifdef secondOrder
 #define fact1 1./24
 #define fact2 9./8
-#endif
+//#endif
 #include "format.hpp"
 #include <stddef.h>
 const Real b_PML = 1-k_PML*n_PML;

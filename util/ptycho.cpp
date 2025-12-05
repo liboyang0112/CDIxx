@@ -19,8 +19,6 @@
 
 using namespace std;
 
-//#define Bits 16
-
 class ptycho : public experimentConfig{
   public:
     int row_O = 725;  //in ptychography this is different from row (the size of probe).
@@ -28,7 +26,7 @@ class ptycho : public experimentConfig{
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
-    int registerFFTHandle = 0;
+    void* registerFFTHandle = 0;
     int nscan = 0;
     Real *scanpos = 0;
     Real *scanposx = 0;
@@ -287,7 +285,7 @@ class ptycho : public experimentConfig{
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
       int positionUpdateIter = 50;
-      int objFFT;
+      void* objFFT;
       createPlan(&objFFT, row_O, column_O); 
       int pupildiameter = 145;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
@@ -541,7 +539,7 @@ Real ptycho::computeErrorSim(){
   myCuDMalloc(complexFormat, convoluted, row*column);
   convolute(convoluted, pupilpatternWave_t, pupilpatternWave, registerCache, upsampling, registerFFTHandle);
   getMod2((Real*)registerCache, convoluted);
-  int index = findMaxIdx((Real*)registerCache, row*column);
+  int index = 0;//findMaxIdx((Real*)registerCache, row*column);
   Real x = index/column;
   Real y = index%column;
   x = (x-row/2)/upsampling+row/2;

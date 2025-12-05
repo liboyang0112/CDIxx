@@ -1,12 +1,12 @@
 #ifndef __FORMAT_H__
 #define __FORMAT_H__
-#define Bits 16
+#define CCDBits 16
 #ifndef M_PI
   #define M_PI 3.14159265358979323846
 #endif
 #define VTK_TYPE VTK_FLOAT
 
-#if Bits==12 || Bits==16
+#if CCDBits==12 || CCDBits==16
 #define complexFormat float _Complex
 typedef  unsigned short pixeltype;
 #else

@@ -100,9 +100,9 @@ int svd_init(int M, int N) {
     // Query workspace size
     if (cusolverDnSgesvd_bufferSize(ctx->handle, M, N, &ctx->lwork) != CUSOLVER_STATUS_SUCCESS) {
         cusolverDnDestroy(ctx->handle);
-        cudaFree(ctx->d_U);
-        cudaFree(ctx->d_V);
-        cudaFree(ctx->d_S);
+        myCuFree(ctx->d_U);
+        myCuFree(ctx->d_V);
+        myCuFree(ctx->d_S);
         free(ctx);
         svd_set_error(SVD_ERROR_CUSOLVER, "Failed to query workspace size");
         return -1;
@@ -110,9 +110,9 @@ int svd_init(int M, int N) {
 
     if (cudaMalloc((void**)&ctx->work, ctx->lwork * sizeof(float)) != cudaSuccess) {
         cusolverDnDestroy(ctx->handle);
-        cudaFree(ctx->d_U);
-        cudaFree(ctx->d_V);
-        cudaFree(ctx->d_S);
+        myCuFree(ctx->d_U);
+        myCuFree(ctx->d_V);
+        myCuFree(ctx->d_S);
         free(ctx);
         svd_set_error(SVD_ERROR_MEMORY_ALLOCATION, "Failed to allocate workspace memory");
         return -1;
@@ -166,10 +166,10 @@ int svd_destroy(int handle) {
     }
 
     // Free device memory
-    cudaFree(ctx->d_U);
-    cudaFree(ctx->d_V);
-    cudaFree(ctx->d_S);
-    cudaFree(ctx->work);
+    myCuFree(ctx->d_U);
+    myCuFree(ctx->d_V);
+    myCuFree(ctx->d_S);
+    myCuFree(ctx->work);
 
     // Destroy cuSOLVER handle
     cusolverDnDestroy(ctx->handle);
@@ -231,7 +231,7 @@ void example_usage() {
     }
     if (cudaMemcpy(d_A, A, M * N * sizeof(float), cudaMemcpyHostToDevice) != cudaSuccess) {
         fprintf(stderr, "Failed to copy A to device\n");
-        cudaFree(d_A);
+        myCuFree(d_A);
         return;
     }
 
@@ -239,7 +239,7 @@ void example_usage() {
     int handle = svd_init(M, N);
     if (handle == -1) {
         fprintf(stderr, "Failed to initialize SVD context: %s\n", svd_get_last_error());
-        cudaFree(d_A);
+        myCuFree(d_A);
         return;
     }
 
@@ -270,7 +270,7 @@ void example_usage() {
     }
 
     // Clean up
-    cudaFree(d_A);
+    myCuFree(d_A);
     svd_destroy(handle);
 }
 

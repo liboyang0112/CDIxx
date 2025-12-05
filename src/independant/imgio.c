@@ -377,7 +377,7 @@ void plotPng(const char* label, Real* data, char* cache, int rows, int cols, cha
     for(int i = 0 ; i < rows*cols; i++){
       if(data[i] >= 1) data[i] = 1;
       else if(data[i]<0) data[i] = 0;
-      getTurboColor(data[i]*65535, Bits, cache+i*3);
+      getTurboColor(data[i]*65535, CCDBits, cache+i*3);
     }
     writePng(fname, cache, rows, cols, 8, 1);
   }else{

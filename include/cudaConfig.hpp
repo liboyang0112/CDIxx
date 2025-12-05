@@ -3,11 +3,6 @@
 #include "format.hpp"
 #include<stddef.h>
 #include<stdint.h>
-#define FFTformat CUFFT_C2C
-#define FFTformatR2C CUFFT_R2C
-#define myCufftExec cufftExecC2C
-#define myCufftExecR2C cufftExecR2C
-#define myCufftExecC2R cufftExecC2R
 #define myCuDMalloc(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCache((size)*sizeof(fmt));
 #define myCuDMallocClean(fmt, var, size) fmt* var = (fmt*)memMngr.borrowCleanCache((size)*sizeof(fmt));
 #define myCuMalloc(fmt, var, size) var = (fmt*)memMngr.borrowCache((size)*sizeof(fmt));
@@ -50,12 +45,12 @@ const char* svd_get_last_error();
 void init_fft(int rows, int cols, int batch = 1);
 void myFFT(void* in, void* out);
 void myIFFT(void* in, void* out);
-void myFFTM(int handle, void* in, void* out);
-void myIFFTM(int handle, void* in, void* out);
+void myFFTM(void* handle, void* in, void* out);
+void myIFFTM(void* handle, void* in, void* out);
 void myFFTR2C(void* in, void* out);
 void myFFTC2R(void* in, void* out);
-void createPlan(int* handle, int row, int col);
-void createPlan1d(int* handle, int n);
+void createPlan(void** handle, int row, int col);
+void createPlan1d(void** handle, int n);
 void destroyPlan(int handle);
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);

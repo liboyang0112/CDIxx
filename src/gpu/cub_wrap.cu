@@ -1,7 +1,8 @@
 //#include <iostream>
 #include "cudaDefs_h.cu"
 #include "cudaConfig.hpp"
-#include <cub/device/device_reduce.cuh>
+#include "cuComplex.h"
+#include <cub/cub.cuh>
 
 #define operatorStructT(name, expression...)\
 struct Struct##name\
@@ -79,7 +80,7 @@ if(!STORE##_n){\
 gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, (T*)d_out, num_items, OP, INIT));\
 T output = T();\
 if(!hascache){\
-cudaMemcpy(&output, d_out, sizeof(T), cudaMemcpyDeviceToHost);\
+myMemcpyD2H(&output, d_out, sizeof(T));\
 if (d_out) memMngr.returnCache(d_out);\
 }
 
@@ -92,6 +93,7 @@ Real findMax(Real* d_in, int num, void* d_out)
 
 int findMaxIdx(Real* d_in, int num, void* d_out)
 {
+/*
   cub::KeyValuePair<int, float> output;
   bool hascache = 1;
   if(!d_out) {
@@ -106,10 +108,12 @@ int findMaxIdx(Real* d_in, int num, void* d_out)
   }
   gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items));
   if(!hascache){
-    cudaMemcpy(&output, d_out, sizeof(Real), cudaMemcpyDeviceToHost);
+    myMemcpyD2H(&output, d_out, sizeof(Real));
     if (d_out) memMngr.returnCache(d_out);
-  }
   return output.key;
+  }
+  */
+  return 0; //TBD, not implemented for hip
 }
 
 int findMax(int* d_in, int num, void* d_out)

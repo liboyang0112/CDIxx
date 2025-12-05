@@ -57,7 +57,7 @@ void genTrace(complexFormat* E, complexFormat* gate, complexFormat* fulltrace, R
   if(nspectm) zeroEdgey(fulltrace, nspectm);
   convertFOy(fulltrace);
 }
-void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, int singleplan, int nspectm, int nspect, int ndelay, Real* d_delays = 0){
+void solveE(complexFormat* E, Real* traceIntensity, Real* spectrum, complexFormat* trace, Real* delays, void* singleplan, int nspectm, int nspect, int ndelay, Real* d_delays = 0){
   //myDMalloc(complexFormat, ccE, nspect);
   complexFormat* gate = trace+nspect;
   complexFormat* Eprime = gate+nspect;
@@ -170,7 +170,7 @@ void genE(int nspect, complexFormat* d_cE, complexFormat* ccE){
   myMemcpyD2H(ccE, d_cE, sizeof(complexFormat)*nspect);
   saveWave("input.txt", ccE, nspect);
 }
-void saveSpect(int nspect, complexFormat* d_cE, Real* d_spectrum, complexFormat* d_spect, complexFormat* ccE, int singleplan){
+void saveSpect(int nspect, complexFormat* d_cE, Real* d_spectrum, complexFormat* d_spect, complexFormat* ccE, void* singleplan){
   //calculate the spectrum, and write to file
   myFFTM(singleplan, d_cE, d_spect);
   applyNorm(d_spect, 1./sqrt(nspect));
@@ -261,7 +261,7 @@ int main()
   myCuDMalloc(Real, d_traceLambda, nspect*nfulldelay);
   myCuDMalloc(Real, d_freqs, nspect);
   //Generate electric field, and write to file
-  int singleplan;
+  void* singleplan;
   createPlan1d(&singleplan, nspect);
   if(runSim){
     genE(nspect, d_cE, ccE);

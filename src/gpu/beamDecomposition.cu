@@ -1,6 +1,7 @@
 #include "cudaConfig.hpp"
 #include <cuComplex.h>
 #include "cudaDefs_h.cu"
+#include "memManager.hpp"
 #include <cmath>
 #include <complex.h>
 #include <fmt/base.h>
@@ -247,18 +248,10 @@ void* zernike_init(int width, int height, int maxN, int max_blocks) {
   if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
   handle->shared_mem_size = (handle->nthread + 1) * 14 * 2 * sizeof(Real);
 
-  cudaError_t err1 = cudaMalloc(&handle->block_coeff, handle->nmodes * handle->nblocks * sizeof(cuComplex));
-  cudaError_t err2 = cudaSuccess;
-  if (err1 == cudaSuccess) {
-    handle->host_coeff = (complexFormat*)malloc(handle->nmodes * sizeof(complexFormat));
-    err2 = cudaMalloc(&handle->final_coeff, handle->nmodes * sizeof(cuComplex));
-  }
-  handle->initialized = (err1 == cudaSuccess && err2 == cudaSuccess);
-  if (!handle->initialized) {
-    if (err1 == cudaSuccess) cudaFree(handle->block_coeff);
-    delete handle;
-    return nullptr;
-  }
+  myCuMalloc(cuComplex, handle->block_coeff, handle->nmodes * handle->nblocks);
+  myMalloc(complexFormat, handle->host_coeff, handle->nmodes);
+  myCuMalloc(cuComplex, handle->final_coeff, handle->nmodes);
+  handle->initialized = true;
   return static_cast<void*>(handle);
 }
 
@@ -266,10 +259,9 @@ complexFormat* zernike_coeff(void* handle_ptr) {
   if (!handle_ptr) return nullptr;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
   if (!handle->initialized) return nullptr;
-  cudaMemcpy(handle->host_coeff, 
+  myMemcpyD2H(handle->host_coeff, 
       handle->final_coeff, 
-      handle->nmodes * sizeof(complexFormat), 
-      cudaMemcpyDeviceToHost);
+      handle->nmodes * sizeof(complexFormat)); 
   return handle->host_coeff;
 }
 
@@ -277,8 +269,8 @@ void zernike_destroy(void* handle_ptr) {
   if (!handle_ptr) return;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
   if (handle->initialized) {
-    cudaFree(handle->block_coeff);
-    cudaFree(handle->final_coeff);
+    myCuFree(handle->block_coeff);
+    myCuFree(handle->final_coeff);
     free(handle->host_coeff);
   }
   delete handle;
@@ -690,18 +682,10 @@ void* laguerre_init(int width, int height, int maxN, int maxM, int max_blocks) {
   if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
   handle->shared_mem_size = (handle->nthread + 1) * 14 * 2 * sizeof(Real);
 
-  cudaError_t err1 = cudaMalloc(&handle->block_coeff, handle->nmodes * handle->nblocks * sizeof(cuComplex));
-  cudaError_t err2 = cudaSuccess;
-  if (err1 == cudaSuccess) {
-    handle->host_coeff = (complexFormat*)malloc(handle->nmodes * sizeof(complexFormat));
-    err2 = cudaMalloc(&handle->final_coeff, handle->nmodes * sizeof(cuComplex));
-  }
-  handle->initialized = (err1 == cudaSuccess && err2 == cudaSuccess);
-  if (!handle->initialized) {
-    if (err1 == cudaSuccess) cudaFree(handle->block_coeff);
-    delete handle;
-    return nullptr;
-  }
+  myCuMalloc(cuComplex, handle->block_coeff, handle->nmodes * handle->nblocks)
+  myMalloc(complexFormat, handle->host_coeff, handle->nmodes);
+  myCuMalloc(cuComplex, handle->final_coeff, handle->nmodes);
+  handle->initialized = true;
   return static_cast<void*>(handle);
 }
 complexFormat* laguerre_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius) {
@@ -729,19 +713,18 @@ complexFormat* laguerre_coeff(void* handle_ptr) {
   if (!handle_ptr) return nullptr;
   LaguerreHandle* handle = static_cast<LaguerreHandle*>(handle_ptr);
   if (!handle->initialized) return nullptr;
-  cudaMemcpy(handle->host_coeff,
+  myMemcpyD2H(handle->host_coeff,
       handle->final_coeff,
-      handle->nmodes * sizeof(complexFormat),
-      cudaMemcpyDeviceToHost);
+      handle->nmodes * sizeof(complexFormat));
   return handle->host_coeff;
 }
 void laguerre_destroy(void* handle_ptr) {
   if (!handle_ptr) return;
   LaguerreHandle* handle = static_cast<LaguerreHandle*>(handle_ptr);
   if (handle->initialized) {
-    cudaFree(handle->block_coeff);
-    cudaFree(handle->final_coeff);
-    free(handle->host_coeff);
+    myCuFree(handle->block_coeff);
+    myCuFree(handle->final_coeff);
+    myFree(handle->host_coeff);
   }
   delete handle;
 }

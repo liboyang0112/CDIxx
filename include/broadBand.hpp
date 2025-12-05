@@ -2,7 +2,7 @@
 #include<stdint.h>
 class broadBand_base{
   public:
-    int *locplan;
+    void **locplan;
     double *spectra;  //normalized spectra
     double *lambdas;  //normalized lambdas, 1 is the shortest
     int jump = 20;
@@ -16,7 +16,7 @@ class broadBand_base{
     void writeSpectra(const char* filename, Real scale = 1);
     void resetSpectra();
     void plotAutoCorr(const char* filename, Real* pattern, Real weight = 1);
-    void applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, int plan, char freq = 0b10);
+    void applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, void* plan, char freq = 0b10);
 };
 class broadBand : public broadBand_base{
   public:

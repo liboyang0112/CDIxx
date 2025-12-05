@@ -100,7 +100,7 @@ void shiftWave(complexFormat* wave, Real shiftx, Real shifty){
   myIFFT(wave, wave);
 }
 
-void shiftWave(int plan, complexFormat* wave, Real shiftx, Real shifty){
+void shiftWave(void* plan, complexFormat* wave, Real shiftx, Real shifty){
   myFFTM(plan, wave, wave);
   cudaConvertFO(wave);
   multiplyShift(wave, shiftx, shifty);
@@ -167,7 +167,7 @@ void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq){
   myCuFree(cuda_spt);
 }
 
-void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache, int upsample, int handle){
+void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache, int upsample, void* handle){
   myFFT(input1, store);
   myFFT(input2, cache);
   multiplyConj(store, store, cache);

@@ -18,7 +18,6 @@
 #include "cdi.hpp"
 #include <complex.h>
 using namespace std;
-//#define Bits 16
 
 void applySupport
     (void *gkp1, void *gkprime, int algo, Real *spt)

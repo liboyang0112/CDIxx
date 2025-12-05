@@ -5,6 +5,11 @@
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
+#define FFTformat CUFFT_C2C
+#define FFTformatR2C CUFFT_R2C
+#define myCufftExec cufftExecC2C
+#define myCufftExecR2C cufftExecR2C
+#define myCufftExecC2R cufftExecC2R
 dim3 numBlocks;
 const dim3 threadsPerBlock = 256;
 complexFormat *cudaData = 0;
@@ -33,25 +38,25 @@ int getCudaCols(){
   return cuda_imgsz.y;
 }
 void myMemcpyH2D(void* d, void* s, size_t sz){
-  cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice);
+  gpuErrchk(cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice));
 }
 void myMemcpyD2D(void* d, void* s, size_t sz){
-  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice);
+  gpuErrchk(cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice));
 }
 void myMemcpyD2H(void* d, void* s, size_t sz){
-  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToHost);
+  gpuErrchk(cudaMemcpy(d, s, sz, cudaMemcpyDeviceToHost));
 }
 void myMemcpyH2DAsync(void* d, void* s, size_t sz){
-  cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice);
+  gpuErrchk(cudaMemcpy(d, s, sz, cudaMemcpyHostToDevice));
 }
 void myMemcpyD2DAsync(void* d, void* s, size_t sz){
-  cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice);
+  gpuErrchk(cudaMemcpy(d, s, sz, cudaMemcpyDeviceToDevice));
 }
 void myMemcpyD2HAsync(void* d, void* s, size_t sz){
-  cudaMemcpyAsync(d, s, sz, cudaMemcpyDeviceToHost);
+  gpuErrchk(cudaMemcpyAsync(d, s, sz, cudaMemcpyDeviceToHost));
 }
 void clearCuMem(void* ptr, size_t sz){
-  cudaMemset(ptr, 0, sz);
+  gpuErrchk(cudaMemset(ptr, 0, sz));
 }
 
 void resize_cuda_image(int rows, int cols, int layers){
@@ -62,7 +67,7 @@ void resize_cuda_image(int rows, int cols, int layers){
 }
 size_t getGPUFreeMem(){
   size_t freeBytes, totalBytes;
-  cudaMemGetInfo(&freeBytes, &totalBytes);
+  gpuErrchk(cudaMemGetInfo(&freeBytes, &totalBytes));
   return freeBytes >> 20;
 }
 void* newRand(size_t sz){
@@ -148,20 +153,20 @@ void init_fft(int rows, int cols, int batch){
     batch_fft = batch;
   }
 }
-void createPlan(int* handle, int row, int col){
-  cufftPlan2d (handle, row, col, FFTformat);
+void createPlan(void** handle, int row, int col){ //pass in a pointer, pointing to cufftHandle, in cuda handle is int, in hip, handle is pointer, so we use larger storage among them, which is a pointer. so here we pass in pointer to a pointer, and use allocated void* to store int or pointer. Call this: void* handle = NULL; cufftPlan2d(&handle, row, col); after call, handle is a pointer to the handle, either a int or a pointer. 
+  cufftPlan2d ((cufftHandle*)handle, row, col, FFTformat);
 }
-void createPlan1d(int* handle, int n){
-  cufftPlan1d(handle, n, FFTformat, 1);
+void createPlan1d(void** handle, int n){
+  cufftPlan1d((cufftHandle*)handle, n, FFTformat, 1);
 }
-void destroyPlan(int handle){
-  cufftDestroy(handle);
+void destroyPlan(void* handle){
+  cufftDestroy(*(cufftHandle*)handle);
 }
-void myFFTM(int handle, void* in, void* out){
-  myCufftExec(handle, (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
+void myFFTM(void* handle, void* in, void* out){
+  myCufftExec((cufftHandle)((long)handle), (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
 }
-void myIFFTM(int handle, void* in, void* out){
-  myCufftExec(handle, (cuComplex*)in, (cuComplex*)out, CUFFT_INVERSE);
+void myIFFTM(void* handle, void* in, void* out){
+  myCufftExec((cufftHandle)((long)handle), (cuComplex*)in, (cuComplex*)out, CUFFT_INVERSE);
 }
 void myFFT(void* in, void* out){
   myCufftExec(*plan, (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
@@ -1162,7 +1167,7 @@ cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int r
     int y = idx%col0 + (col-col0)/2;
     amp[x*col+y] = rf[index];
     })
-cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, {crealf(a),cimagf(a)}),{
+cuFuncc(expandRef, (complexFormat* rf, complexFormat* amp, uint32_t* mmap, int row, int col, int row0, int col0, complexFormat a),(cuComplex* rf, cuComplex* amp, uint32_t* mmap, int row, int col, int row0, int col0, cuComplex a),((cuComplex*)rf, (cuComplex*)amp, mmap, row, col, row0, col0, {__real__ a, __imag__ a}),{
     cuda1Idx()
     int idx = mmap[index];
     int x = idx/col0 + (row-row0)/2;
