@@ -102,8 +102,8 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
 
     resize_cuda_image(finsize, finsize);
     mergePixel(d_sig, tmp, outrow, nmerge);
-    flipy(d_sig, d_sig);
     memMngr.returnCache(tmp);
+    transpose(d_sig, d_sig);
 
     plt.init(finsize, finsize);
     myCuDMalloc(complexFormat, xc, finsize * finsize);

@@ -182,7 +182,7 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
     cv_float_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real));
   }
   myMemcpyD2H(cv_float_data, cudaData, rows*cols*sizeof(Real));
-  writeFloatImage((std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
+  writeFloatImage((prefix + std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
 }
 void cuPlotter::videoFrame(void* cudaData){
   if(!cv_float_data){

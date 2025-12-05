@@ -277,7 +277,7 @@ template<> void rotate<complexFormat>(complexFormat* data, complexFormat* out, R
 cuFuncTemplate(transpose, (T* data, T* out),(data,out==0?data:out),{
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index >= (cuda_row*cuda_column)/2) return;
-    int indexp = cuda_row*cuda_column - index;
+    int indexp = cuda_row*cuda_column - index - 1;
     T tmp = data[index];
     out[index]=data[indexp];
     out[indexp]=tmp;

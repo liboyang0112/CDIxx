@@ -96,7 +96,7 @@ int main() {
   myCuDMalloc(Real, image, rows*cols);
   myCuDMalloc(Real, image1, rows*cols);
   C_circle spt;
-  spt.r = 60;
+  spt.r = 67;
   //spt.r = 13;
   spt.x0=spt.y0 = (rows>>1)+10;
   myCuDMalloc(C_circle, d_spt, 1);

@@ -23,8 +23,8 @@ using namespace std;
 
 class ptycho : public experimentConfig{
   public:
-    int row_O = 1024;  //in ptychography this is different from row (the size of probe).
-    int column_O = 1024;
+    int row_O = 725;  //in ptychography this is different from row (the size of probe).
+    int column_O = 725;
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
@@ -85,8 +85,8 @@ class ptycho : public experimentConfig{
       }
     }
     void initScan(){
-      int scanx = (row_O-row)/stepSize+1;
-      int scany = (column_O-column)/(stepSize*sqrtf(3)/2)+1;
+      int scanx = 3;//(row_O-row)/stepSize+1;
+      int scany = 3;//(column_O-column)/(stepSize*sqrtf(3)/2)+1;
       nscan = scanx*scany;
       size_t scansz = nscan*sizeof(Real);
       patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
@@ -224,8 +224,16 @@ class ptycho : public experimentConfig{
           }else{
             applyNorm(patterns[idx], exposure);
           }
-          verbose(2, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)).c_str()));
-          verbose(4, plt.plotFloat(patterns[idx], MOD, 1, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
+          cudaConvertFO(patterns[idx]);
+          verbose(2, plt.plotFloat(patterns[idx], MOD, 0, 1, (common.Pattern+to_string(i)).c_str()));
+          verbose(4, plt.plotFloat(patterns[idx], MOD, 0, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
+          plt.saveFloat(patterns[idx], (common.Pattern+to_string(i)).c_str());
+          if(idx == 0) {
+            extendToComplex(patterns[0],esw);
+            myFFT(esw, esw);
+            plt.plotComplex(esw, MOD2, 1, 1./exposure/row/column, "autocorrelation", 1, 0, 1);
+          }
+          cudaConvertFO(patterns[idx]);
           applyNorm(patterns[idx], 1./exposure);
           idx++;
         }
@@ -281,7 +289,7 @@ class ptycho : public experimentConfig{
       int positionUpdateIter = 50;
       int objFFT;
       createPlan(&objFFT, row_O, column_O); 
-      int pupildiameter = 150;
+      int pupildiameter = 145;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
       void* zernike = zernike_init(pupildiameter, pupildiameter, 20, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, pupilSupport, pupildiameter*pupildiameter);
@@ -313,10 +321,10 @@ class ptycho : public experimentConfig{
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
           clearCuMem(probeStep, sz*2);
-          resize_cuda_image(row_O>>2,column_O>>2);
+          resize_cuda_image(row_O>>4,column_O>>4);
           crop(objectWave, cropObj, row_O, column_O);
           getMod2(maxCache, cropObj);
-          findMax(maxCache, row_O*column_O/16, d_norm+1);
+          findMax(maxCache, row_O*column_O/256, d_norm+1);
           myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
           objMax = h_norm[1];
           resize_cuda_image(row_O,column_O);
@@ -353,7 +361,7 @@ class ptycho : public experimentConfig{
             multiplyFresnelPhase(esw, d);
             myFFT(esw,Fn);
             if(iter == nIter - 1){
-              plt.plotComplex(Fn, MOD2, 1, 1./(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1);
+              verbose(4,plt.plotComplex(Fn, MOD2, 1, 1./(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
             }
             if(doUpdatePosition) {
               applyNorm(Fn, norm);
@@ -388,6 +396,8 @@ class ptycho : public experimentConfig{
           resize_cuda_image(row, column);
         }
         if(iter >= update_probe_iter){
+          getMod2(tmp, (complexFormat*)pupilpatternWave);
+          complexFormat middle = findMiddle(tmp);
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
             plt.toVideo = vidhandle_probe;
             plt.plotComplexColor(pupilpatternWave, 0, 1, ("recon_probe"+to_string(iter)).c_str(), 0, isFlip);
@@ -403,12 +413,15 @@ class ptycho : public experimentConfig{
           linearConst(d_shifts+nscan, d_shifts+nscan, 1, -h_norm[1]);
           resize_cuda_image(nscan*2, 1);
           resize_cuda_image(row_O, column_O);
-          shiftWave(objFFT,objectWave, -h_norm[0], -h_norm[1]);
+          Real biasx = crealf(middle);
+          Real biasy = cimagf(middle);
+          shiftWave(objFFT,(complexFormat*)objectWave, -h_norm[0]-biasx*row, -h_norm[1]-biasy*column);
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
             plt_O.toVideo = vidhandle_O;
             plt_O.plotComplexColor(objectWave, 0, 1, ("recon_object"+to_string(iter)).c_str(), 0, isFlip);
             plt_O.toVideo = -1;
           }
+
           resize_cuda_image(row, column);
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
@@ -420,21 +433,32 @@ class ptycho : public experimentConfig{
             plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_b4_proj");
           }
           resize_cuda_image(pupildiameter, pupildiameter);
-          crop(pupilpatternWave, zernikeCrop, row, column);
+          crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column, biasx, biasy);
           if(iter < zernikeIter){
             zernike_compute(zernike, zernikeCrop, Real(pupildiameter-1)/2, Real(pupildiameter-1)/2, Real(pupildiameter)/2);
             zernike_reconstruct(zernike, zernikeCrop, Real(pupildiameter)/2);
           }else{
             applyMask(zernikeCrop, pupilSupport);
           }
-          //zernike_compute(zernike, zernikeCrop, pupildiameter>>1, pupildiameter>>1, 30);
-          //zernike_reconstruct(zernike, zernikeCrop, 30);
           resize_cuda_image(row, column);
           pad(zernikeCrop, pupilpatternWave, pupildiameter, pupildiameter);
           if(iter == zernikeIter - 1) {
             plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
           }
           angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+            myFFT(pupilpatternWave, esw); //just reuse esw, instread of allocating new memory
+            cudaConvertFO(esw);
+            getMod2(tmp, esw);
+            middle = findMiddle(tmp);
+            multiplyShift(pupilpatternWave, crealf(middle)*row, cimagf(middle)*column);
+            if(iter == nIter-1) plt.plotComplexColor(pupilpatternWave, 0, 1, "debug1");
+            resize_cuda_image(row_O, column_O);
+            //plt.init(row_O, column_O, outputDir);
+            //plt.plotComplexColor(objectWave, 0, 1, "debug2");
+            multiplyShift(objectWave, -crealf(middle)*row_O, -cimagf(middle)*column_O);
+            //plt.plotComplexColor(objectWave, 0, 1, "debug3");
+            resize_cuda_image(row, column);
+            //plt.init(row, column, outputDir);
         }
         if(doUpdatePosition || iter >= update_probe_iter){
           myMemcpyD2H(shifts, d_shifts, nscan*sizeof(Real)*2);
@@ -475,7 +499,7 @@ class ptycho : public experimentConfig{
       plt.plotComplexColor(cropped, 0, 1, "ptycho_afterIterwave");
     }
     void readPattern(){
-      Real* pattern = readImage((outputDir + string(common.Pattern)+"0.png").c_str(), row, column);
+      Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
       plt.init(row,column, outputDir);
       init_fft(row,column);
       sz = row*column*sizeof(Real);
@@ -487,14 +511,14 @@ class ptycho : public experimentConfig{
       }
       int idx = 0;
       for(int i = 0; i < nscan; i++){
-          if(idx!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".png").c_str(), row, column);
-          if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
-          myMemcpyH2D(patterns[idx], pattern, sz);
-          ccmemMngr.returnCache(pattern);
-          cudaConvertFO(patterns[idx]);
-          applyNorm(patterns[idx], 1./exposure);
-          verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
-          idx++;
+        if(idx!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".bin").c_str(), row, column);
+        if(!patterns[idx]) patterns[idx] = (Real*)memMngr.borrowCache(sz);
+        myMemcpyH2D(patterns[idx], pattern, sz);
+        ccmemMngr.returnCache(pattern);
+        cudaConvertFO(patterns[idx]);
+        applyNorm(patterns[idx], 1./exposure);
+        verbose(3, plt.plotFloat(patterns[idx], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
+        idx++;
       }
       fmt::println("Created pattern data");
       calculateParameters();

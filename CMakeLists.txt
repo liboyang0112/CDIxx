@@ -12,7 +12,7 @@ project(CDIxx LANGUAGES CXX C CUDA)
 set(compileVTK FALSE)
 
 set(CMAKE_CUDA_COMPILER_FORCED TRUE)
-set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
+set(CUDA_TOOLKIT_ROOT_DIR "/opt/cuda") # Update this path if necessary
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 add_compile_options(-Wall -Wextra)
@@ -93,7 +93,8 @@ foreach( sourcefile ${APP_SOURCES})
   add_library( ${libname} SHARED ${sourcefile})
 endforeach( sourcefile ${APP_SOURCES} )
 
-set(CMAKE_CUDA_ARCHITECTURES native) #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+set(CMAKE_CUDA_ARCHITECTURES 86) #check your gpu arch: https://developer.nvidia.com/cuda-gpus
+#set(CMAKE_CUDA_ARCHITECTURES native) #check your gpu arch: https://developer.nvidia.com/cuda-gpus
 set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version") 
 set(libname "cudaLibcommon_cu")
 file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu)
