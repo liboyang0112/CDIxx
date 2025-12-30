@@ -219,9 +219,13 @@ template <typename T1, typename T2>
 void multiply(T1* store, T1* src, T2* target){
   multiplyWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, store, src, target);
 }
-template void multiply(Real*, Real*, Real*);
-template void multiply(complexFormat*, complexFormat*, complexFormat*);
-template void multiply(complexFormat*, complexFormat*, Real*);
+template void multiply<Real, Real>(Real*, Real*, Real*);
+template<> void multiply<complexFormat, complexFormat>(complexFormat* store, complexFormat* src, complexFormat* target){
+  multiplyWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)store, (cuComplex*)src, (cuComplex*)target);
+};
+template<> void multiply<complexFormat, Real>(complexFormat* store, complexFormat* src, Real* target){
+  multiplyWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)store, (cuComplex*)src, target);
+};
 
 cuFuncc(innerProd, (Real* store, complexFormat* src, complexFormat* target), (Real* store, cuComplex* src, cuComplex* target), (store, (cuComplex*)src, (cuComplex*)target),{
   cuda1Idx();
@@ -619,7 +623,9 @@ cuFuncTemplate(
     output[x * cuda_column + y] = bilinearInterpolate<T>(input, in_width, in_height, px, py);
 })
 template void resize<Real>(const Real*, Real*, int, int);
-template void resize<complexFormat>(const complexFormat*, complexFormat*, int, int);
+template<> void resize<complexFormat>(const complexFormat* input, complexFormat* output, int inw, int inh){
+  resizeWrap<<<numBlocks, threadsPerBlock>>>(addVar((cuComplex*)input, (cuComplex*)output, inw, inh));
+};
 
 cuFuncc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(cuComplex* amp, Real a, Real b),((cuComplex*)amp,a,b),{ // a=z/lambda, b = (lambda/s)^2, s is the image size
     cudaIdx();

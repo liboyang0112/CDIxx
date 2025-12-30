@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 set(CMAKE_LINK_DEPENDS_NO_SHARED TRUE) #We set this to prevent relink after library changes for a faster recompilation
 set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
-set(CMAKE_CUDA_COMPILER "clang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
+set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
 project(CDIxx LANGUAGES CXX C)
@@ -18,9 +18,9 @@ include(FetchContent)
 
 find_package(fmt REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
 #GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
+find_package(Tracy)
 if(PkgConfig_FOUND)
   pkg_check_modules(GTK gtk4)
-  pkg_check_modules(TRACY tracy)
   pkg_check_modules(hdf5 hdf5)
 endif(PkgConfig_FOUND)
 if(GTK_FOUND)
@@ -42,7 +42,10 @@ find_package(Fontconfig REQUIRED)
 include_directories (${FREETYPE_INCLUDE_DIRS})
 #GSL is needed for some interpolation algorithm, install it by `apt install libgsl-dev`
 find_package( GSL REQUIRED )
-find_package(Python REQUIRED COMPONENTS Interpreter NumPy)
+set(ENV{VIRTUAL_ENV} "/opt/python_venv")
+unset(Python_EXECUTABLE)
+set(Python_FIND_VIRTUALENV FIRST)
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
 if(Python_FOUND)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
@@ -155,13 +158,12 @@ if(USE_HIP)
 
       target_link_libraries(${GPU_LIB_TARGET} memManager_cc imgio_cc hipfft hiprtc hipsolver)
     else()
-      enable_language(CUDA)
-      # Original CUDA path
-      set(CUDA_TOOLKIT_ROOT_DIR "/opt/cuda") # Update this path if necessary
+      set(CMAKE_CUDA_ARCHITECTURES native)  # Or use native
+      set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda") # Update this path if necessary
       include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
       link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
-      set(CMAKE_CUDA_ARCHITECTURES 86)  # Or use native
-      set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version")
+      #set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version") #clang
+      #set(CMAKE_CUDA_FLAGS "-allow-unsupported-compiler -ccbin=clang++") #nvcc
       enable_language(CUDA)
 
       file(GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/gpu/*.cu)

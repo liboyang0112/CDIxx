@@ -7,7 +7,6 @@
 #define VTK_TYPE VTK_FLOAT
 
 #if CCDBits==12 || CCDBits==16
-#define complexFormat float _Complex
 typedef  unsigned short pixeltype;
 #else
 typedef uchar pixeltype;
@@ -23,6 +22,7 @@ const int rcolor=65535;
 enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, TV, cnt};
 
 #define Real float
+#define complexFormat _Complex Real
 #define REALIDX FLOAT
 #define COMPLEXIDX FLOAT2
 #endif

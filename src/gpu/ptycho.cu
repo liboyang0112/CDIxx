@@ -93,7 +93,7 @@ cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandSt
   object[index].y = s;
 })
 
-__device__ Real gaussian(float x, float y, float sigma){
+static __device__ Real gaussian(float x, float y, float sigma){
   return exp(-(x*x+y*y)/2/(sigma*sigma));
 }
 cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{

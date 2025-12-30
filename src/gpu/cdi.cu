@@ -70,7 +70,6 @@ __forceinline__ __device__ void hsvToRGB(Real H, Real S, Real V, char* rgb){
           rgb[2] = q;
           break;
         default:
-          printf("WARNING: HSV not recognized: %f, %f, %f, %d\n", H, S, V, hi);
           rgb[0] = rgb[1] = rgb[2] = -1;
     }
 };

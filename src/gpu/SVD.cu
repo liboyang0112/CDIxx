@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include <cusolverDn.h>
 #include <cuda_runtime.h>
 
@@ -33,15 +34,13 @@ static SVDContext *context_map[MAX_CONTEXTS] = {NULL};
 static int next_handle = 0;
 
 // Global error state (can be replaced with thread-local storage for multi-threading)
-static SVDStatus last_error_code = SVD_SUCCESS;
 static char last_error_message[256] = "";
 
 // Helper function to set and log errors
-void svd_set_error(SVDStatus code, const char *message) {
-    last_error_code = code;
+void svd_set_error(const char *message) {
     strncpy(last_error_message, message, sizeof(last_error_message) - 1);
     last_error_message[sizeof(last_error_message) - 1] = '\0'; // Ensure null termination
-    fprintf(stderr, "Error: %s\n", message);
+    fmt::println(stderr, "Error: {}", message);
 }
 
 // Function to retrieve the last error message
@@ -52,7 +51,7 @@ const char* svd_get_last_error() {
 // Helper function to validate a handle
 SVDContext* validate_handle(int handle) {
     if (handle < 0 || handle >= next_handle || !context_map[handle]) {
-        svd_set_error(SVD_ERROR_INVALID_HANDLE, "Invalid SVD handle");
+        svd_set_error("Invalid SVD handle");
         return NULL;
     }
     return context_map[handle];
@@ -62,19 +61,19 @@ SVDContext* validate_handle(int handle) {
 int svd_init(int M, int N) {
     // Validate dimensions directly here
     if (M <= 0 || N <= 0) {
-        svd_set_error(SVD_ERROR_INVALID_ARGUMENT, "Invalid matrix dimensions");
+        svd_set_error("Invalid matrix dimensions");
         return -1;
     }
 
     if (next_handle >= MAX_CONTEXTS) {
-        svd_set_error(SVD_ERROR_MEMORY_ALLOCATION, "Maximum number of SVD contexts reached");
+        svd_set_error("Maximum number of SVD contexts reached");
         return -1;
     }
 
     // Allocate a new context
     SVDContext *ctx = (SVDContext*)malloc(sizeof(SVDContext));
     if (!ctx) {
-        svd_set_error(SVD_ERROR_MEMORY_ALLOCATION, "Failed to allocate SVDContext");
+        svd_set_error("Failed to allocate SVDContext");
         return -1;
     }
     ctx->M = M;
@@ -83,7 +82,7 @@ int svd_init(int M, int N) {
     // Create cuSOLVER handle
     if (cusolverDnCreate(&ctx->handle) != CUSOLVER_STATUS_SUCCESS) {
         free(ctx);
-        svd_set_error(SVD_ERROR_CUSOLVER, "Failed to create cuSOLVER handle");
+        svd_set_error("Failed to create cuSOLVER handle");
         return -1;
     }
 
@@ -93,7 +92,7 @@ int svd_init(int M, int N) {
         cudaMalloc((void**)&ctx->d_S, N * sizeof(float)) != cudaSuccess) {
         cusolverDnDestroy(ctx->handle);
         free(ctx);
-        svd_set_error(SVD_ERROR_MEMORY_ALLOCATION, "Failed to allocate device memory");
+        svd_set_error("Failed to allocate device memory");
         return -1;
     }
 
@@ -104,7 +103,7 @@ int svd_init(int M, int N) {
         myCuFree(ctx->d_V);
         myCuFree(ctx->d_S);
         free(ctx);
-        svd_set_error(SVD_ERROR_CUSOLVER, "Failed to query workspace size");
+        svd_set_error("Failed to query workspace size");
         return -1;
     }
 
@@ -114,7 +113,7 @@ int svd_init(int M, int N) {
         myCuFree(ctx->d_V);
         myCuFree(ctx->d_S);
         free(ctx);
-        svd_set_error(SVD_ERROR_MEMORY_ALLOCATION, "Failed to allocate workspace memory");
+        svd_set_error("Failed to allocate workspace memory");
         return -1;
     }
 
@@ -132,7 +131,7 @@ int svd_execute(int handle, const float *d_A_input) {
     }
 
     if (!d_A_input) {
-        svd_set_error(SVD_ERROR_INVALID_ARGUMENT, "Invalid input matrix");
+        svd_set_error("Invalid input matrix");
         return SVD_ERROR_INVALID_ARGUMENT;
     }
 
@@ -144,14 +143,14 @@ int svd_execute(int handle, const float *d_A_input) {
                                                ctx->work, ctx->lwork, NULL, &info);
 
     if (status != CUSOLVER_STATUS_SUCCESS) {
-        svd_set_error(SVD_ERROR_CUSOLVER, "cuSOLVER SVD computation failed");
+        svd_set_error("cuSOLVER SVD computation failed");
         return SVD_ERROR_CUSOLVER;
     }
 
     if (info != 0) {
         char msg[128];
         snprintf(msg, sizeof(msg), "SVD failed with info = %d", info);
-        svd_set_error(SVD_ERROR_CUSOLVER, msg);
+        svd_set_error(msg);
         return SVD_ERROR_CUSOLVER;
     }
 
