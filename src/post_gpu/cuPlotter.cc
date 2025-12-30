@@ -1,5 +1,5 @@
 #include <filesystem>
-#include <fmt/base.h>
+#include <fmt/core.h>
 #include <string>
 #include "cuPlotter.hpp"
 #include "fmt/core.h"

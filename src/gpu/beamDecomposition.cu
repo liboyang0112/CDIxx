@@ -4,7 +4,7 @@
 #include "memManager.hpp"
 #include <cmath>
 #include <complex.h>
-#include <fmt/base.h>
+#include <fmt/core.h>
 
 __forceinline__ __device__ void pixel_circle_coverage_approx(
     Real dx, Real dy,  // rectangle center relative to circle (which is at origin)

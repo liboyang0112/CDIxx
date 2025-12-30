@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <freetype/freetype.h>
-#include "freetype.hpp"
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include "format.hpp"
 #include <stdint.h>
 #include <math.h>
