@@ -1,6 +1,7 @@
 extern "C" {
-#include "ft2build.h"
-#include FT_FREETYPE_H"
+#include <freetype/config/ftheader.h>
+#include FT_FREETYPE_H
+#include "freetype.hpp"
 }
 #include "fmt/core.h"
 #include "imgio.hpp"
@@ -17,7 +18,7 @@ int main( int argc, char**  argv )
     fmt::println("Usage: freetype_run text");
     return 0;
   }
-  //putText(argv[1], 0, rows, rows, cols, data, 0, val);
+  putText(argv[1], 0, rows, rows, cols, data, 0, val);
   writePng("test.png", data, rows, cols, 16, 0);
   return 0;
 }
