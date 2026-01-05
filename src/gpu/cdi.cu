@@ -5,6 +5,7 @@ enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cuComplex.h"
 #include "memManager.hpp"
 #include <curand_kernel.h>
+#include <stdio.h>
 struct cudaVars{
   int rcolor;
   Real beta_HIO;
@@ -261,7 +262,7 @@ cuFunc(ccdRecord, (Real* data, Real* wave, int noiseLevel, void* state, Real exp
     (data,wave,noiseLevel,state,exposure, rcolor),{
     cuda1Idx()
     if(rcolor == 0) rcolor = vars.rcolor;
-    int dataint = curand_poisson(&((curandStateMRG32k3a*)state)[index], noiseLevel + rcolor*wave[index]*exposure);
+    int dataint = curand_poisson((curandStateMRG32k3a*)state + index, noiseLevel + rcolor*wave[index]*exposure);
     if(dataint >= rcolor) dataint = rcolor-1;
     data[index] = Real(dataint-noiseLevel)/rcolor;
     });

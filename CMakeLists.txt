@@ -99,7 +99,7 @@ set(GPU_LIB_TARGET "")
 if(USE_HIP)
     message(STATUS "HIP mode enabled: Converting CUDA to HIP and building with clang++")
 
-    set(CMAKE_HIP_ARCHITECTURES gfx90a)  # Or use native
+    set(CMAKE_HIP_ARCHITECTURES native)  # Or use native
     set(CMAKE_HIP_COMPILER "amdclang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
     enable_language(HIP)
     # Find hipify-perl
@@ -135,7 +135,7 @@ if(USE_HIP)
 
         add_custom_command(
           OUTPUT ${hip_output}
-          COMMAND ${HIPIFY_EXECUTABLE} ${cu_full_path} -o ${hip_output} -I ${PROJECT_SOURCE_DIR}/include --extra-arg=-Wno-unknown-cuda-version
+          COMMAND ${HIPIFY_EXECUTABLE} --cuda-path=/opt/cuda-12.8 ${cu_full_path} -o ${hip_output} -I ${PROJECT_SOURCE_DIR}/include --extra-arg=-Wno-unknown-cuda-version
           COMMAND sed -i "s/\\bcub::/hipcub::/g" ${hip_output}
           DEPENDS ${cu_full_path} ${HIPIFY_EXECUTABLE}
           VERBATIM

@@ -113,7 +113,8 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
 
     plt.plotFloat(d_sig, MOD, 0, 1, (std::string(output_path) + "_logimage").c_str(), 1, 0, 1);
     plt.plotComplex(xc, MOD2, 1, 1./finsize, (std::string(output_path) + "_autocorrelation").c_str(), 1, 0, 1);
-    fmt::println("Summation: {}.", size_t(findSum(d_sig)*65535));
+    //initCub();
+    //fmt::println("Summation: {}.", size_t(findSum(d_sig)*65535));
 
     plt.saveFloat(d_sig, output_path);
 

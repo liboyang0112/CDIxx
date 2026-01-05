@@ -21,8 +21,8 @@ using namespace std;
 
 class ptycho : public experimentConfig{
   public:
-    int row_O = 725;  //in ptychography this is different from row (the size of probe).
-    int column_O = 725;
+    int row_O = 1280;  //in ptychography this is different from row (the size of probe).
+    int column_O = 1280;
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
@@ -287,7 +287,7 @@ class ptycho : public experimentConfig{
       int positionUpdateIter = 50;
       void* objFFT;
       createPlan(&objFFT, row_O, column_O); 
-      int pupildiameter = 145;
+      int pupildiameter = 470;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
       void* zernike = zernike_init(pupildiameter, pupildiameter, 20, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, pupilSupport, pupildiameter*pupildiameter);
@@ -480,7 +480,7 @@ class ptycho : public experimentConfig{
       myFree(h_norm);
       memMngr.returnCache(Fn);
       memMngr.returnCache(objCache);
-      Real crop_ratio = 0.65;
+      Real crop_ratio = 1;
       int rowc = row_O*crop_ratio;
       int colc = column_O*crop_ratio;
       resize_cuda_image(rowc, colc);
