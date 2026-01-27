@@ -1,3 +1,5 @@
+#include <fmt/base.h>
+#include <pthread.h>
 #include <filesystem>
 #include <fmt/core.h>
 #include <string>
@@ -7,6 +9,7 @@
 #include "cudaConfig.hpp"
 #include "videoWriter.hpp"
 #include "imgio.hpp"
+#include "preview.hpp"
 extern "C" {
 #include "freetype.hpp"
 }
@@ -54,7 +57,7 @@ void getTurboColor(Real x, int bit_depth, char* store){
   }
 }
 
-int cuPlotter::initVideo(const char* filename, int fps){
+int cuPlotter::initVideo(const char* filename, int fps, bool preview){
   int handle = nvid;
   if(handle == 100){
     for(int i = 0; i < 100; i++){
@@ -69,10 +72,17 @@ int cuPlotter::initVideo(const char* filename, int fps){
     exit(0);
   }
   videoWriterVec[handle] = createVideo(filename, rows, cols, fps);
+  if(preview) {
+    videoPreview[handle] = createPreview(filename, rows, cols);
+  }
   toVideo = handle;
   return handle;
 }
 void cuPlotter::saveVideo(int handle){
+  if(vid_thread) {
+    pthread_join(vid_thread, nullptr);
+    vid_thread = 0;
+  }
   ::saveVideo(videoWriterVec[handle]);
 }
 bool ensureDirExists(const std::string& path) {
@@ -146,6 +156,10 @@ void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequen
   return cv_data;
 };
 void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip){
+  if(vid_thread) {
+    pthread_join(vid_thread, nullptr);
+    vid_thread = 0;
+  }
   if(!cuCache_data) {
     cuCache_data = (col_rgb*) memMngr.borrowCache(rows*cols*sizeof(col_rgb));
   }
@@ -153,20 +167,39 @@ void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real deca
   myMemcpyD2H(cv_cache, cuCache_data,rows*cols*sizeof(col_rgb));
   return cv_cache;
 };
+void* flushVideo_thread(void* args){
+  cuPlotter* _plt = (cuPlotter*)args;
+  flushVideo(_plt->videoWriterVec[_plt->writeVideo], _plt->cv_cache);
+  return nullptr;
+}
 void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+  if(vid_thread) {
+    pthread_join(vid_thread, nullptr);
+    vid_thread = 0;
+  }
   processComplexColor(cudaData,isFrequency,decay,islog,isFlip);
   char color[3] = {-1,0,0};
   if(label) putText(label, 0, rows-1, rows, cols, cv_cache, 1, color);
   if(toVideo>=0) {
-    flushVideo(videoWriterVec[toVideo], cv_cache);
+    writeVideo = toVideo;
+    pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
+    if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
   }else
     writePng((prefix + std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
+  if(vid_thread) {
+    pthread_join(vid_thread, nullptr);
+    vid_thread = 0;
+  }
   processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, isColor, caption);
 }
 void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
+  if(vid_thread) {
+    pthread_join(vid_thread, nullptr);
+    vid_thread = 0;
+  }
   processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
   plot(label, isColor, caption);
 }
@@ -211,12 +244,17 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
   std::string fname = label;
   if(fname.find(".")==std::string::npos) fname+=".png";
   if(iscolor){
+    if(vid_thread) {
+      pthread_join(vid_thread, nullptr);
+      vid_thread = 0;
+    }
     cvtTurbo();
     char color[3] = {-1,0,0};
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_cache, 1, color);
     if(toVideo>=0) {
       //put_formula(label, 0,0,cols, cv_cache, 1, color);
-      flushVideo(videoWriterVec[toVideo], cv_cache);
+      pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
+      if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
       return;
     }
     else if(std::string(fname).find(".png")!=std::string::npos)

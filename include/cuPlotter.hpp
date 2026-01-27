@@ -10,22 +10,24 @@ class cuPlotter
   int cols;
   void *cuCache_data = 0; //cv format
   void *cv_data = 0; //cv_data = cv_cache->data
-  void *cv_cache = 0;
   void *cv_complex_data = 0; //cv_data = cv_cache->data
                                //
   void *cv_float_data = 0; //cv_data = cv_cache->data
 
   
-  void *videoWriterVec[100];
   const char* prefix = 0;
   int nvid = 0;
+  unsigned long int vid_thread = 0;
   public:
+  void *cv_cache = 0;
+  void *videoWriterVec[100];
+  void* videoPreview[100];
   int toVideo = -1;
-  int showVid = 0;
-  cuPlotter():cuCache_data(0),cv_data(0),cv_cache(0),cv_complex_data(0){};
+  int writeVideo = -1;
+  cuPlotter():cuCache_data(0),cv_data(0),cv_complex_data(0),cv_cache(0){};
   void init(int rows_, int cols_, const char* prefix_ = "./");
   void* getCache(){return cv_cache;}
-  int initVideo(const char* filename, int fps = 24);
+  int initVideo(const char* filename, int fps = 24, bool preview = 0);
   void videoFrame(void* cudaData);
   void saveVideo(int handle = 0);
   void freeMem();

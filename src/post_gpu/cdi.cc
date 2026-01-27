@@ -111,10 +111,7 @@ void CDI::calculateParameters(){
     dpupil = d*k/(k+1);
     resolution = lambda*dpupil/(row*pixelsize);
     fmt::println("Resolution={:4.2f}um", resolution);
-    enhancementpupil = sq(pixelsize)*sqrt(row*column)/(lambda*dpupil); // this guarentee energy conservation
     fresnelFactorpupil = lambda*dpupil/sq(pixelsize)/row/column;
-    enhancementMid = sq(resolution)*sqrt(row*column)/(lambda*(d-dpupil)); // this guarentee energy conservation
-    fresnelFactorMid = lambda*(d-dpupil)/sq(resolution)/row/column;
   }
 }
 void CDI::readFiles(){
@@ -304,7 +301,6 @@ complexFormat* CDI::phaseRetrieve(){
   int vidhandle = 0;
   if(saveVideoEveryIter){
     vidhandle = plt.initVideo("recon_intensity.mp4",24);
-    plt.showVid = -1;
   }
 
   complexFormat *cuda_gkp1 = objectWave;
@@ -320,12 +316,12 @@ complexFormat* CDI::phaseRetrieve(){
   applyNorm(cuda_gkp1, 1./sqrt(row*column));
   Real gaussianSigma = 3;
   Real avg = 0, phi0 = 0;
-  int iter = 0;
   myCuDMalloc(Real, cuda_objMod, sz);
   myCuDMalloc(Real, d_polar, row*column);
   myCuDMalloc(Real, d_prtf, row>>1);
   myDMalloc(Real, prtf, row>>1);
   myDMalloc(Real, weights, row>>1);
+  int iter = 0;
   for(; ; iter++){
     int ialgo = algo.next();
     if(ialgo<0) break;

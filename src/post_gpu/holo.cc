@@ -130,7 +130,7 @@ void holo::iterate(){
   clearCuMem(patternWave_obj,  sz*2);
   AlgoParser algo(algorithm);
   int ialgo;
-  while(1){
+  for(;;){
     ialgo = algo.next();
     if(ialgo < 0) break;
     if(ialgo == shrinkWrap){

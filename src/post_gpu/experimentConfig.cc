@@ -73,7 +73,6 @@ void experimentConfig::multiplyFresnelPhase_factor(complexFormat* amp, Real fact
   }
 }
 void experimentConfig::calculateParameters(){
-  enhancement = sq(pixelsize)*sqrt(row*column)/(lambda*d); // this guarentee energy conservation
   fresnelFactor = lambda*d/sq(pixelsize)/row/column;
   forwardFactor = 1./sqrt(row*column);
 }

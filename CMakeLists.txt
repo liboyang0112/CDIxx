@@ -4,6 +4,7 @@ set(CMAKE_CXX_COMPILER "clang++") #compiler, gcc can be alteratives, or install 
 set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_C_COMPILER "clang") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON ) #for vim ale grammar check
+set(CMAKE_CXX_STANDARD 20)
 project(CDIxx LANGUAGES CXX C)
 
 #Prerequisite: gsl freetype libpng libtiff
@@ -37,6 +38,7 @@ if(hdf5_FOUND)
   link_directories(${hdf5_LIBRARY_DIRS})
 endif()
 #freetype, a font library, always equipped in linux system, if not, install it by `apt install libfreetype-dev`
+find_package(SDL2)
 find_package(Freetype)
 if(NOT Freetype_FOUND)
   pkg_check_modules(Freetype freetype2)
@@ -47,8 +49,11 @@ include_directories (${FREETYPE_INCLUDE_DIRS})
 find_package( GSL REQUIRED )
 set(ENV{VIRTUAL_ENV} "/opt/python_venv")
 set(Python_FIND_VIRTUALENV)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
 if(Python_FOUND)
+set(CMAKE_MODULE_PATH /opt/python_venv/lib/python3.14/site-packages/cython_cmake/cmake)
+include (UseCython)
+find_package(Cython MODULE REQUIRED)
 include_directories(${Python_INCLUDE_DIRS})
 execute_process(
     COMMAND ${Python_EXECUTABLE} -c "import os, skbuild; print(os.path.dirname(skbuild.__file__))" # pip install scikit-build
@@ -68,15 +73,14 @@ execute_process(
 message("Numpy dir:" ${NUMPY_DIR})
 message("PYTHON include:" ${Python_INCLUDE_DIRS})
 list(APPEND CMAKE_MODULE_PATH "${SKBLD_DIR}/resources/cmake")
-find_package ( Cython REQUIRED )
 include_directories(${NUMPY_DIR})
 endif(Python_FOUND)
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
-set(CMAKE_BUILD_TYPE Release)
-#set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -99,7 +103,8 @@ set(GPU_LIB_TARGET "")
 if(USE_HIP)
     message(STATUS "HIP mode enabled: Converting CUDA to HIP and building with clang++")
 
-    set(CMAKE_HIP_ARCHITECTURES native)  # Or use native
+    #set(CMAKE_HIP_ARCHITECTURES native)  # Or use native
+    set(CMAKE_HIP_ARCHITECTURES gfx90a)  # Or use native
     set(CMAKE_HIP_COMPILER "amdclang++") #compiler, gcc can be alteratives, or install it by `apt install llvm-17`
     enable_language(HIP)
     # Find hipify-perl
@@ -150,7 +155,6 @@ if(USE_HIP)
 
       # Now add_library *after* we have declared all outputs
       set(GPU_LIB_TARGET hipLib)
-      message(${HIP_SOURCES})
       add_library(${GPU_LIB_TARGET} SHARED ${HIP_SOURCES})
       set_source_files_properties(${HIP_SOURCES} PROPERTIES LANGUAGE HIP)
       set_source_files_properties(${HIP_SOURCES} PROPERTIES COMPILE_FLAGS "-x hip")
@@ -183,7 +187,7 @@ if(USE_HIP)
       target_link_libraries(${libname} ${GPU_LIB_TARGET})
     endforeach( sourcefile ${APP_SOURCES} )
 
-    target_link_libraries(cuPlotter_cc videoWriter_cc freetype_c)
+    target_link_libraries(cuPlotter_cc videoWriter_cc freetype_c preview_cc)
     target_link_libraries(broadBand_cc gsl gslcblas memManager_cc cuPlotter_cc)
     target_link_libraries(spectImaging_cc broadBand_cc cuPlotter_cc misc_cc FISTA_cc)
     target_link_libraries(spectPhase_cc broadBand_cc cuPlotter_cc misc_cc)
@@ -192,6 +196,9 @@ if(USE_HIP)
     target_link_libraries(freetype_c freetype fontconfig)
     target_link_libraries(cdilmdb_c lmdb z)
     target_link_libraries(videoWriter_cc avformat avutil avcodec pthread)
+    if(SDL2_FOUND)
+      target_link_libraries(videoWriter_cc SDL2::SDL2)
+    endif()
     target_link_libraries(readConfig_cc config)
     target_link_libraries(readCXI_cc ${GPU_LIB_TARGET} hdf5 cuPlotter_cc)
     target_link_libraries(orthFitter_cc matrixInverse_cc)
@@ -206,9 +213,11 @@ if(USE_HIP)
       file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/cython/*.pyx )
       foreach( sourcefile ${APP_SOURCES} )
         string( REPLACE ".pyx" "" libname ${sourcefile} )
+        string( REPLACE ".pyx" ".c" cythonc ${sourcefile} )
         cmake_path(GET libname FILENAME libname)
-        add_cython_target(${libname} ${sourcefile} C)
-        add_library(${libname} SHARED ${libname})
+        cmake_path(GET cythonc FILENAME cythonc)
+        cython_transpile(${sourcefile} OUTPUT ${cythonc} LANGUAGE C)
+        add_library(${libname} SHARED ${cythonc})
         target_compile_definitions(${libname} PUBLIC -DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION) #suppress numpy warning
         SET_TARGET_PROPERTIES(${libname} PROPERTIES PREFIX "" SUFFIX ${EXT_SUFFIX}) #standard cpython library name
       endforeach( sourcefile ${APP_SOURCES} )
@@ -315,7 +324,6 @@ if(USE_HIP)
         cmake_path(GET sourcefile FILENAME libname)
         string( REPLACE ".cpp" "_run" exename ${libname} )
         add_executable( ${exename} ${sourcefile})
-        message(${exename})
       endforeach( sourcefile ${APP_SOURCES} )
       target_link_libraries(testVtk_run WriteVTI_cc)
     endif()

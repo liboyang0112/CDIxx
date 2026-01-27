@@ -60,7 +60,6 @@ int main(){
   int ezvid = plt.initVideo("Ez.mp4", 24);
   int hxvid = plt.initVideo("Hx.mp4", 24);
   int hyvid = plt.initVideo("Hy.mp4", 24);
-  plt.showVid = -1;//ezvid;
   for(int i = 0; i < nsteps; i++){
     saveField = i%5==0;
     //applySource<<<1,1>>>(Ez, sourcePos, 20*sin(M_PI/70*i));//50*exp(-sq(double(i-100)/30)));

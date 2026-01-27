@@ -5,7 +5,6 @@ enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 #include "cuComplex.h"
 #include "memManager.hpp"
 #include <curand_kernel.h>
-#include <stdio.h>
 struct cudaVars{
   int rcolor;
   Real beta_HIO;

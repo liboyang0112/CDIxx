@@ -93,27 +93,25 @@ Real findMax(Real* d_in, int num, void* d_out)
 
 int findMaxIdx(Real* d_in, int num, void* d_out)
 {
-/*
   cub::KeyValuePair<int, float> output;
   bool hascache = 1;
   if(!d_out) {
     d_out = memMngr.borrowCache(sizeof(cub::KeyValuePair<int, float>));
     hascache = 0;
   }
-  size_t num_items = num;
+  int num_items = num;
   if(num_items == 0) num_items = memMngr.getSize(d_in)/sizeof(Real);
   if(!store_findMaxIdx_n){
-    gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items));
+    gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items)); //new cub api is not compatible with cub, so please ignore the warning
     store_findMaxIdx = memMngr.borrowCache(store_findMaxIdx_n);
   }
-  gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items));
+  gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items)); //new cub api is not compatible with cub, so please ignore the warning
   if(!hascache){
     myMemcpyD2H(&output, d_out, sizeof(Real));
     if (d_out) memMngr.returnCache(d_out);
-  return output.key;
+    return output.key;
   }
-  */
-  return 0; //TBD, not implemented for hip
+  return 0;
 }
 
 int findMax(int* d_in, int num, void* d_out)

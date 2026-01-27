@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-#define ALPHA 0.3
+#define ALPHA 0.1
 #define BETA 0.5
 #define DELTA 1e-3
 
@@ -27,6 +27,14 @@ cuFuncc(updateWindow,(complexFormat* object, int shiftx, int shifty, int objrow,
   cudaIdx();
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
   object[(x+shiftx)*objcol+y+shifty] = window[index];
+})
+
+cuFuncc(addWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window, Real norm),(cuComplex* object, int shiftx, int shifty, int objrow, int objcol, cuComplex* window, Real norm),((cuComplex*)object,shiftx,shifty,objrow,objcol,(cuComplex*)window, norm),{
+  cudaIdx();
+  if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
+  int idx = (x+shiftx)*objcol+y+shifty;
+  object[idx].x = norm*window[index].x + object[idx].x;
+  object[idx].y = norm*window[index].y + object[idx].y;
 })
 
 
@@ -71,24 +79,38 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
   object[index] = objectdat;
 })
 
-cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj),{
+cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, stepsize),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
   cuComplex diff= U[index];
   //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
   //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
-  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA);
+  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA, 0.5);
   rPIE_step(probedat, objectdat, diff, mod2maxObj, BETA);
-  probeStep[index] = cuCaddf(probeStep[index], probedat);
+  probeStep[index].x = probeStep[index].x + probedat.x*stepsize;
+  probeStep[index].y = probeStep[index].y + probedat.y*stepsize;
   object[index] = objectdat;
+})
+
+cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real norm),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real norm),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, norm),{
+  cuda1Idx()
+  cuComplex objectdat= object[index];
+  cuComplex probedat= probe[index];
+  cuComplex diff= U[index];
+  //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
+  //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
+  rPIE_step(object[index], probedat, diff, mod2maxProbe, ALPHA);
+  rPIE_step(probedat, objectdat, diff, mod2maxObj, BETA);
+  probeStep[index].x = probeStep[index].x + probedat.x*norm;
+  probeStep[index].y = probeStep[index].y + probedat.y*norm;
 })
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
   Real phaseshift = curand_uniform(&state[index]);
   Real c, s;
-  sincosf(phaseshift*2*M_PI, &s, &c);
+  sincosf(phaseshift*2.0*M_PI, &s, &c);
   object[index].x = c;
   object[index].y = s;
 })

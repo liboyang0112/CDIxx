@@ -10,7 +10,6 @@ class experimentConfig : public readConfig{
   public:
     //calculated later by init function, image size dependant
     experimentConfig(const char* configfile):readConfig(configfile){}
-    Real enhancement = 0;
     Real forwardFactor = 0;
     Real fresnelFactor = 0;
     Real resolution = 0;
@@ -21,9 +20,7 @@ class experimentConfig : public readConfig{
     complexFormat* pupilobjectWave = 0;
     Real* beamstop = 0;
     Real* pupilpatternData = 0;
-    Real enhancementpupil = 0;
     Real fresnelFactorpupil = 0;
-    Real enhancementMid = 0;
     Real fresnelFactorMid = 0;
     void createBeamStop();
     void propagate(complexFormat* datain, complexFormat* dataout, bool isforward);

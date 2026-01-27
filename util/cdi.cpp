@@ -20,11 +20,9 @@ int main(int argc, char** argv )
   //-----------------------configure experiment setups-----------------------------
   fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
   fmt::println("fresnel factor = {:f}", setups.fresnelFactor);
-  fmt::println("enhancement = {:f}", setups.enhancement);
 
   fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
   fmt::println("pupil fresnel factor = {:f}", setups.fresnelFactorpupil);
-  fmt::println("pupil enhancement = {:f}", setups.enhancementpupil);
 
   Real fresnelNumber = M_PI*sq(setups.beamspotsize)/(setups.d*setups.lambda);
   fmt::println("Fresnel Number = {:f}",fresnelNumber);

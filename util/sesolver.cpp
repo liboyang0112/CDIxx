@@ -34,7 +34,6 @@ int main(){
 
   plt.init(nx,ny);
   int psivid = plt.initVideo("psi.mp4", 24);
-  plt.showVid = -1;//ezvid;
   for(int i = 0; i < nsteps; i++){
     resize_cuda_image(nx,ny,nz);
     add(psi, H2psi, mom, 1-beta);
