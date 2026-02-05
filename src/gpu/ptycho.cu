@@ -110,7 +110,7 @@ cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandSt
   cuda1Idx()
   Real phaseshift = curand_uniform(&state[index]);
   Real c, s;
-  sincosf(phaseshift*2.0*M_PI, &s, &c);
+  sincosf(phaseshift*0*M_PI, &s, &c);
   object[index].x = c;
   object[index].y = s;
 })

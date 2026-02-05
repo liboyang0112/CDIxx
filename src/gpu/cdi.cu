@@ -339,8 +339,8 @@ cuFuncc(applyModAccurate,
     }
     Real maximum = vars.scale * 0.95f;
     if (mod2 >= maximum) {
-        if(srcmod2 >= maximum){
-          source[index] = make_cuComplex(rx, ry);
+        if(srcmod2 >= mod2){
+          source[index] = make_cuComplex(1.003*rx, 1.003*ry);
           return;
         }
     }
@@ -378,7 +378,7 @@ cuFuncc(applyMod,
     Real srcmod2 = rx*rx + ry*ry;
     Real maximum = vars.scale * 0.95f;
     if (mod2 >= maximum) {
-        mod2 = fmaxf(maximum, srcmod2);
+        mod2 = fmaxf(mod2, srcmod2);
     }
     //Real tolerance = (1.0f + sqrtf((Real)noiseLevel)) * vars.scale / vars.rcolor;
     Real tolerance = sqrtf(noiseLevel+mod2*vars.rcolor/vars.scale) * vars.scale / vars.rcolor;

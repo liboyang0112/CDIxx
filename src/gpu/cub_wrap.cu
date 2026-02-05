@@ -93,24 +93,28 @@ Real findMax(Real* d_in, int num, void* d_out)
 
 int findMaxIdx(Real* d_in, int num, void* d_out)
 {
-  cub::KeyValuePair<int, float> output;
+  /*
+  cub::KeyValuePair<int, Real> output;
   bool hascache = 1;
   if(!d_out) {
-    d_out = memMngr.borrowCache(sizeof(cub::KeyValuePair<int, float>));
+    d_out = memMngr.borrowCache(sizeof(cub::KeyValuePair<int, Real>));
     hascache = 0;
   }
   int num_items = num;
   if(num_items == 0) num_items = memMngr.getSize(d_in)/sizeof(Real);
   if(!store_findMaxIdx_n){
-    gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items)); //new cub api is not compatible with cub, so please ignore the warning
+    //gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, Real>*)d_out, num_items)); //new cub api is not compatible with hip, so please ignore the warning
+    gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, &((cub::KeyValuePair<int, Real>*)d_out)->value, &((cub::KeyValuePair<int, Real>*)d_out)->key, num_items)); //new cub api, not compatible with hip
     store_findMaxIdx = memMngr.borrowCache(store_findMaxIdx_n);
   }
-  gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, float>*)d_out, num_items)); //new cub api is not compatible with cub, so please ignore the warning
+  //gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, (cub::KeyValuePair<int, Real>*)d_out, num_items)); //new cub api is not compatible with hip, so please ignore the warning
+  gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, &((cub::KeyValuePair<int, Real>*)d_out)->value, &((cub::KeyValuePair<int, Real>*)d_out)->key, num_items)); //new cub api, not compatible with hip
   if(!hascache){
-    myMemcpyD2H(&output, d_out, sizeof(Real));
-    if (d_out) memMngr.returnCache(d_out);
+    myMemcpyD2H(&output, d_out, sizeof(cub::KeyValuePair<int, Real>));
+    memMngr.returnCache(d_out);
     return output.key;
   }
+  */
   return 0;
 }
 

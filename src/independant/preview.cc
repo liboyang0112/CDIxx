@@ -37,7 +37,7 @@ void updatePreview(void* ptr, void* buffer){  //buffer is rgb
   PreviewContext* p = (PreviewContext*)ptr;
   if(!p->active) return;
   SDL_PollEvent(&p->e);
-  if (p->e.type == SDL_QUIT) {
+  if (p->e.type == SDL_QUIT || p->e.type == SDL_KEYDOWN) {
     SDL_Quit();
   }
   void* pixels;

@@ -94,7 +94,7 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
     if (mode_str[0] == '1') {
         shiftMiddle(tmp1);
     } else {
-        shiftWave(tmp1, shiftx, shifty);
+        //shiftWave(tmp1, shiftx, shifty);
     }
 
     getReal(tmp, tmp1);

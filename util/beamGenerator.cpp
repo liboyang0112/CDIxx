@@ -90,19 +90,19 @@ int main() {
   //setHoleArray(image, rows, cols, 0);
   writePng("mask.png", image, rows, cols, 16, 0);
   */ 
-  int rows = 1000, cols = 1000;
+  int rows = 1020, cols = 1020;
   init_cuda_image();
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
   myCuDMalloc(Real, image1, rows*cols);
   C_circle spt;
-  spt.r = 234;
+  spt.r = 255;
   //spt.r = 13;
   spt.x0=spt.y0 = (rows>>1)+10;
   myCuDMalloc(C_circle, d_spt, 1);
   myMemcpyH2D(d_spt, &spt, sizeof(C_circle));
   createMask(image, d_spt);
-  applyGaussMult(image, image, 130, 0);
+  applyGaussMult(image, image, 180, 0);
   //multiplyHermit(image, image, 100, 3,3);
   //rotate(image, image1, M_PI/4);
   //applyNorm(image1,4);

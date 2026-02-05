@@ -82,7 +82,7 @@ void* createVideo(const char* filename, int row, int col, int fps){
   }
   AVCodecContext *c = thisvid->c = avcodec_alloc_context3(codec);
   /* put sample parameters */
-  c->bit_rate = 800000;
+  c->bit_rate = 8000000;
   /* resolution must be a multiple of two */
   c->width = row;
   c->height = col;

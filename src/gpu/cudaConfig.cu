@@ -881,6 +881,14 @@ cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
     }
     });
 
+cuFuncc(drawCircle,(complexFormat* img, Real cx, Real cy, Real r, Real w, complexFormat data),(cuComplex* img, Real cx, Real cy, Real r, Real w, cuComplex data ),((cuComplex*)img,cx,cy,r,w, *(cuComplex*)&data),{
+    cudaIdx()
+    Real d2 = sq(cx-x) + sq(cy-y);
+    if(d2 > r*r && d2 < (r+w)*(r+w)){
+      img[index] = data;
+    }
+    })
+
 
 cuFunc(cropinner,(Real* src, Real* dest, int row, int col, Real norm),(src,dest,row,col,norm),{
     cudaIdx()
