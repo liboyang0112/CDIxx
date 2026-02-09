@@ -1,28 +1,35 @@
 #include <assert.h>
-#include <fmt/base.h>
+#include <fmt/core.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "fmt/core.h"
 #include "memManager.hpp"
+#include "streamer.h"
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>  // For correct RGB→YUV conversion
 }
-const AVCodec *codec = 0;
-//void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVFormatContext *outfile)
-#include <SDL2/SDL.h>
-struct video{
+
+static const AVCodec *codec = nullptr;
+
+struct video {
   AVCodecContext *c;
   AVFormatContext *format;
   AVFrame *frame;
   AVPacket *pkt;
-  AVStream* stream;
+  AVStream *stream;
+  struct SwsContext *sws_ctx;  // RGB24 → YUV420P converter
+  void *av1_streamer;
+  int width;   // columns
+  int height;  // rows
 };
 
-void* encode(void* arg) {
+static void* encode(void* arg) {
   struct video* v = (struct video*)arg;
 
   int ret = avcodec_send_frame(v->c, v->frame);
@@ -41,195 +48,216 @@ void* encode(void* arg) {
       break;
     }
 
-    // Rescale PTS/DTS from codec timebase → stream timebase
     av_packet_rescale_ts(v->pkt, v->c->time_base, v->stream->time_base);
     v->pkt->stream_index = v->stream->index;
 
-    // Write packet to MP4 container
     ret = av_write_frame(v->format, v->pkt);
     if (ret < 0) {
       fmt::println(stderr, "Write error: {}", av_err2str(ret));
     }
 
-    av_packet_unref(v->pkt); // reset for reuse; no free()
+    if (v->av1_streamer) {
+      streamer_send_packet(v->av1_streamer, v->pkt);
+    }
+    av_packet_unref(v->pkt);
   }
-
-  // Optional: flush muxer (though av_write_trailer does this)
-  av_write_frame(v->format, nullptr);
 
   return nullptr;
 }
 
-void* createVideo(const char* filename, int row, int col, int fps){
+void* createVideo(const char* filename, int row, int col, int fps, const char* stream_sock) {
   struct video* thisvid = (struct video*)ccmemMngr.borrowCache(sizeof(struct video));
+  memset(thisvid, 0, sizeof(struct video));
+
+  thisvid->height = row;  // rows = height
+  thisvid->width = col;   // cols = width
+
+  if (stream_sock) {
+    thisvid->av1_streamer = streamer_create(stream_sock, col, row, fps);
+  }
+
   thisvid->pkt = av_packet_alloc();
   int ret = avformat_alloc_output_context2(&thisvid->format, nullptr, "mp4", filename);
   if (!thisvid->format) {
     fmt::println(stderr, "Could not create output context");
     exit(1);
   }
-  //if(!codec) codec = avcodec_find_encoder_by_name("libx265");
-  if(!codec) codec = avcodec_find_encoder_by_name("hevc_nvenc");
-  //if(!codec) codec = avcodec_find_encoder(AV_CODEC_ID_H265);
+
+  // Use av1_nvenc (supports yuv420p directly)
   if (!codec) {
-    fmt::println(stderr, "Codec libx265 not found");
+    if(stream_sock)
+      codec = avcodec_find_encoder_by_name("av1_nvenc");
+    else {
+      codec = avcodec_find_encoder_by_name("hevc_nvenc");
+    }
+  }
+  if (!codec) {
+    fmt::println(stderr, "Encoder not found. Ensure FFmpeg is built with NVENC support.");
     exit(1);
   }
+
   thisvid->stream = avformat_new_stream(thisvid->format, codec);
   if (!thisvid->stream) {
     fmt::println(stderr, "Failed to create stream");
     exit(1);
   }
+
   AVCodecContext *c = thisvid->c = avcodec_alloc_context3(codec);
-  /* put sample parameters */
   c->bit_rate = 8000000;
-  /* resolution must be a multiple of two */
-  c->width = row;
-  c->height = col;
-  /* frames per second */
+  c->width = col;    // width = columns
+  c->height = row;   // height = rows
   c->time_base = (AVRational){1, fps};
-  c->pkt_timebase = (AVRational){1, fps};
   c->framerate = (AVRational){fps, 1};
+  c->pix_fmt = AV_PIX_FMT_YUV420P;  // av1_nvenc supports this natively
 
-  c->pix_fmt = AV_PIX_FMT_YUV420P;
+  // NVENC tuning options
+  av_opt_set(c->priv_data, "preset", "p7", 0);   // p7 = fastest/lowest latency
+  av_opt_set(c->priv_data, "tune", "ll", 0);     // low-latency mode
+  av_opt_set(c->priv_data, "profile", "main", 0);
+  c->codec_tag = 0;  // Let muxer set proper FourCC for MP4
 
-  av_opt_set(c->priv_data, "preset", "slow", 0);
-
-  ret = avcodec_parameters_from_context(thisvid->stream->codecpar, thisvid->c);
+  ret = avcodec_open2(c, codec, nullptr);
   if (ret < 0) {
-    fmt::println(stderr, "Failed to copy codec params");
+    fmt::println(stderr, "Could not open av1_nvenc codec: {}", av_err2str(ret));
     exit(1);
   }
-  /* open it */
-  ret = avcodec_open2(c, codec, NULL);
+
+  // MUST copy params AFTER avcodec_open2()
+  ret = avcodec_parameters_from_context(thisvid->stream->codecpar, c);
   if (ret < 0) {
-    fmt::println(stderr, "Could not open codec: {}", av_err2str(ret));
+    fmt::println(stderr, "Failed to copy codec params: {}", av_err2str(ret));
+    exit(1);
   }
+
+  if (thisvid->av1_streamer) {
+    streamer_set_encoder_context(thisvid->av1_streamer, c);
+  }
+
   if (!(thisvid->format->oformat->flags & AVFMT_NOFILE)) {
     ret = avio_open(&thisvid->format->pb, filename, AVIO_FLAG_WRITE);
     if (ret < 0) {
-      fmt::println(stderr, "Could not open file: {}", av_err2str(ret));
+      fmt::println(stderr, "Could not open output file '{}': {}", filename, av_err2str(ret));
       exit(1);
     }
   }
+
   ret = avformat_write_header(thisvid->format, nullptr);
   if (ret < 0) {
-    fmt::println(stderr, "Header write failed: {}", av_err2str(ret));
+    fmt::println(stderr, "Failed to write header: {}", av_err2str(ret));
     exit(1);
   }
 
+  // Allocate encoder frame (YUV420P)
   AVFrame *frame = thisvid->frame = av_frame_alloc();
-  frame->pts = 0;
-  if (!frame) {
-    fmt::println(stderr, "Could not allocate video frame");
-    exit(1);
-  }
   frame->format = c->pix_fmt;
-  frame->width  = c->width;
+  frame->width = c->width;
   frame->height = c->height;
+  frame->pts = 0;
 
   ret = av_frame_get_buffer(frame, 0);
   if (ret < 0) {
-    fmt::println(stderr, "Could not allocate the video frame data");
+    fmt::println(stderr, "Could not allocate frame buffer: {}", av_err2str(ret));
     exit(1);
   }
+
+  // Setup swscale for correct RGB24 → YUV420P conversion
+  thisvid->sws_ctx = sws_getContext(
+    col, row, AV_PIX_FMT_RGB24,
+    col, row, AV_PIX_FMT_YUV420P,
+    SWS_BILINEAR, nullptr, nullptr, nullptr
+  );
+  if (!thisvid->sws_ctx) {
+    fmt::println(stderr, "Could not initialize swscale context");
+    exit(1);
+  }
+
   return thisvid;
 }
-void flushVideo_float(void* ptr, void* buffer){  //buffer is float
-  struct video* thisvid = (struct video*) ptr;
-  AVFrame *frame = thisvid->frame;
-  AVCodecContext *c = thisvid->c;
-  float* bfdata = (float*)buffer;
-  int* size = frame->linesize;
-  av_frame_make_writable(frame);
-  for (int y = 0; y < c->height; y++) {
-    for (int x = 0; x < c->width; x++) {
-      float fdata = bfdata[y*c->width+x];
-      if(fdata > 1) fdata = 1;
-      int data = fdata * (1<<24);
-      /*
-         frame->data[0][y*size[0]+x] = data & 255;  //Y
-         data = data>>8;
-         if(y%2==0 && x%2==0) {
-         frame->data[1][y/2*size[1]+x/2] = (data & 255)/4;
-         frame->data[2][y/2*size[2]+x/2] = (data>>8)/4;
-         }else{
-         frame->data[1][y/2*size[1]+x/2] += (data & 255)/4;
-         frame->data[2][y/2*size[2]+x/2] += (data>>8)/4;
-         }
-         */
-      frame->data[0][y*size[0]+x] = (data & 15) + ((data >> 8) & (15<<4));  //Y
-      data = data>>4;
-      if(y%2==0 && x%2==0) {
-        frame->data[1][y/2*size[1]+x/2] = ((data & 15) + ((data >> 8) & (15<<4)))/4;
-        data = data>>4;
-        frame->data[2][y/2*size[2]+x/2] = ((data & 15) + ((data >> 8) & (15<<4)))/4;
-      }else{
-        frame->data[1][y/2*size[1]+x/2] += ((data & 15) + ((data >> 8) & (15<<4)))/4;
-        data = data>>4;
-        frame->data[2][y/2*size[2]+x/2] += ((data & 15) + ((data >> 8) & (15<<4)))/4;
-      }
-    }
-  }
+
+void flushVideo(void* ptr, void* buffer) {
+  struct video* thisvid = (struct video*)ptr;
+  uint8_t* rgb_data = (uint8_t*)buffer;
+
+  // Temporary RGB frame pointing to user buffer
+  AVFrame *rgb_frame = av_frame_alloc();
+  rgb_frame->format = AV_PIX_FMT_RGB24;
+  rgb_frame->width = thisvid->width;
+  rgb_frame->height = thisvid->height;
+  rgb_frame->data[0] = rgb_data;
+  rgb_frame->linesize[0] = thisvid->width * 3;
+
+  // Convert RGB → YUV420P with correct 4:2:0 subsampling
+  sws_scale(
+    thisvid->sws_ctx,
+    rgb_frame->data, rgb_frame->linesize,
+    0, thisvid->height,
+    thisvid->frame->data, thisvid->frame->linesize
+  );
+
+  av_frame_free(&rgb_frame);
+
+  // Encode frame
+  thisvid->frame->pts = thisvid->frame->pts >= 0 ? thisvid->frame->pts : 0;
   encode(thisvid);
-  frame->pts += 1;
+  thisvid->frame->pts++;
 }
 
-void flushVideo(void* ptr, void* buffer){  //buffer is rgb
-  struct video* thisvid = (struct video*) ptr;
-  unsigned char* dat = (unsigned char*)buffer;
-  AVFrame *frame = thisvid->frame;
-  AVCodecContext *c = thisvid->c;
-  int* size = frame->linesize;
-  av_frame_make_writable(frame);
-  for (int y = 0; y < c->height; y++) {
-    for (int x = 0; x < c->width; x++) {
-      unsigned char r,g,b;
-      int idx = 3*(y*c->width+x);
-      r = dat[idx];
-      g = dat[idx+1];
-      b = dat[idx+2];
-      frame->data[0][y*size[0]+x] = 0.257*r+0.564*g+0.098*b+16;  //Y
-      if(y%2==0 && x%2==0) {
-        frame->data[1][y/2*size[1]+x/2] = (-0.148*r-0.291*g+0.439*b+128)/4;
-        frame->data[2][y/2*size[2]+x/2] = (0.439*r-0.368*g-0.071*b+128)/4;
-      }else{
-        frame->data[1][y/2*size[1]+x/2] += (-0.148*r-0.291*g+0.439*b+128)/4; //Cb
-        frame->data[2][y/2*size[2]+x/2] += (0.439*r-0.368*g-0.071*b+128)/4; //Cr
-      }
-    }
+void flushVideo_float(void* ptr, void* buffer) {
+  struct video* thisvid = (struct video*)ptr;
+  float* float_data = (float*)buffer;
+
+  // Convert float [0.0,1.0] → grayscale RGB24
+  uint8_t* rgb_buf = (uint8_t*)av_malloc(thisvid->width * thisvid->height * 3);
+  for (int i = 0; i < thisvid->width * thisvid->height; i++) {
+    float val = float_data[i];
+    if (val < 0.0f) val = 0.0f;
+    else if (val > 1.0f) val = 1.0f;
+    uint8_t byte = (uint8_t)(val * 255.0f);
+    rgb_buf[i*3 + 0] = byte;  // R
+    rgb_buf[i*3 + 1] = byte;  // G
+    rgb_buf[i*3 + 2] = byte;  // B
   }
-  encode(thisvid);
-  frame->pts += 1;
-};
+
+  flushVideo(ptr, rgb_buf);
+  av_free(rgb_buf);
+}
+
 void saveVideo(void* ptr) {
   struct video* v = (struct video*)ptr;
 
-  // Wait for last frame
-  // Final flush: send NULL frame
+  // Flush encoder
   avcodec_send_frame(v->c, nullptr);
   int ret;
   while (1) {
     ret = avcodec_receive_packet(v->c, v->pkt);
     if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) break;
-    if (ret < 0) break;
+    if (ret < 0) {
+      fmt::println(stderr, "Flush error: {}", av_err2str(ret));
+      break;
+    }
 
     av_packet_rescale_ts(v->pkt, v->c->time_base, v->stream->time_base);
     v->pkt->stream_index = v->stream->index;
     av_write_frame(v->format, v->pkt);
+    if (v->av1_streamer) {
+      streamer_send_packet(v->av1_streamer, v->pkt);
+    }
     av_packet_unref(v->pkt);
   }
 
-  // Finalize file
   av_write_trailer(v->format);
 
   // Cleanup
+  if (v->av1_streamer) {
+    streamer_destroy(v->av1_streamer);
+  }
   if (!(v->format->oformat->flags & AVFMT_NOFILE)) {
     avio_closep(&v->format->pb);
   }
   avformat_free_context(v->format);
   avcodec_free_context(&v->c);
   av_frame_free(&v->frame);
-  av_packet_free(&v->pkt); // ← only free here
+  av_packet_free(&v->pkt);
+  sws_freeContext(v->sws_ctx);
   ccmemMngr.returnCache(v);
 }

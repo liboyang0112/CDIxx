@@ -351,6 +351,36 @@
     .image-container img {
       transition: transform 0.4s ease, box-shadow 0.3s ease, border 0.3s ease;
     }
+    /* Image inspection overlay */
+    .inspect-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      display: none;
+      cursor: grab;
+      overflow: hidden;
+    }
+    .inspect-image {
+      position: absolute;
+      transform-origin: 0 0;
+      transition: transform 0.1s ease;
+    }
+    .inspect-overlay .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 10001;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 20px;
+    }
   </style>
 </head>
 <body>
@@ -384,7 +414,7 @@
             </div>
           </div>
           
-          <div class="path-display" id="showpath">No working folder selected</div>
+          <div class="path-display"><a  id="showpath">No working folder selected</a></div>
           
           <!-- GPU Selection -->
           <div class="layui-form-item">
@@ -647,10 +677,16 @@
             </div>
           </div>
           
+          <video id="v" autoplay muted width="1280" height="720"></video>
           <div class="footer-note">
             <p>Atto CDI Processing System &copy; 2026 | Version 2.1.0</p>
             <p>Developed with Layui Framework for optimal performance and user experience</p>
           </div>
+        </div>
+        <!-- Image inspection overlay -->
+        <div class="inspect-overlay" id="inspectOverlay">
+          <div class="close-btn" id="closeInspect">✕ Close (Click or ESC)</div>
+          <img class="inspect-image" id="inspectImage" src="">
         </div>
       </div>
     </div>
@@ -684,6 +720,43 @@
 
   <script src="/layui/dist/layui.js"></script>
   <script>
+const video = document.getElementById('v');
+const mediaSource = new MediaSource();
+video.src = URL.createObjectURL(mediaSource);
+
+mediaSource.addEventListener('sourceopen', () => {
+  const sb = mediaSource.addSourceBuffer('video/mp4; codecs="hev1.1.6.L93.B0"');
+  fetch('/CDIxx/stream').then(r => {
+    const reader = r.body.getReader();
+    let buffer = new Uint8Array(0);
+    
+    const pump = () => {
+      reader.read().then(({done, value}) => {
+        if (done) return;
+        const tmp = new Uint8Array(buffer.length + value.length);
+        tmp.set(buffer); tmp.set(value, buffer.length);
+        buffer = tmp;
+        
+        // Split by HTTP chunk boundaries (simplified)
+        // In production: Parse chunked encoding properly
+        while (buffer.length > 10) {
+          // Find next chunk boundary (naive - use proper parser in prod)
+          const idx = buffer.findIndex((_, i) => 
+            buffer[i]===0x0D && buffer[i+1]===0x0A && 
+            buffer[i+2]===0x0D && buffer[i+3]===0x0A
+          );
+          if (idx === -1) break;
+          
+          const chunk = buffer.slice(0, idx);
+          if (!sb.updating) sb.appendBuffer(chunk);
+          buffer = buffer.slice(idx + 4);
+        }
+        pump();
+      });
+    };
+    pump();
+  });
+});
     // Initialize Layui modules
     layui.use(['form', 'element', 'layer'], function(){
       var form = layui.form;
@@ -804,6 +877,7 @@
         ele = document.getElementById('showpath');
         ele.href=path;
         ele.innerText = "Working Path: "+ path;
+        ele.href = path
       }
       fetch(url_path, {
         method: 'POST',
@@ -1058,10 +1132,149 @@
     ['recon', 'recon_phase', 'recon_input', 'solved', 'residual_img', 'logimg'].forEach(id => {
       selectListener(id);
     });
-    
     // Set initial selection
     document.getElementById('recon').classList.add('selected');
     document.getElementById('active-image-name').textContent = imageNames['recon'];
+    
+    // Image inspection mode
+    let inspectMode = false;
+    let inspectImage = null;
+    let offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    
+    function enableInspectMode(imgElement) {
+      const overlay = document.getElementById('inspectOverlay');
+      inspectImage = document.getElementById('inspectImage');
+      
+      overlay.style.display = 'block';
+      inspectMode = true;
+      
+      // Load image and position after load
+      inspectImage.onload = function() {
+        positionImageCenter();
+      };
+      
+      inspectImage.src = imgElement.src;
+      
+      // Add event listeners
+      overlay.addEventListener('mousedown', startDrag);
+      document.addEventListener('mousemove', dragImage);
+      document.addEventListener('mouseup', stopDrag);
+      document.addEventListener('keydown', handleKeydown);
+      document.getElementById('closeInspect').addEventListener('click', disableInspectMode);
+    }
+    
+    function disableInspectMode() {
+      const overlay = document.getElementById('inspectOverlay');
+      overlay.style.display = 'none';
+      inspectMode = false;
+      
+      // Remove event listeners
+      overlay.removeEventListener('mousedown', startDrag);
+      document.removeEventListener('mousemove', dragImage);
+      document.removeEventListener('mouseup', stopDrag);
+      document.removeEventListener('keydown', handleKeydown);
+      document.getElementById('closeInspect').removeEventListener('click', disableInspectMode);
+    }
+    
+    function positionImageCenter() {
+      if (!inspectImage) return;
+      const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
+      const imgWidth = inspectImage.naturalWidth;
+      const imgHeight = inspectImage.naturalHeight;
+      if (imgWidth === 0) {
+        inspectImage.onload = positionImageCenter;
+        return;
+      }
+      
+      // Set scale to fit at least one dimension
+      const scaleX = containerWidth / imgWidth;
+      const scaleY = containerHeight / imgHeight;
+      const scale = Math.max(scaleX, scaleY, 1);
+      
+      // Center the image
+      offsetX = (containerWidth - imgWidth * scale) / 2;
+      offsetY = (containerHeight - imgHeight * scale) / 2;
+      
+      updateImageTransform();
+    }
+    
+    function startDrag(e) {
+      if (e.target === document.getElementById('closeInspect')) return;
+      e.preventDefault();
+      isDragging = true;
+      dragStartX = e.clientX - offsetX;
+      dragStartY = e.clientY - offsetY;
+      document.getElementById('inspectOverlay').style.cursor = 'grabbing';
+    }
+    
+    function dragImage(e) {
+      if (!isDragging || !inspectMode) return;
+      e.preventDefault();
+      offsetX = e.clientX - dragStartX;
+      offsetY = e.clientY - dragStartY;
+      updateImageTransform();
+    }
+    
+    function stopDrag() {
+      isDragging = false;
+      document.getElementById('inspectOverlay').style.cursor = 'grab';
+    }
+    
+    function handleKeydown(e) {
+      if (e.key === 'Escape') {
+        disableInspectMode();
+      }
+    }
+    
+    function updateImageTransform() {
+      if (!inspectImage) return;
+      const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
+      const imgWidth = inspectImage.naturalWidth;
+      const imgHeight = inspectImage.naturalHeight;
+      
+      if (imgWidth === 0) return;
+      
+      // Calculate scale to fit image
+      const scaleX = containerWidth / imgWidth;
+      const scaleY = containerHeight / imgHeight;
+      const scale = Math.max(scaleX, scaleY, 1);
+      
+      inspectImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    }
+    
+    // Override selectListener to add inspection
+    function selectListenerWithInspect(imageid){
+      document.getElementById(imageid).addEventListener('click', function(e){
+        // Prevent inspection if clicking on controls
+        if (e.target.closest('.floating-controls')) return;
+        
+        // Remove selected class from all images
+        document.querySelectorAll('.image-container img').forEach(img => {
+          img.classList.remove('selected');
+        });
+        
+        // Add selected class to clicked image
+        this.classList.add('selected');
+        
+        // Update active image display in floating controls
+        document.getElementById('active-image-name').textContent = imageNames[imageid] || imageid;
+        
+        // Set as active image for transformations
+        operateImage = imageid;
+        
+        // Enable inspection mode
+        enableInspectMode(this);
+      });
+    }
+    
+    // Re-initialize with inspection
+    ['recon', 'recon_phase', 'recon_input', 'solved', 'residual_img', 'logimg'].forEach(id => {
+      selectListenerWithInspect(id);
+    });
     
     document.getElementById("rotate_btn").addEventListener('click',async ()=>{
       degree += 90;
@@ -1203,7 +1416,7 @@
           
           // Filter and display matching items
           let matches = 0;
-          for (i = 0; i < arr.length && matches < 10; i++) {
+          for (i = 0; i < arr.length; i++) {
             if (arr[i] && arr[i].substr(0, val.length).toUpperCase() == val.toUpperCase()) {
               matches++;
               b = document.createElement("DIV");
@@ -1305,8 +1518,6 @@
       // Initialize form rendering after DOM is ready
       layui.form.render();
       
-      // Set initial image selection
-      document.getElementById('recon').click();
     });
     // Toggle floating controls
     document.getElementById('toggle-floating-btn').addEventListener('click', function() {

@@ -9,9 +9,9 @@
 #include "cudaConfig.hpp"
 #include "videoWriter.hpp"
 #include "imgio.hpp"
-#include "preview.hpp"
 extern "C" {
 #include "freetype.hpp"
+#include "preview.h"
 }
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {
@@ -57,11 +57,11 @@ void getTurboColor(Real x, int bit_depth, char* store){
   }
 }
 
-int cuPlotter::initVideo(const char* filename, int fps, bool preview){
+int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool online){
   int handle = nvid;
   if(handle == 100){
     for(int i = 0; i < 100; i++){
-      if(videoWriterVec[handle] == 0){
+      if(videoWriterVec[i] == 0){
         handle = i;
       }
     }
@@ -71,7 +71,9 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview){
     fmt::print("You created too many videos (100), please release some before create new ones");
     exit(0);
   }
-  videoWriterVec[handle] = createVideo(filename, rows, cols, fps);
+  auto strfname = std::string(filename);
+  strfname.erase(strfname.size() - 4);
+  videoWriterVec[handle] = createVideo(filename, rows, cols, fps, online?("/tmp/CDIxx_" + strfname + ".sock").c_str():NULL);
   if(preview) {
     videoPreview[handle] = createPreview(filename, rows, cols);
   }
