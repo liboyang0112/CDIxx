@@ -73,9 +73,13 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool onlin
   }
   auto strfname = std::string(filename);
   strfname.erase(strfname.size() - 4);
-  videoWriterVec[handle] = createVideo(filename, rows, cols, fps, online?("/tmp/CDIxx_" + strfname + ".sock").c_str():NULL);
-  if(preview) {
-    videoPreview[handle] = createPreview(filename, rows, cols);
+  if(online){
+    videoWriterVec[handle] = createVideo(filename, rows, cols, fps, ("/tmp/CDIxx_" + strfname + ".sock").c_str());
+  }else {
+    videoWriterVec[handle] = createVideo(filename, rows, cols, fps, NULL);
+    if(preview) {
+      videoPreview[handle] = createPreview(filename, rows, cols);
+    }
   }
   toVideo = handle;
   return handle;

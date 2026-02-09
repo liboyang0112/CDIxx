@@ -68,7 +68,14 @@ static void* encode(void* arg) {
 void* createVideo(const char* filename, int row, int col, int fps, const char* stream_sock) {
   struct video* thisvid = (struct video*)ccmemMngr.borrowCache(sizeof(struct video));
   memset(thisvid, 0, sizeof(struct video));
-
+  if (col <= 0 || row <= 0) {
+    fmt::println(stderr, "Invalid dimensions: {}x{}", col, row);
+    exit(1);
+  }
+  if (col % 2 != 0 || row % 2 != 0) {
+    fmt::println(stderr, "NVENC requires even dimensions for YUV420P: {}x{}", col, row);
+    exit(1);
+  }
   thisvid->height = row;  // rows = height
   thisvid->width = col;   // cols = width
 
@@ -106,8 +113,8 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
   c->bit_rate = 8000000;
   c->width = col;    // width = columns
   c->height = row;   // height = rows
-  c->time_base = (AVRational){1, fps};
-  c->framerate = (AVRational){fps, 1};
+  c->framerate = (AVRational){fps, 1};  // Set framerate FIRST
+  c->time_base = av_inv_q(c->framerate); // Derive time_base from framerate
   c->pix_fmt = AV_PIX_FMT_YUV420P;  // av1_nvenc supports this natively
 
   // NVENC tuning options
@@ -176,25 +183,17 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
 
 void flushVideo(void* ptr, void* buffer) {
   struct video* thisvid = (struct video*)ptr;
-  uint8_t* rgb_data = (uint8_t*)buffer;
-
-  // Temporary RGB frame pointing to user buffer
-  AVFrame *rgb_frame = av_frame_alloc();
-  rgb_frame->format = AV_PIX_FMT_RGB24;
-  rgb_frame->width = thisvid->width;
-  rgb_frame->height = thisvid->height;
-  rgb_frame->data[0] = rgb_data;
-  rgb_frame->linesize[0] = thisvid->width * 3;
-
   // Convert RGB → YUV420P with correct 4:2:0 subsampling
+  const uint8_t* buf[1];
+  buf[0] = (const uint8_t*)buffer;
+  int s[1];
+  s[0] = thisvid->width * 3;
   sws_scale(
     thisvid->sws_ctx,
-    rgb_frame->data, rgb_frame->linesize,
+    buf, s,
     0, thisvid->height,
     thisvid->frame->data, thisvid->frame->linesize
   );
-
-  av_frame_free(&rgb_frame);
 
   // Encode frame
   thisvid->frame->pts = thisvid->frame->pts >= 0 ? thisvid->frame->pts : 0;

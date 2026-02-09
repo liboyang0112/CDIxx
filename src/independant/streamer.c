@@ -39,7 +39,7 @@ typedef struct {
 
 static void* accept_thread_func(void* arg);
 static void handle_client(Streamer* s, Client* client);
-static int write_packet(void* opaque, const uint8_t* buf, int buf_size);
+static int write_packet(void* opaque, uint8_t* buf, int buf_size);
 static void send_data(int fd, const uint8_t* data, size_t size);
 
 // ===== PUBLIC API =====
@@ -313,7 +313,7 @@ static void handle_client(Streamer* s, Client* client) {
     fprintf(stderr, "👋 Client disconnected\n");
 }
 
-static int write_packet(void* opaque, const uint8_t* buf, int buf_size) {
+static int write_packet(void* opaque, uint8_t* buf, int buf_size) {
     Client* client = (Client*)opaque;
     if (buf_size < 0 || buf_size > (int)(2 * 1024 * 1024)) return -1;
     memcpy(client->io_buffer, buf, buf_size);
