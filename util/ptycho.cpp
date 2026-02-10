@@ -381,7 +381,7 @@ class ptycho : public experimentConfig{
       cuPlotter plt_O;
       plt_O.init(row_O,column_O, outputDir);
       if(saveVideoEveryIter){
-        vidhandle_O = plt_O.initVideo("recon_object.mp4",24, 1);
+        vidhandle_O = plt_O.initVideo("recon_object.mp4",24, 1, online);
         plt_O.toVideo = -1;
         vidhandle_pupil = plt.initVideo("recon_pupil.mp4",24);
         vidhandle_probe = plt.initVideo("recon_probe.mp4",24);

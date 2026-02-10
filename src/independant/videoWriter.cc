@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <fmt/core.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "fmt/core.h"
@@ -12,7 +11,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>  // For correct RGB→YUV conversion
+#include <libswscale/swscale.h>
 }
 
 static const AVCodec *codec = nullptr;
@@ -23,10 +22,11 @@ struct video {
   AVFrame *frame;
   AVPacket *pkt;
   AVStream *stream;
-  struct SwsContext *sws_ctx;  // RGB24 → YUV420P converter
+  struct SwsContext *sws_ctx;
   void *av1_streamer;
-  int width;   // columns
-  int height;  // rows
+  int width;
+  int height;
+  bool use_raw_streaming;
 };
 
 static void* encode(void* arg) {
@@ -56,7 +56,8 @@ static void* encode(void* arg) {
       fmt::println(stderr, "Write error: {}", av_err2str(ret));
     }
 
-    if (v->av1_streamer) {
+    // Send packet to streamer if in packet mode (non-MJPEG)
+    if (v->av1_streamer && !v->use_raw_streaming) {
       streamer_send_packet(v->av1_streamer, v->pkt);
     }
     av_packet_unref(v->pkt);
@@ -76,11 +77,17 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
     fmt::println(stderr, "NVENC requires even dimensions for YUV420P: {}x{}", col, row);
     exit(1);
   }
-  thisvid->height = row;  // rows = height
-  thisvid->width = col;   // cols = width
+  thisvid->height = row;
+  thisvid->width = col;
 
-  if (stream_sock) {
-    thisvid->av1_streamer = streamer_create(stream_sock, col, row, fps);
+  thisvid->sws_ctx = sws_getContext(
+      col, row, AV_PIX_FMT_RGB24,
+      col, row, AV_PIX_FMT_YUV420P,
+      SWS_BILINEAR, nullptr, nullptr, nullptr
+  );
+  if (!thisvid->sws_ctx) {
+    fmt::println(stderr, "Could not initialize swscale context");
+    exit(1);
   }
 
   thisvid->pkt = av_packet_alloc();
@@ -90,13 +97,22 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
     exit(1);
   }
 
-  // Use av1_nvenc (supports yuv420p directly)
-  if (!codec) {
-    if(stream_sock)
-      codec = avcodec_find_encoder_by_name("av1_nvenc");
-    else {
-      codec = avcodec_find_encoder_by_name("hevc_nvenc");
+  // Handle MJPEG mode (raw stream for ffmpeg unix://)
+  if (stream_sock) {
+    if (strncmp(stream_sock, "mjpeg://", 8) == 0) {
+      thisvid->use_raw_streaming = true;
+      thisvid->av1_streamer = streamer_create(stream_sock, col, row, fps);
+    } else {
+      thisvid->use_raw_streaming = false;
+      thisvid->av1_streamer = streamer_create(stream_sock, col, row, fps);
     }
+  }
+
+  if (!codec) {
+    if (stream_sock && !thisvid->use_raw_streaming)
+      codec = avcodec_find_encoder_by_name("av1_nvenc");
+    else
+      codec = avcodec_find_encoder_by_name("hevc_nvenc");
   }
   if (!codec) {
     fmt::println(stderr, "Encoder not found. Ensure FFmpeg is built with NVENC support.");
@@ -111,32 +127,31 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
 
   AVCodecContext *c = thisvid->c = avcodec_alloc_context3(codec);
   c->bit_rate = 8000000;
-  c->width = col;    // width = columns
-  c->height = row;   // height = rows
-  c->framerate = (AVRational){fps, 1};  // Set framerate FIRST
-  c->time_base = av_inv_q(c->framerate); // Derive time_base from framerate
-  c->pix_fmt = AV_PIX_FMT_YUV420P;  // av1_nvenc supports this natively
+  c->width = col;
+  c->height = row;
+  c->framerate = (AVRational){fps, 1};
+  c->time_base = av_inv_q(c->framerate);
+  c->pix_fmt = AV_PIX_FMT_YUV420P;
 
-  // NVENC tuning options
-  av_opt_set(c->priv_data, "preset", "p7", 0);   // p7 = fastest/lowest latency
-  av_opt_set(c->priv_data, "tune", "ll", 0);     // low-latency mode
+  av_opt_set(c->priv_data, "preset", "p7", 0);
+  av_opt_set(c->priv_data, "tune", "ll", 0);
   av_opt_set(c->priv_data, "profile", "main", 0);
-  c->codec_tag = 0;  // Let muxer set proper FourCC for MP4
+  c->codec_tag = 0;
 
   ret = avcodec_open2(c, codec, nullptr);
   if (ret < 0) {
-    fmt::println(stderr, "Could not open av1_nvenc codec: {}", av_err2str(ret));
+    fmt::println(stderr, "Could not open codec: {}", av_err2str(ret));
     exit(1);
   }
 
-  // MUST copy params AFTER avcodec_open2()
   ret = avcodec_parameters_from_context(thisvid->stream->codecpar, c);
   if (ret < 0) {
     fmt::println(stderr, "Failed to copy codec params: {}", av_err2str(ret));
     exit(1);
   }
 
-  if (thisvid->av1_streamer) {
+  // Set encoder context for packet-mode streaming
+  if (thisvid->av1_streamer && !thisvid->use_raw_streaming) {
     streamer_set_encoder_context(thisvid->av1_streamer, c);
   }
 
@@ -154,7 +169,6 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
     exit(1);
   }
 
-  // Allocate encoder frame (YUV420P)
   AVFrame *frame = thisvid->frame = av_frame_alloc();
   frame->format = c->pix_fmt;
   frame->width = c->width;
@@ -167,35 +181,28 @@ void* createVideo(const char* filename, int row, int col, int fps, const char* s
     exit(1);
   }
 
-  // Setup swscale for correct RGB24 → YUV420P conversion
-  thisvid->sws_ctx = sws_getContext(
-    col, row, AV_PIX_FMT_RGB24,
-    col, row, AV_PIX_FMT_YUV420P,
-    SWS_BILINEAR, nullptr, nullptr, nullptr
-  );
-  if (!thisvid->sws_ctx) {
-    fmt::println(stderr, "Could not initialize swscale context");
-    exit(1);
-  }
-
   return thisvid;
 }
 
 void flushVideo(void* ptr, void* buffer) {
   struct video* thisvid = (struct video*)ptr;
-  // Convert RGB → YUV420P with correct 4:2:0 subsampling
-  const uint8_t* buf[1];
-  buf[0] = (const uint8_t*)buffer;
-  int s[1];
-  s[0] = thisvid->width * 3;
+  
+  // Convert RGB24 → YUV420P
+  const uint8_t* src_data[1] = {(const uint8_t*)buffer};
+  int src_stride[1] = {thisvid->width * 3}; // 3 bytes per pixel for RGB24
+  
   sws_scale(
-    thisvid->sws_ctx,
-    buf, s,
-    0, thisvid->height,
-    thisvid->frame->data, thisvid->frame->linesize
+      thisvid->sws_ctx,
+      src_data, src_stride,
+      0, thisvid->height,
+      thisvid->frame->data, thisvid->frame->linesize
   );
 
-  // Encode frame
+  // For MJPEG mode: send raw RGB to streamer for ffmpeg unix:// input
+  if (thisvid->use_raw_streaming && thisvid->av1_streamer) {
+    streamer_send_frame(thisvid->av1_streamer, buffer);
+  }
+
   thisvid->frame->pts = thisvid->frame->pts >= 0 ? thisvid->frame->pts : 0;
   encode(thisvid);
   thisvid->frame->pts++;
@@ -205,16 +212,20 @@ void flushVideo_float(void* ptr, void* buffer) {
   struct video* thisvid = (struct video*)ptr;
   float* float_data = (float*)buffer;
 
-  // Convert float [0.0,1.0] → grayscale RGB24
   uint8_t* rgb_buf = (uint8_t*)av_malloc(thisvid->width * thisvid->height * 3);
+  if (!rgb_buf) {
+    fmt::println(stderr, "Failed to allocate RGB buffer for float conversion");
+    return;
+  }
+  
   for (int i = 0; i < thisvid->width * thisvid->height; i++) {
     float val = float_data[i];
     if (val < 0.0f) val = 0.0f;
     else if (val > 1.0f) val = 1.0f;
     uint8_t byte = (uint8_t)(val * 255.0f);
-    rgb_buf[i*3 + 0] = byte;  // R
-    rgb_buf[i*3 + 1] = byte;  // G
-    rgb_buf[i*3 + 2] = byte;  // B
+    rgb_buf[i*3 + 0] = byte;
+    rgb_buf[i*3 + 1] = byte;
+    rgb_buf[i*3 + 2] = byte;
   }
 
   flushVideo(ptr, rgb_buf);
@@ -238,7 +249,9 @@ void saveVideo(void* ptr) {
     av_packet_rescale_ts(v->pkt, v->c->time_base, v->stream->time_base);
     v->pkt->stream_index = v->stream->index;
     av_write_frame(v->format, v->pkt);
-    if (v->av1_streamer) {
+    
+    // Send final packets to streamer if in packet mode
+    if (v->av1_streamer && !v->use_raw_streaming) {
       streamer_send_packet(v->av1_streamer, v->pkt);
     }
     av_packet_unref(v->pkt);

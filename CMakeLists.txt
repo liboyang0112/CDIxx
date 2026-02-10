@@ -187,6 +187,7 @@ if(USE_HIP)
       target_link_libraries(${libname} ${GPU_LIB_TARGET})
     endforeach( sourcefile ${APP_SOURCES} )
 
+    target_link_libraries(streamer_c turbojpeg)
     target_link_libraries(videoWriter_cc avformat avutil avcodec pthread streamer_c swscale)
     target_link_libraries(cuPlotter_cc preview_c videoWriter_cc freetype_c)
     target_link_libraries(broadBand_cc gsl gslcblas memManager_cc cuPlotter_cc)

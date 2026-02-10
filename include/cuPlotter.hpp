@@ -2,6 +2,7 @@
 #define __CUPLOTTER_H__
 
 #include "format.hpp"
+#include <cstdint>
 enum mode {MOD2,MOD, REAL, IMAG, PHASE, PHASERAD};
 
 class cuPlotter
@@ -19,7 +20,7 @@ class cuPlotter
   int nvid = 0;
   unsigned long int vid_thread = 0;
   public:
-  void *cv_cache = 0;
+  uint8_t *cv_cache = 0;
   void *videoWriterVec[100];
   void* videoPreview[100];
   int toVideo = -1;

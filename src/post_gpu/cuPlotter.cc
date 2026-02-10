@@ -74,7 +74,7 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool onlin
   auto strfname = std::string(filename);
   strfname.erase(strfname.size() - 4);
   if(online){
-    videoWriterVec[handle] = createVideo(filename, rows, cols, fps, ("/tmp/CDIxx_" + strfname + ".sock").c_str());
+    videoWriterVec[handle] = createVideo(filename, rows, cols, fps, ("mjpeg:///tmp/CDIxx_" + strfname + ".sock").c_str());
   }else {
     videoWriterVec[handle] = createVideo(filename, rows, cols, fps, NULL);
     if(preview) {
@@ -117,7 +117,7 @@ void cuPlotter::init(int rows_, int cols_, const char* prefix_){
   fmt::println("init plot {}, {}",rows_,cols_);
   rows=rows_;
   cols=cols_;
-  cv_cache = ccmemMngr.borrowCache(rows*cols*3);
+  cv_cache = (uint8_t*)ccmemMngr.borrowCache(rows*cols*3);
   cv_data = ccmemMngr.borrowCache(rows*cols*sizeof(pixeltype));
   cuCache_data = memMngr.borrowCache(rows*cols*3);
   if (prefix) {        // Free previous string if reinitializing

@@ -652,6 +652,18 @@
           <div class="embed-container">
             <embed id="prtf_plt" type="application/pdf" width="100%" height="320" src="about:blank">
           </div>
+
+          <div style="max-width: 1280px; margin: 30px auto; background: #000; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
+              <div style="padding: 15px; background: rgba(0,0,0,0.8); display: flex; justify-content: space-between; align-items: center; color: white; font-family: monospace;">
+                  <span style="display: flex; align-items: center;">
+                      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; animation: pulse 1.5s infinite;" id="streamStatus"></span>
+                      Live Reconstruction
+                  </span>
+                  <span>Latency: <span id="latency">--</span> s</span>
+              </div>
+              <video id="cdixxVideo" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+          </div>
+
           
           <!-- Logs Section -->
           <div class="section-title">Processing Logs</div>
@@ -717,7 +729,54 @@
       <div id="active-image-name" style="font-weight: bold; color: #1E9FFF; min-height: 18px;">recon</div>
     </div>
   </div>
-
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const video = document.getElementById('cdixxVideo');
+    const status = document.getElementById('streamStatus');
+    const latencyEl = document.getElementById('latency');
+    
+    if (Hls.isSupported()) {
+        const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 3,
+            maxBufferLength: 6,
+            maxMaxBufferLength: 10
+        });
+        
+        hls.loadSource('/CDIxx/stream/stream.m3u8');
+        hls.attachMedia(video);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            status.style.background = '#4caf50';
+            status.style.animation = 'none';
+            video.play().catch(e => console.log('Autoplay blocked:', e));
+        });
+        
+        hls.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) hls.destroy();
+        });
+        
+        // Update latency display
+        setInterval(() => {
+            if (hls.levels && hls.levels.length) {
+                const latency = (hls.liveSyncPosition || 0) - video.currentTime;
+                latencyEl.textContent = latency.toFixed(1);
+            }
+        }, 1000);
+    } 
+    // Fallback for Safari (native HLS support)
+    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = '/CDIxx/stream/stream.m3u8';
+        video.addEventListener('loadedmetadata', () => {
+            status.style.background = '#4caf50';
+            status.style.animation = 'none';
+            video.play().catch(e => console.log('Autoplay blocked:', e));
+        });
+    }
+});
+</script>
   <script src="/layui/dist/layui.js"></script>
   <script>
 const video = document.getElementById('v');
