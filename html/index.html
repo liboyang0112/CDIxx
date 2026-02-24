@@ -1,1602 +1,741 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <link rel="icon" type="image/png" href="logo.png">
-  <title>Atto CDI - Layui Interface</title>
-  <link rel="stylesheet" href="/layui/dist/css/layui.css">
-  <style>
-    body {
-      background-color: #f2f2f2;
-      padding: 15px;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      margin: 0;
-      min-height: 100vh;
-    }
-    .main-container {
-      max-width: 1400px;
-      margin: 0 auto;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      padding: 25px;
-      position: relative;
-      z-index: 10;
-    }
-    .section-title {
-      border-left: 4px solid #1E9FFF;
-      padding-left: 12px;
-      margin: 25px 0 15px;
-      font-weight: 600;
-      color: #333;
-      font-size: 18px;
-    }
-    .warning {
-      color: #FF5722;
-      margin: 8px 0;
-      padding: 10px;
-      background: #fffaf0;
-      border-radius: 4px;
-      border-left: 3px solid #FFB800;
-    }
-    .image-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      margin: 15px 0 60px; /* Extra bottom margin for floating controls */
-      justify-content: center;
-      position: relative;
-      z-index: 5;
-    }
-    .image-container img {
-      border: 2px solid #FF5722;
-      border-radius: 4px;
-      max-width: 100%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      transition: all 0.3s ease;
-      cursor: pointer;
-      position: relative;
-      z-index: 1;
-    }
-    .image-container img:hover {
-      transform: scale(1.03);
-      z-index: 10;
-    }
-    .image-container img.selected {
-      border: 3px solid #1E9FFF;
-      box-shadow: 0 0 12px rgba(30, 159, 255, 0.5);
-      z-index: 15;
-    }
-    .config-section {
-      background: #f8f9fa;
-      border-radius: 6px;
-      padding: 20px;
-      margin: 20px 0;
-      border: 1px solid #eee;
-    }
-    .log-container {
-      background: #2d2d2d;
-      color: #f8f8f2;
-      padding: 15px;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      max-height: 200px;
-      overflow-y: auto;
-      margin: 10px 0;
-      border-left: 3px solid #4CAF50;
-    }
-    .path-display {
-      background: #eef7ff;
-      padding: 8px 15px;
-      border-radius: 4px;
-      margin: 10px 0;
-      border-left: 3px solid #1E9FFF;
-      font-family: monospace;
-    }
-    .shift-input {
-      width: 70px !important;
-      margin: 0 5px;
-    }
-    .data-set-section {
-      background: #f9fbfd;
-      border-radius: 6px;
-      padding: 15px;
-      margin: 15px 0;
-      border: 1px solid #e6f7ff;
-      position: relative;
-    }
-    .data-set-section::before {
-      content: attr(data-title);
-      position: absolute;
-      top: -12px;
-      left: 15px;
-      background: #1E9FFF;
-      color: white;
-      padding: 0 10px;
-      border-radius: 12px;
-      font-size: 13px;
-      font-weight: 500;
-    }
-    .file-upload-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 8px 0;
-      flex-wrap: wrap;
-    }
-    .file-upload-container .layui-btn {
-      margin: 0;
-    }
-    .embed-container {
-      display: flex;
-      justify-content: center;
-      margin: 15px 0;
-      background: #f5f5f5;
-      padding: 10px;
-      border-radius: 4px;
-      position: relative;
-      z-index: 5;
-    }
-    .embed-container embed {
-      max-width: 100%;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    .help-link {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      color: #1E9FFF;
-      text-decoration: none;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      z-index: 20;
-      background: rgba(255,255,255,0.9);
-      padding: 5px 10px;
-      border-radius: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .help-link:hover {
-      color: #0066cc;
-      background: rgba(255,255,255,1);
-    }
-    .footer-note {
-      text-align: center;
-      margin-top: 25px;
-      color: #999;
-      font-size: 13px;
-      padding-top: 15px;
-      border-top: 1px solid #eee;
-    }
-    /* Autocomplete styles matching Layui theme */
-    .autocomplete {
-      position: relative;
-      display: inline-block;
-      width: 100%;
-    }
-    .autocomplete-items {
-      position: absolute;
-      border: 1px solid #e6e6e6;
-      border-bottom: none;
-      border-top: none;
-      z-index: 9999;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,.15);
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .autocomplete-items div {
-      padding: 8px 12px;
-      cursor: pointer;
-      border-bottom: 1px solid #f2f2f2;
-      font-size: 14px;
-    }
-    .autocomplete-items div:hover, .autocomplete-active {
-      background-color: #f2f2f2;
-    }
-    .autocomplete-active {
-      background-color: #5FB878 !important;
-      color: #fff;
-    }
-    .layui-form-label {
-      width: 130px;
-      padding: 9px 15px;
-    }
-    .layui-input-block {
-      margin-left: 155px;
-    }
-    
-    /* Floating image controls - FIXED POSITION */
-    .floating-controls {
-      position: fixed;
-      right: 30px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 9999;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      padding: 15px;
-      min-width: 160px;
-      transition: all 0.3s ease;
-      display: none;
-    }
-    #toggle-floating-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 9997;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    
-    .floating-controls:hover {
-      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
-    }
-    
-    .floating-controls .layui-btn {
-      width: 100%;
-      padding: 8px 12px;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      margin-left: 0 !important;
-      margin-right: 0 !important;
-      padding-left: 12px !important; /* Ensures consistent padding */
-    }
-    
-    .floating-controls .layui-btn i {
-      font-size: 16px;
-    }
-    
-    /* Configuration section layout: config left, buttons right */
-    .config-layout {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-    
-    .config-textarea {
-      flex: 3;
-      min-width: 300px;
-    }
-    
-    .config-buttons {
-      flex: 1;
-      min-width: 200px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      align-self: center;
-    }
-    
-    .config-buttons .layui-btn {
-      width: 100%;
-      padding: 8px;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      margin-left: 0 !important;
-      margin-right: 0 !important;
-      padding-left: 12px !important; /* Ensures consistent padding */
-    }
-    
-    .config-buttons .layui-btn i {
-      font-size: 16px;
-    }
-    
-    /* Responsive adjustments */
-    @media (max-width: 992px) {
-      .config-layout {
-        flex-direction: column;
-      }
-      
-      .config-buttons {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-      
-      .config-buttons .layui-btn {
-        min-width: 140px;
-      }
-      
-      .floating-controls {
-        display: none;
-      }
-    }
-    
-    @media (max-width: 768px) {
-      .layui-form-label {
-        width: 100%;
-        text-align: left;
-        padding: 9px 0;
-      }
-      .layui-input-block {
-        margin-left: 0;
-        margin-top: 5px;
-      }
-      .shift-input {
-        width: 60px !important;
-      }
-      .data-set-section::before {
-        position: relative;
-        top: auto;
-        left: auto;
-        display: inline-block;
-        margin-bottom: 10px;
-      }
-      .main-container {
-        padding: 15px;
-      }
-      .section-title {
-        font-size: 16px;
-        margin-top: 15px;
-      }
-    }
-    
-    /* Animation for image transformations */
-    .image-container img {
-      transition: transform 0.4s ease, box-shadow 0.3s ease, border 0.3s ease;
-    }
-    /* Image inspection overlay */
-    .inspect-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.95);
-      z-index: 10000;
-      display: none;
-      cursor: grab;
-      overflow: hidden;
-    }
-    .inspect-image {
-      position: absolute;
-      transform-origin: 0 0;
-      transition: transform 0.1s ease;
-    }
-    .inspect-overlay .close-btn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      color: white;
-      font-size: 24px;
-      cursor: pointer;
-      z-index: 10001;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 15px;
-      border-radius: 20px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="icon" type="image/png" href="logo.png">
+    <title>Atto CDI - Layui Interface</title>
+    <link rel="stylesheet" href="/layui/dist/css/layui.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="main-container">
-    <a href="web.pdf" class="help-link"><i class="layui-icon layui-icon-help"></i> HELP!</a>
-    
-    <h1 style="text-align: center; margin-bottom: 25px; color: #1E9FFF; font-weight: 600;">
-      <i class="layui-icon layui-icon-chart" style="font-size: 28px; margin-right: 8px;"></i>
-      Atto CDI Processing Interface
-    </h1>
-    
-    <div class="layui-row">
-      <div class="layui-col-md12">
-        <div class="layui-form">
-          <!-- Working Folder Section -->
-          <div class="layui-form-item">
-            <label class="layui-form-label">Working Folder</label>
-            <div class="layui-input-inline" style="width: 250px;">
-              <div class="autocomplete">
-                <input type="text" autocomplete="off" placeholder="Your Subdirectory" id="path" class="layui-input">
-              </div>
-            </div>
-            <div class="layui-input-inline">
-              <button class="layui-btn" id="setpath"><i class="layui-icon layui-icon-ok"></i> Confirm Folder</button>
-            </div>
-            <div class="layui-input-inline">
-              <button class="layui-btn layui-btn-primary" id="reload"><i class="layui-icon layui-icon-refresh"></i> Load Images</button>
-            </div>
-            <div class="layui-input-inline">
-              <a href="images" class="layui-btn layui-btn-normal layui-btn-sm"><i class="layui-icon layui-icon-folder"></i> Show Repository</a>
-            </div>
-          </div>
-          
-          <div class="path-display"><a  id="showpath">No working folder selected</a></div>
-          
-          <!-- GPU Selection -->
-          <div class="layui-form-item">
-            <label class="layui-form-label">Select GPU</label>
-            <div class="layui-input-inline" style="width: 100px;">
-              <div class="autocomplete">
-                <input type="text" autocomplete="off" placeholder="0" id="iGPU" class="layui-input">
-              </div>
-            </div>
-            <div class="layui-input-inline">
-              <button class="layui-btn layui-btn-warm" id="selGPU_btn"><i class="layui-icon layui-icon-set"></i> Confirm GPU</button>
-            </div>
-          </div>
-          
-          <!-- Experiment Note Section -->
-          <div class="section-title">Experiment Notes</div>
-          <div class="layui-form-item layui-form-text">
-            <div class="layui-input-block">
-              <textarea id="note" placeholder="After selecting working folder, you can edit file here" class="layui-textarea" rows="6"></textarea>
-            </div>
-          </div>
-          <div style="display: flex; gap: 10px; margin: 10px 0;">
-            <button class="layui-btn" id="savenote"><i class="layui-icon layui-icon-save"></i> Save Note</button>
-            <button class="layui-btn layui-btn-primary" id="savenote_def"><i class="layui-icon layui-icon-template-1"></i> Save As Default</button>
-          </div>
-          
-          <div class="warning">
-            <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
-            Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.
-          </div>
-          
-          <!-- File Upload Section -->
-          <div class="section-title">File Upload</div>
-          
-          <div class="file-upload-container">
-            <span>Upload background:</span>
-            <div class="layui-input-inline" style="width: 220px;">
-              <input type="file" id="background" class="layui-input">
-            </div>
-            <span>Upload pattern:</span>
-            <div class="layui-input-inline" style="width: 220px;">
-              <input type="file" id="image" class="layui-input">
-            </div>
-            <button class="layui-btn" id="uploadimg"><i class="layui-icon layui-icon-upload"></i> Upload Images</button>
-          </div>
-          
-          <div class="file-upload-container">
-            <span>Upload Spectrum:</span>
-            <div class="layui-input-inline" style="width: 220px;">
-              <input type="file" id="spectrumtoupload" multiple class="layui-input">
-            </div>
-            <button class="layui-btn" id="uploadspectrum"><i class="layui-icon layui-icon-upload"></i> Upload Spectrum</button>
-            <a href="images/spectrum" class="layui-btn layui-btn-normal layui-btn-sm"><i class="layui-icon layui-icon-file"></i> Show Spectrum Files</a>
-          </div>
-          
-          <div class="file-upload-container">
-            <span>Upload other files:</span>
-            <div class="layui-input-inline" style="width: 220px;">
-              <input type="file" id="filestoupload" multiple class="layui-input">
-            </div>
-            <button class="layui-btn" id="uploadfiles"><i class="layui-icon layui-icon-upload"></i> Upload Files</button>
-          </div>
-          
-          <!-- Spectrum Selection -->
-          <div class="layui-form-item">
-            <label class="layui-form-label">Select Spectrum</label>
-            <div class="layui-input-inline" style="width: 250px;">
-              <div class="autocomplete">
-                <input type="text" autocomplete="off" id="runspectfile" class="layui-input">
-              </div>
-            </div>
-            <div class="layui-input-inline">
-              <button class="layui-btn" id="setspect"><i class="layui-icon layui-icon-ok"></i> Confirm Spectrum</button>
-            </div>
-          </div>
-          
-          <!-- Data Set Configuration -->
-          <div class="section-title">Data Set Configuration</div>
-          
-          <div class="data-set-section" data-title="Data Set 1">
-            <div class="layui-form-item">
-              <label class="layui-form-label">Background</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <div class="autocomplete">
-                  <input type="text" autocomplete="off" id="runbkgfile1" class="layui-input">
+    <div class="main-container">
+        <a href="web.pdf" class="help-link">
+            <i class="layui-icon layui-icon-help"></i> HELP!
+        </a>
+        
+        <h1 style="text-align: center; margin-bottom: 25px; color: #1E9FFF; font-weight: 600;">
+            <i class="layui-icon layui-icon-chart" style="font-size: 28px; margin-right: 8px;"></i>
+            Atto CDI Processing Interface
+        </h1>
+        
+        <div class="layui-row">
+            <div class="layui-col-md12">
+                <div class="layui-form">
+                    
+                    <!-- Working Folder Section -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Working Folder</label>
+                        <div class="layui-input-inline" style="width: 250px;">
+                            <div class="autocomplete">
+                                <input type="text" autocomplete="off" placeholder="Your Subdirectory" id="path" class="layui-input">
+                            </div>
+                        </div>
+                        <div class="layui-input-inline">
+                            <button class="layui-btn" id="setpath">
+                                <i class="layui-icon layui-icon-ok"></i> Confirm Folder
+                            </button>
+                        </div>
+                        <div class="layui-input-inline">
+                            <button class="layui-btn layui-btn-primary" id="reload">
+                                <i class="layui-icon layui-icon-refresh"></i> Load Images
+                            </button>
+                        </div>
+                        <div class="layui-input-inline">
+                            <a href="images" class="layui-btn layui-btn-normal layui-btn-sm">
+                                <i class="layui-icon layui-icon-folder"></i> Show Repository
+                            </a>
+                        </div>
+                    </div>
+                    <div class="path-display">
+                        <a id="showpath">No working folder selected</a>
+                    </div>
+                    
+                    <!-- GPU Selection -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Select GPU</label>
+                        <div class="layui-input-inline" style="width: 100px;">
+                            <div class="autocomplete">
+                                <input type="text" autocomplete="off" placeholder="0" id="iGPU" class="layui-input">
+                            </div>
+                        </div>
+                        <div class="layui-input-inline">
+                            <button class="layui-btn layui-btn-warm" id="selGPU_btn">
+                                <i class="layui-icon layui-icon-set"></i> Confirm GPU
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Experiment Note Section -->
+                    <div class="section-title">Experiment Notes</div>
+                    <div class="layui-form-item layui-form-text">
+                        <div class="layui-input-block">
+                            <textarea id="note" placeholder="After selecting working folder, you can edit file here" class="layui-textarea" rows="6"></textarea>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin: 10px 0;">
+                        <button class="layui-btn" id="savenote">
+                            <i class="layui-icon layui-icon-save"></i> Save Note
+                        </button>
+                        <button class="layui-btn layui-btn-primary" id="savenote_def">
+                            <i class="layui-icon layui-icon-template-1"></i> Save As Default
+                        </button>
+                    </div>
+                    <div class="warning">
+                        <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
+                        Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.
+                    </div>
+                    
+                    <!-- File Upload Section -->
+                    <div class="section-title">File Upload</div>
+                    <div class="file-upload-container">
+                        <span>Upload background:</span>
+                        <div class="layui-input-inline" style="width: 220px;">
+                            <input type="file" id="background" class="layui-input">
+                        </div>
+                        <span>Upload pattern:</span>
+                        <div class="layui-input-inline" style="width: 220px;">
+                            <input type="file" id="image" class="layui-input">
+                        </div>
+                        <button class="layui-btn" id="uploadimg">
+                            <i class="layui-icon layui-icon-upload"></i> Upload Images
+                        </button>
+                    </div>
+                    
+                    <div class="file-upload-container">
+                        <span>Upload Spectrum:</span>
+                        <div class="layui-input-inline" style="width: 220px;">
+                            <input type="file" id="spectrumtoupload" multiple class="layui-input">
+                        </div>
+                        <button class="layui-btn" id="uploadspectrum">
+                            <i class="layui-icon layui-icon-upload"></i> Upload Spectrum
+                        </button>
+                        <a href="images/spectrum" class="layui-btn layui-btn-normal layui-btn-sm">
+                            <i class="layui-icon layui-icon-file"></i> Show Spectrum Files
+                        </a>
+                    </div>
+                    
+                    <div class="file-upload-container">
+                        <span>Upload other files:</span>
+                        <div class="layui-input-inline" style="width: 220px;">
+                            <input type="file" id="filestoupload" multiple class="layui-input">
+                        </div>
+                        <button class="layui-btn" id="uploadfiles">
+                            <i class="layui-icon layui-icon-upload"></i> Upload Files
+                        </button>
+                    </div>
+                    
+                    <!-- Spectrum Selection -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Select Spectrum</label>
+                        <div class="layui-input-inline" style="width: 250px;">
+                            <div class="autocomplete">
+                                <input type="text" autocomplete="off" id="runspectfile" class="layui-input">
+                            </div>
+                        </div>
+                        <div class="layui-input-inline">
+                            <button class="layui-btn" id="setspect">
+                                <i class="layui-icon layui-icon-ok"></i> Confirm Spectrum
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Data Set Configuration -->
+                    <div class="section-title">Data Set Configuration</div>
+                    <div class="data-set-section" data-title="Data Set 1">
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">Background</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <div class="autocomplete">
+                                    <input type="text" autocomplete="off" id="runbkgfile1" class="layui-input">
+                                </div>
+                            </div>
+                            <label class="layui-form-label">Pattern</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <div class="autocomplete">
+                                    <input type="text" autocomplete="off" id="runimgfile1" class="layui-input">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">Output Name</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <input type="text" id="runimgout1" value="broad_pattern" class="layui-input">
+                            </div>
+                            <label class="layui-form-label">Shift (x, y)</label>
+                            <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
+                                <input type="text" id="shiftx1" class="layui-input shift-input" value="0">
+                                <span style="font-size: 14px; color: #666;">,</span>
+                                <input type="text" id="shifty1" class="layui-input shift-input" value="0">
+                            </div>
+                            <div class="layui-input-inline">
+                                <input type="radio" name="idata" value="1" id="idata1" title="Use Data Set 1" checked>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="data-set-section" data-title="Data Set 2">
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">Background</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <div class="autocomplete">
+                                    <input type="text" autocomplete="off" id="runbkgfile2" class="layui-input">
+                                </div>
+                            </div>
+                            <label class="layui-form-label">Pattern</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <div class="autocomplete">
+                                    <input type="text" autocomplete="off" id="runimgfile2" class="layui-input">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">Output Name</label>
+                            <div class="layui-input-inline" style="width: 200px;">
+                                <input type="text" id="runimgout2" value="hene_pattern" class="layui-input">
+                            </div>
+                            <label class="layui-form-label">Shift (x, y)</label>
+                            <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
+                                <input type="text" id="shiftx2" class="layui-input shift-input" value="0">
+                                <span style="font-size: 14px; color: #666;">,</span>
+                                <input type="text" id="shifty2" class="layui-input shift-input" value="0">
+                            </div>
+                            <div class="layui-input-inline">
+                                <input type="radio" name="idata" value="2" id="idata2" title="Use Data Set 2">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Processing Options -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Merge Factor</label>
+                        <div class="layui-input-inline" style="width: 120px;">
+                            <select id="nmerge" class="layui-select">
+                                <option value="1">Do not merge</option>
+                                <option value="2">2x2</option>
+                                <option value="3" selected>3x3</option>
+                                <option value="4">4x4</option>
+                                <option value="5">5x5</option>
+                                <option value="6">6x6</option>
+                                <option value="7">7x7</option>
+                                <option value="8">8x8</option>
+                            </select>
+                        </div>
+                        <div class="layui-input-inline">
+                            <input type="checkbox" id="symmetric" name="symmetric" title="Apply Symmetrization" lay-skin="primary">
+                        </div>
+                        <div class="layui-input-inline">
+                            <button class="layui-btn layui-btn-danger" id="prepare">
+                                <i class="layui-icon layui-icon-play"></i> Process Experimental Data
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Spectrum Display -->
+                    <div class="embed-container">
+                        <embed id="spectrum_plt" type="application/pdf" width="100%" height="220" src="about:blank">
+                    </div>
+                    
+                    <!-- Monochromatization Section -->
+                    <div class="section-title">Monochromatization Configuration</div>
+                    <div class="config-section">
+                        <div class="config-layout">
+                            <div class="config-textarea">
+                                <div class="layui-form-item layui-form-text">
+                                    <div class="layui-input-block">
+                                        <textarea id="monoconfig" placeholder="After selecting working folder, you can edit file here" class="layui-textarea" rows="10"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="config-buttons">
+                                <button class="layui-btn" id="savepulse">
+                                    <i class="layui-icon layui-icon-save"></i> Save
+                                </button>
+                                <button class="layui-btn layui-btn-primary" id="savepulse_def">
+                                    <i class="layui-icon layui-icon-template-1"></i> Save As Default
+                                </button>
+                                <button class="layui-btn layui-btn-warm" id="monochrome_btn">
+                                    <i class="layui-icon layui-icon-play"></i> Run Monochromatization
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Monochromatization Results -->
+                    <div class="section-title">Monochromatization Results</div>
+                    <div class="image-container">
+                        <img id="logimg" width="220" alt="Monochromatization input">
+                        <img id="solved" width="220" alt="Solved monochromatic pattern">
+                        <img id="residual_img" width="220" alt="Residual of monochromatization">
+                    </div>
+                    <div class="embed-container">
+                        <embed id="residual" type="application/pdf" width="100%" height="320" src="about:blank">
+                    </div>
+                    
+                    <!-- CDI Reconstruction Section -->
+                    <div class="section-title">CDI Reconstruction Configuration</div>
+                    <div class="config-section">
+                        <div class="config-layout">
+                            <div class="config-textarea">
+                                <div class="layui-form-item layui-form-text">
+                                    <div class="layui-input-block">
+                                        <textarea id="cdiconfig" placeholder="After selecting working folder, you can edit config file here" class="layui-textarea" rows="10"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="config-buttons">
+                                <button class="layui-btn" id="savecdi">
+                                    <i class="layui-icon layui-icon-save"></i> Save
+                                </button>
+                                <button class="layui-btn layui-btn-primary" id="savecdi_def">
+                                    <i class="layui-icon layui-icon-template-1"></i> Save As Default
+                                </button>
+                                <button class="layui-btn layui-btn-danger" id="cdi_btn">
+                                    <i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction
+                                </button>
+                                <button class="layui-btn" id="compute_prtf">
+                                    <i class="layui-icon layui-icon-chart"></i> Compute PRTF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- CDI Results -->
+                    <div class="section-title">CDI Reconstruction Results</div>
+                    <div class="image-container">
+                        <img id="recon_input" width="240" alt="CDI input">
+                        <img id="recon" width="240" alt="CDI reconstruction intensity">
+                        <img id="recon_phase" width="240" alt="CDI reconstruction phase">
+                    </div>
+                    <div class="embed-container">
+                        <embed id="prtf_plt" type="application/pdf" width="100%" height="320" src="about:blank">
+                    </div>
+                    
+                    <!-- Live Reconstruction Stream -->
+                    <div class="section-title">Live Reconstruction Stream</div>
+                    <div class="live-stream-container">
+                        <div class="live-stream-header">
+                            <span style="display: flex; align-items: center;">
+                                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; animation: pulse 1.5s infinite;" id="streamStatus"></span>
+                                Live Reconstruction (1s delay)
+                            </span>
+                            <span>Latency: <span id="latency">--</span> s</span>
+                        </div>
+                        <video id="cdixxVideo" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+                    </div>
+                    
+                    <!-- Logs Section -->
+                    <div class="section-title">Processing Logs</div>
+                    <div class="layui-collapse" lay-filter="log-collapse" lay-accordion>
+                        <div class="layui-colla-item">
+                            <h2 class="layui-colla-title">Prepare Log</h2>
+                            <div class="layui-colla-content">
+                                <div class="log-container" id="preparelog">No log available</div>
+                            </div>
+                        </div>
+                        <div class="layui-colla-item">
+                            <h2 class="layui-colla-title">Monochromatization Log</h2>
+                            <div class="layui-colla-content">
+                                <div class="log-container" id="monolog">No log available</div>
+                            </div>
+                        </div>
+                        <div class="layui-colla-item">
+                            <h2 class="layui-colla-title">CDI Reconstruction Log</h2>
+                            <div class="layui-colla-content">
+                                <div class="log-container" id="cdilog">No log available</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="footer-note">
+                        <p>Atto CDI Processing System &copy; 2026 | Version 2.1.0</p>
+                        <p>Developed with Layui Framework for optimal performance and user experience</p>
+                    </div>
                 </div>
-              </div>
-              <label class="layui-form-label">Pattern</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <div class="autocomplete">
-                  <input type="text" autocomplete="off" id="runimgfile1" class="layui-input">
-                </div>
-              </div>
             </div>
-            
-            <div class="layui-form-item">
-              <label class="layui-form-label">Output Name</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <input type="text" id="runimgout1" value="broad_pattern" class="layui-input">
-              </div>
-              <label class="layui-form-label">Shift (x, y)</label>
-              <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
-                <input type="text" id="shiftx1" class="layui-input shift-input" value="0">
-                <span style="font-size: 14px; color: #666;">,</span>
-                <input type="text" id="shifty1" class="layui-input shift-input" value="0">
-              </div>
-              <div class="layui-input-inline">
-                <input type="radio" name="idata" value="1" id="idata1" title="Use Data Set 1" checked>
-              </div>
-            </div>
-          </div>
-          
-          <div class="data-set-section" data-title="Data Set 2">
-            <div class="layui-form-item">
-              <label class="layui-form-label">Background</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <div class="autocomplete">
-                  <input type="text" autocomplete="off" id="runbkgfile2" class="layui-input">
-                </div>
-              </div>
-              <label class="layui-form-label">Pattern</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <div class="autocomplete">
-                  <input type="text" autocomplete="off" id="runimgfile2" class="layui-input">
-                </div>
-              </div>
-            </div>
-            
-            <div class="layui-form-item">
-              <label class="layui-form-label">Output Name</label>
-              <div class="layui-input-inline" style="width: 200px;">
-                <input type="text" id="runimgout2" value="hene_pattern" class="layui-input">
-              </div>
-              <label class="layui-form-label">Shift (x, y)</label>
-              <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
-                <input type="text" id="shiftx2" class="layui-input shift-input" value="0">
-                <span style="font-size: 14px; color: #666;">,</span>
-                <input type="text" id="shifty2" class="layui-input shift-input" value="0">
-              </div>
-              <div class="layui-input-inline">
-                <input type="radio" name="idata" value="2" id="idata2" title="Use Data Set 2">
-              </div>
-            </div>
-          </div>
-          
-          <!-- Processing Options -->
-          <div class="layui-form-item">
-            <label class="layui-form-label">Merge Factor</label>
-            <div class="layui-input-inline" style="width: 120px;">
-              <select id="nmerge" class="layui-select">
-                <option value="1">Do not merge</option>
-                <option value="2">2x2</option>
-                <option value="3" selected>3x3</option>
-                <option value="4">4x4</option>
-                <option value="5">5x5</option>
-                <option value="6">6x6</option>
-                <option value="7">7x7</option>
-                <option value="8">8x8</option>
-              </select>
-            </div>
-            
-            <div class="layui-input-inline">
-              <input type="checkbox" id="symmetric" name="symmetric" title="Apply Symmetrization" lay-skin="primary">
-            </div>
-            
-            <div class="layui-input-inline">
-              <button class="layui-btn layui-btn-danger" id="prepare"><i class="layui-icon layui-icon-play"></i> Process Experimental Data</button>
-            </div>
-          </div>
-          
-          <!-- Spectrum Display -->
-          <div class="embed-container">
-            <embed id="spectrum_plt" type="application/pdf" width="100%" height="220" src="about:blank">
-          </div>
-          
-          <!-- Monochromatization Section -->
-          <div class="section-title">Monochromatization Configuration</div>
-          <div class="config-section">
-            <div class="config-layout">
-              <div class="config-textarea">
-                <div class="layui-form-item layui-form-text">
-                  <div class="layui-input-block">
-                    <textarea id="monoconfig" placeholder="After selecting working folder, you can edit file here" class="layui-textarea" rows="10"></textarea>
-                  </div>
-                </div>
-              </div>
-              <div class="config-buttons">
-                <button class="layui-btn" id="savepulse"><i class="layui-icon layui-icon-save"></i> Save</button>
-                <button class="layui-btn layui-btn-primary" id="savepulse_def"><i class="layui-icon layui-icon-template-1"></i> Save As Default</button>
-                <button class="layui-btn layui-btn-warm" id="monochrome_btn"><i class="layui-icon layui-icon-play"></i> Run Monochromatization</button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Monochromatization Results -->
-          <div class="section-title">Monochromatization Results</div>
-          <div class="image-container">
-            <img id="logimg" width="220" alt="Monochromatization input">
-            <img id="solved" width="220" alt="Solved monochromatic pattern">
-            <img id="residual_img" width="220" alt="Residual of monochromatization">
-          </div>
-          
-          <div class="embed-container">
-            <embed id="residual" type="application/pdf" width="100%" height="320" src="about:blank">
-          </div>
-          
-          <!-- CDI Reconstruction Section -->
-          <div class="section-title">CDI Reconstruction Configuration</div>
-          <div class="config-section">
-            <div class="config-layout">
-              <div class="config-textarea">
-                <div class="layui-form-item layui-form-text">
-                  <div class="layui-input-block">
-                    <textarea id="cdiconfig" placeholder="After selecting working folder, you can edit config file here" class="layui-textarea" rows="10"></textarea>
-                  </div>
-                </div>
-              </div>
-              <div class="config-buttons">
-                <button class="layui-btn" id="savecdi"><i class="layui-icon layui-icon-save"></i> Save</button>
-                <button class="layui-btn layui-btn-primary" id="savecdi_def"><i class="layui-icon layui-icon-template-1"></i> Save As Default</button>
-                <button class="layui-btn layui-btn-danger" id="cdi_btn"><i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction</button>
-                <button class="layui-btn" id="compute_prtf"><i class="layui-icon layui-icon-chart"></i> Compute PRTF</button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- CDI Results -->
-          <div class="section-title">CDI Reconstruction Results</div>
-          <div class="image-container">
-            <img id="recon_input" width="240" alt="CDI input">
-            <img id="recon" width="240" alt="CDI reconstruction intensity">
-            <img id="recon_phase" width="240" alt="CDI reconstruction phase">
-          </div>
-          
-          <div class="embed-container">
-            <embed id="prtf_plt" type="application/pdf" width="100%" height="320" src="about:blank">
-          </div>
-
-          <div style="max-width: 1280px; margin: 30px auto; background: #000; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
-              <div style="padding: 15px; background: rgba(0,0,0,0.8); display: flex; justify-content: space-between; align-items: center; color: white; font-family: monospace;">
-                  <span style="display: flex; align-items: center;">
-                      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; animation: pulse 1.5s infinite;" id="streamStatus"></span>
-                      Live Reconstruction
-                  </span>
-                  <span>Latency: <span id="latency">--</span> s</span>
-              </div>
-              <video id="cdixxVideo" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
-          </div>
-
-          
-          <!-- Logs Section -->
-          <div class="section-title">Processing Logs</div>
-          
-          <div class="layui-collapse" lay-filter="log-collapse" lay-accordion>
-            <div class="layui-colla-item">
-              <h2 class="layui-colla-title">Prepare Log</h2>
-              <div class="layui-colla-content">
-                <div class="log-container" id="preparelog">No log available</div>
-              </div>
-            </div>
-            <div class="layui-colla-item">
-              <h2 class="layui-colla-title">Monochromatization Log</h2>
-              <div class="layui-colla-content">
-                <div class="log-container" id="monolog">No log available</div>
-              </div>
-            </div>
-            <div class="layui-colla-item">
-              <h2 class="layui-colla-title">CDI Reconstruction Log</h2>
-              <div class="layui-colla-content">
-                <div class="log-container" id="cdilog">No log available</div>
-              </div>
-            </div>
-          </div>
-          
-          <video id="v" autoplay muted width="1280" height="720"></video>
-          <div class="footer-note">
-            <p>Atto CDI Processing System &copy; 2026 | Version 2.1.0</p>
-            <p>Developed with Layui Framework for optimal performance and user experience</p>
-          </div>
         </div>
+        
         <!-- Image inspection overlay -->
         <div class="inspect-overlay" id="inspectOverlay">
-          <div class="close-btn" id="closeInspect">✕ Close (Click or ESC)</div>
-          <img class="inspect-image" id="inspectImage" src="">
+            <div class="close-btn" id="closeInspect">✕ Close (Click or ESC)</div>
+            <img class="inspect-image" id="inspectImage" src="">
         </div>
-      </div>
     </div>
-  </div>
-  
-  <!-- Floating Image Controls - FIXED POSITION -->
+    
+    <!-- Floating Image Controls -->
     <button id="toggle-floating-btn" class="layui-btn layui-btn-primary layui-btn-sm">
-      <i class="layui-icon layui-icon-down"></i> Show Image Tools
+        <i class="layui-icon layui-icon-down"></i> Show Image Tools
     </button>
-  <div class="floating-controls">
-    <button id="close-floating-btn" class="layui-btn layui-btn-primary">
-      <i class="layui-icon layui-icon-close"></i>
-    </button>
-    <button class="layui-btn layui-btn-primary" id="rotate_btn">
-      <i class="layui-icon layui-icon-rotate"></i> Rotate 90°
-    </button>
-    <button class="layui-btn layui-btn-primary" id="rotate180_btn">
-      <i class="layui-icon layui-icon-rotate-180"></i> Transpose
-    </button>
-    <button class="layui-btn layui-btn-primary" id="flip_btn">
-      <i class="layui-icon layui-icon-horizontal"></i> Flip
-    </button>
-    <button class="layui-btn layui-btn-primary" id="reset_btn">
-      <i class="layui-icon layui-icon-refresh"></i> Reset
-    </button>
-    <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #666;">
-      <div>Active Image:</div>
-      <div id="active-image-name" style="font-weight: bold; color: #1E9FFF; min-height: 18px;">recon</div>
+    <div class="floating-controls">
+        <button id="close-floating-btn" class="layui-btn layui-btn-primary">
+            <i class="layui-icon layui-icon-close"></i>
+        </button>
+        <button class="layui-btn layui-btn-primary" id="rotate_btn">
+            <i class="layui-icon layui-icon-rotate"></i> Rotate 90°
+        </button>
+        <button class="layui-btn layui-btn-primary" id="rotate180_btn">
+            <i class="layui-icon layui-icon-rotate-180"></i> Transpose
+        </button>
+        <button class="layui-btn layui-btn-primary" id="flip_btn">
+            <i class="layui-icon layui-icon-horizontal"></i> Flip
+        </button>
+        <button class="layui-btn layui-btn-primary" id="reset_btn">
+            <i class="layui-icon layui-icon-refresh"></i> Reset
+        </button>
+        <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #666;">
+            <div>Active Image:</div>
+            <div id="active-image-name" style="font-weight: bold; color: #1E9FFF; min-height: 18px;">recon</div>
+        </div>
     </div>
-  </div>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const video = document.getElementById('cdixxVideo');
-    const status = document.getElementById('streamStatus');
-    const latencyEl = document.getElementById('latency');
     
-    if (Hls.isSupported()) {
-        const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-            backBufferLength: 3,
-            maxBufferLength: 6,
-            maxMaxBufferLength: 10
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="/layui/dist/layui.js"></script>
+    <script src="main.js"></script>
+    <script>
+        // ==================== CDI-Specific Functions ====================
+        function loadImage() {
+            const timestamp = getTimestamp();
+            const path = repo + workpath + "/";
+            
+            document.getElementById('recon').src = path + "recon_intensity_cropped.png" + "?t=" + timestamp;
+            document.getElementById('recon').title = "CDI reconstruction";
+            
+            document.getElementById('recon_phase').src = path + "recon_phase_cropped.png" + "?t=" + timestamp;
+            document.getElementById('recon_phase').title = "CDI reconstruction phase";
+            
+            document.getElementById('recon_input').src = path + "init_logpattern.png" + "?t=" + timestamp;
+            document.getElementById('recon_input').title = "CDI input";
+            
+            document.getElementById('logimg').src = path + "mergedlog0.png" + "?t=" + timestamp;
+            document.getElementById('logimg').title = "Monochromatization input";
+            
+            document.getElementById('solved').src = path + "solvedlog0.png" + "?t=" + timestamp;
+            document.getElementById('solved').title = "Solved monochromatic pattern";
+            
+            document.getElementById('residual').src = path + "residual_iter_pulseGen.pdf" + "?t=" + timestamp;
+            document.getElementById('residual').title = "Residual of monochromatization";
+            
+            document.getElementById('residual_img').src = path + "residual_pulseGen.png" + "?t=" + timestamp;
+            document.getElementById('residual_img').title = "Residual of monochromatization";
+            
+            document.getElementById('spectrum_plt').src = path + "spectra.pdf" + "?t=" + timestamp + "#toolbar=0";
+            document.getElementById('spectrum_plt').title = "Spectrum";
+            
+            document.getElementById('prtf_plt').src = path + "prtf.pdf" + "?t=" + timestamp + "#toolbar=0";
+        }
+        
+        // ==================== Event Listeners ====================
+    const cdiImages = [
+        'recon', 'recon_phase', 'recon_input', 
+        'solved', 'residual_img', 'logimg'
+    ];
+    
+    cdiImages.forEach(id => {
+        selectListenerWithInspect(id);
+    });
+        document.getElementById("reload")?.addEventListener('click', async () => {
+            loadImage();
+            showNotification('Images reloaded successfully', 'success');
         });
         
-        hls.loadSource('/CDIxx/stream/stream.m3u8');
-        hls.attachMedia(video);
-        
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            status.style.background = '#4caf50';
-            status.style.animation = 'none';
-            video.play().catch(e => console.log('Autoplay blocked:', e));
+        document.getElementById("setpath")?.addEventListener('click', async () => {
+            const pathValue = document.getElementById('path').value;
+            workpath = pathValue;
+            document.cookie = 'cdiworkpath=' + workpath + '; path=/';
+            
+            setPath(pathValue, {
+                'pulse.cfg': 'monoconfig',
+                'ExperimentLog.txt': 'note',
+                'cdi.cfg': 'cdiconfig'
+            });
+            
+            showNotification('Working folder confirmed', 'success');
+            
+            // Load autocomplete data
+            await listFiles("cd " + repo + pathValue + " ; ls -t *.tif 2>/dev/null")
+                .then(data => {
+                    autoFillDictionary["bkg"] = data;
+                    autoFillDictionary["pattern"] = data;
+                    console.log('TIFF files:', data);
+                });
+            
+            await listFiles("cd " + repo + "spectrum" + " ; ls -t *.txt 2>/dev/null")
+                .then(data => {
+                    autoFillDictionary["spect"] = data;
+                    console.log('Spectrum files:', data);
+                });
         });
         
-        hls.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) hls.destroy();
-        });
-        
-        // Update latency display
-        setInterval(() => {
-            if (hls.levels && hls.levels.length) {
-                const latency = (hls.liveSyncPosition || 0) - video.currentTime;
-                latencyEl.textContent = latency.toFixed(1);
+        // ==================== Upload Functions ====================
+        document.getElementById("uploadimg")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            const url = 'savefile.php';
+            const files = document.getElementById('background').files;
+            const sigfiles = document.getElementById('image').files;
+            const formData = new FormData();
+            
+            const list = document.getElementsByName("idata");
+            let idata = "1";
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].checked) idata = list[i].value;
             }
-        }, 1000);
-    } 
-    // Fallback for Safari (native HLS support)
-    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = '/CDIxx/stream/stream.m3u8';
-        video.addEventListener('loadedmetadata', () => {
-            status.style.background = '#4caf50';
-            status.style.animation = 'none';
-            video.play().catch(e => console.log('Autoplay blocked:', e));
-        });
-    }
-});
-</script>
-  <script src="/layui/dist/layui.js"></script>
-  <script>
-const video = document.getElementById('v');
-const mediaSource = new MediaSource();
-video.src = URL.createObjectURL(mediaSource);
-
-mediaSource.addEventListener('sourceopen', () => {
-  const sb = mediaSource.addSourceBuffer('video/mp4; codecs="hev1.1.6.L93.B0"');
-  fetch('/CDIxx/stream').then(r => {
-    const reader = r.body.getReader();
-    let buffer = new Uint8Array(0);
-    
-    const pump = () => {
-      reader.read().then(({done, value}) => {
-        if (done) return;
-        const tmp = new Uint8Array(buffer.length + value.length);
-        tmp.set(buffer); tmp.set(value, buffer.length);
-        buffer = tmp;
-        
-        // Split by HTTP chunk boundaries (simplified)
-        // In production: Parse chunked encoding properly
-        while (buffer.length > 10) {
-          // Find next chunk boundary (naive - use proper parser in prod)
-          const idx = buffer.findIndex((_, i) => 
-            buffer[i]===0x0D && buffer[i+1]===0x0A && 
-            buffer[i+2]===0x0D && buffer[i+3]===0x0A
-          );
-          if (idx === -1) break;
-          
-          const chunk = buffer.slice(0, idx);
-          if (!sb.updating) sb.appendBuffer(chunk);
-          buffer = buffer.slice(idx + 4);
-        }
-        pump();
-      });
-    };
-    pump();
-  });
-});
-    // Initialize Layui modules
-    layui.use(['form', 'element', 'layer'], function(){
-      var form = layui.form;
-      var element = layui.element;
-      var layer = layui.layer;
-      
-      // Initialize form elements
-      form.render();
-      
-      // Initialize collapse for logs
-      element.init();
-      
-      // Set up notifications for important actions
-      var showNotification = function(title, content, type) {
-        layer.msg(content, {
-          icon: type === 'success' ? 1 : (type === 'error' ? 2 : 0),
-          time: 3000,
-          shade: 0.1
-        });
-      };
-      
-      // Set up button click notifications
-      document.getElementById("setpath").addEventListener('click', function() {
-        showNotification('Folder Selection', 'Working folder confirmed', 'success');
-      });
-      
-      document.getElementById("prepare").addEventListener('click', function() {
-        layer.load(1, {shade: [0.3, '#000']});
-      });
-      
-      document.getElementById("monochrome_btn").addEventListener('click', function() {
-        layer.load(1, {shade: [0.3, '#000']});
-      });
-      
-      document.getElementById("cdi_btn").addEventListener('click', function() {
-        layer.load(1, {shade: [0.3, '#000']});
-      });
-      
-      // Handle form submission events
-      form.on('submit(*)', function(data){
-        return false;
-      });
-    });
-    
-    // Existing application logic
-    const nodeurl = window.location.origin+':8080'
-    const url_cmd = "runcommand.php"
-    const repo = 'images/'
-    let workpath = document.cookie.split("; ").find((row) => row.startsWith("cdiworkpath="))?.split("=")[1];
-    let autoFillDictionary = {
-      "path": {},
-      "bkg" : {},
-      "pattern": {},
-      "spect": {}
-    };
-    
-    const myPromise = new Promise((resolve, reject) => {
-      setTimeout(() => {
-        resolve();
-      }, 300);
-    });
-    
-    myPromise.then(()=>{
-      return listFiles("cd " + repo + " ; find * -maxdepth 0 -type d");
-    }).then(data=>{
-      autoFillDictionary["path"] = data;
-    })
-    
-    function loadImage(){
-      var timestamp = new Date().getTime();
-      postfix = "?t=" + timestamp;
-      path = repo + workpath + "/";
-      document.getElementById('recon').src = path+"recon_intensity_cropped.png"+postfix;
-      document.getElementById('recon').title = "CDI reconstruction";
-      document.getElementById('recon_phase').src = path+"recon_phase_cropped.png"+postfix;
-      document.getElementById('recon_phase').title = "CDI reconstruction";
-      document.getElementById('recon_input').src = path+"init_logpattern.png"+postfix;
-      document.getElementById('recon_input').title = "CDI input";
-      document.getElementById('logimg').src = path+"mergedlog0.png"+postfix;
-      document.getElementById('logimg').title="Monochromatization input";
-      document.getElementById('solved').src = path+"solvedlog0.png"+postfix;
-      document.getElementById('solved').title = "Solved monochromatic pattern";
-      document.getElementById('residual').src = path+"residual_iter_pulseGen.pdf"+postfix;
-      document.getElementById('residual').title = "Residual of monochromatization";
-      document.getElementById('residual_img').src = path+"residual_pulseGen.png"+postfix;
-      document.getElementById('residual_img').title = "Residual of monochromatization";
-      document.getElementById('spectrum_plt').src = path+"spectra.pdf"+postfix+"#toolbar=0";
-      document.getElementById('spectrum_plt').title = "Spectrum";
-      document.getElementById('prtf_plt').src = path+"prtf.pdf"+postfix+"#toolbar=0";
-    }
-    
-    if(workpath != null) {
-      setPath(workpath);
-      document.getElementById('path').value = workpath;
-    }
-    
-    document.getElementById("reload").addEventListener('click',async ()=>{
-      loadImage();
-      layui.layer.msg('Images reloaded successfully', {icon: 1});
-    })
-    
-    document.getElementById("setpath").addEventListener('click',async ()=>{
-      console.log(document.getElementById('path').value);
-      workpath=document.getElementById('path').value;
-      document.cookie = 'cdiworkpath=' + workpath;
-      setPath(workpath);
-    })
-    
-    function setPath(path){
-      url_path = "setpath.php"
-      url_read = "readfile.php";
-      if(path == "") {
-        document.getElementById('showpath').innerText = "Path not filled, please fill the text before click confirm";
-        layui.layer.msg('Please enter a valid folder path', {icon: 2});
-        return;
-      }else{
-        path = repo + path;
-        ele = document.getElementById('showpath');
-        ele.href=path;
-        ele.innerText = "Working Path: "+ path;
-        ele.href = path
-      }
-      fetch(url_path, {
-        method: 'POST',
-        body: path
-      }).then(response => {
-        return response.text();
-      }).then(data=>{
-        fetch(url_read, {
-          method: 'POST',
-          body: path+"/pulse.cfg"
-        }).then(response => {return response.text();}).then(data => {
-          document.getElementById('monoconfig').value = data;
-        });
-        fetch(url_read, {
-          method: 'POST',
-          body: path+"/ExperimentLog.txt"
-        }).then(response => {return response.text();}).then(data => {
-          document.getElementById('note').value = data;
-        });
-        fetch(url_read, {
-          method: 'POST',
-          body: path+"/cdi.cfg"
-        }).then(response => {return response.text();}).then(data => {
-          document.getElementById('cdiconfig').value = data;
-        });
-      }).then(()=>{
-        return listFiles("cd " + repo + document.getElementById('path').value +" ; ls -t *.tif");
-      }).then(data=>{
-        autoFillDictionary["bkg"] = data;
-        autoFillDictionary["pattern"] = data;
-        console.log(data)
-        return listFiles("cd " + repo + "spectrum" + " ; ls -t *.txt")
-      }).then(data=>{
-        autoFillDictionary["spect"] = data;
-      }).then(() => {
-        layui.form.render();
-      });
-    }
-    
-    document.getElementById("uploadimg").addEventListener('click',async ()=>{
-      const path = repo + document.getElementById('path').value +"/"
-      const url = 'savefile.php';
-      const files = document.getElementById('background').files;
-      const sigfiles = document.getElementById('image').files;
-      let formData = new FormData();
-      const list = document.getElementsByName("idata");
-      var idata = "1";
-      for(i=0;i<list.length;i++){
-        if(list[i].checked) idata = list[i].value;
-      }
-      formData.append('path', path);
-      document.getElementById('runbkgfile'+idata).value = files[0].name
-      document.getElementById('runimgfile'+idata).value = sigfiles[0].name
-      formData.append('files[]', files[0], files[0].name);
-      formData.append('files[]', sigfiles[0], sigfiles[0].name);
-      fetch(url, {
-        method: 'POST',
-        body: formData
-      }).then(response => {
-        return response.text();
-      }).then(data=>{
-        console.log(data)
-        return listFiles("cd " + repo + document.getElementById('path').value +" ; ls *.tif");
-      }).then(data=>{
-        autoFillDictionary["bkg"] = data;
-        autoFillDictionary["pattern"] = data;
-        layui.layer.msg('Images uploaded successfully', {icon: 1});
-      });
-    });
-    
-    document.getElementById("uploadspectrum").addEventListener('click',async ()=>{
-      const path = repo + "spectrum/"
-      const url = 'savefile.php';
-      const filearray = document.getElementById('spectrumtoupload').files;
-      document.getElementById('runspectfile').value = filearray[0].name;
-      const formData = new FormData();
-      formData.append('path', path);
-      Array.from(filearray).forEach(file => {
-          formData.append('files[]', file);
-      });
-      fetch(url, {
-        method: 'POST',
-        body: formData
-      }).then(response => {
-        return response.text();
-      }).then(() => {
-        layui.layer.msg('Spectrum files uploaded successfully', {icon: 1});
-      });
-    });
-    
-    document.getElementById("uploadfiles").addEventListener('click',async ()=>{
-      const path = repo + document.getElementById('path').value +"/"
-      const url = 'savefile.php';
-      const filearray = document.getElementById('filestoupload').files;
-      const formData = new FormData();
-      formData.append('path', path);
-      Array.from(filearray).forEach(file => {
-          formData.append('files[]', file);
-      });
-      fetch(url, {
-        method: 'POST',
-        body: formData
-      }).then(response => {
-        return response.text();
-      }).then(() => {
-        layui.layer.msg('Files uploaded successfully', {icon: 1});
-      });
-    });
-    
-    document.getElementById("prepare").addEventListener('click',async ()=>{
-      button = document.getElementById("prepare");
-      button.disabled = true;
-      const list = document.getElementsByName("idata");
-      var idata = "1";
-      for(i=0;i<list.length;i++){
-        if(list[i].checked) idata = list[i].value;
-      }
-      var timestamp = new Date().getTime();
-      const path = repo + document.getElementById('path').value +"/"
-      const comd = "./runStacker.sh "+ path + " "
-        + document.getElementById('runbkgfile'+idata).value
-        + " " + document.getElementById('runimgfile'+idata).value + " " + document.getElementById('nmerge').value + " "+ document.getElementById('runimgout'+idata).value + " " + (document.getElementById('symmetric').checked?"1":"0") + " "+document.getElementById('shiftx'+idata).value + " " + document.getElementById('shifty'+idata).value;
-      console.log(comd)
-      fetch(url_cmd, {
-        method: 'POST',
-        body: comd,
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        console.log(data);
-        document.getElementById('preparelog').innerText = data;
-        document.getElementById('logimg').src = path+"logimagemerged.png?t=" + timestamp;
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('Data preparation completed', {icon: 1});
-      }).catch(error => {
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('Error during data preparation: ' + error, {icon: 2});
-      });
-      return;
-    })
-    
-    document.getElementById("setspect").addEventListener('click',async ()=>{
-      button = document.getElementById("setspect");
-      button.disabled = true;
-      var timestamp = new Date().getTime();
-      const path = repo + document.getElementById('path').value +"/"
-      const comd = "./setSpectrum.sh "+ path + " " + repo+"spectrum/"+document.getElementById('runspectfile').value;
-      console.log(comd)
-      fetch(url_cmd, {
-        method: 'POST',
-        body: comd,
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        console.log(data);
-        document.getElementById('spectrum_plt').src = path+"rawspectrum.pdf?t=" + timestamp+"#toolbar=0";
-        button.removeAttribute("disabled");
-        layui.layer.msg('Spectrum set successfully', {icon: 1});
-      }).catch(error => {
-        button.removeAttribute("disabled");
-        layui.layer.msg('Error setting spectrum: ' + error, {icon: 2});
-      });
-      return;
-    })
-    
-    document.getElementById("compute_prtf").addEventListener('click',async ()=>{
-      var timestamp = new Date().getTime();
-      const path = repo + document.getElementById('path').value +"/"
-      const comd = "./compute_prtf.sh "+ path;
-      console.log(comd)
-      fetch(url_cmd, {
-        method: 'POST',
-        body: comd,
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        console.log(data);
-        document.getElementById('prtf_plt').src = path+"prtf.pdf?t=" + timestamp+"#toolbar=0";
-        layui.layer.msg('PRTF computed successfully', {icon: 1});
-      }).catch(error => {
-        layui.layer.msg('Error computing PRTF: ' + error, {icon: 2});
-      });
-      return;
-    })
-    
-    document.getElementById("monochrome_btn").addEventListener('click',async ()=>{
-      button = document.getElementById("monochrome_btn");
-      button.disabled = true;
-      const path = repo + document.getElementById('path').value +"/"
-      var timestamp = new Date().getTime();
-      fetch(url_cmd, {
-        method: 'POST',
-        body: "./runPulseGen.sh "+path
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        document.getElementById('monolog').innerText = data;
-        document.getElementById('logimg').src = path+"mergedlog0.png?t=" + timestamp;
-        document.getElementById('logimg').title="Monochromatization input";
-        document.getElementById('solved').src = path+"solvedlog0.png?t=" + timestamp;
-        document.getElementById('solved').title = "Solved monochromatic pattern";
-        document.getElementById('residual').src = path+"residual_iter_pulseGen.pdf?t=" + timestamp;
-        document.getElementById('residual').title = "Residual of monochromatization";
-        document.getElementById('residual_img').src = path+"residual_pulseGen.png?t=" + timestamp;
-        document.getElementById('residual_img').title = "Residual of monochromatization";
-        document.getElementById('spectrum_plt').src = path+"spectra.pdf?t=" + timestamp + "#toolbar=0";
-        document.getElementById('spectrum_plt').title = "Spectrum";
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('Monochromatization completed', {icon: 1});
-      }).catch(error => {
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('Error during monochromatization: ' + error, {icon: 2});
-      });
-      return;
-    });
-    
-    let degree = 0;
-    let flip = 1;
-    let operateImage = "recon";
-    const imageNames = {
-      'recon': 'CDI Reconstruction',
-      'recon_phase': 'Reconstruction Phase',
-      'recon_input': 'CDI Input',
-      'solved': 'Solved Pattern',
-      'residual_img': 'Residual Image',
-      'logimg': 'Log Image'
-    };
-    
-    function selectListener(imageid){
-      document.getElementById(imageid).addEventListener('click',async ()=>{
-        // Remove selected class from all images
-        document.querySelectorAll('.image-container img').forEach(img => {
-          img.classList.remove('selected');
-        });
-        
-        // Add selected class to clicked image
-        document.getElementById(imageid).classList.add('selected');
-        
-        // Update active image display in floating controls
-        document.getElementById('active-image-name').textContent = imageNames[imageid] || imageid;
-        
-        // Set as active image for transformations
-        operateImage = imageid;
-      });
-    }
-    
-    // Initialize image selection
-    ['recon', 'recon_phase', 'recon_input', 'solved', 'residual_img', 'logimg'].forEach(id => {
-      selectListener(id);
-    });
-    // Set initial selection
-    document.getElementById('recon').classList.add('selected');
-    document.getElementById('active-image-name').textContent = imageNames['recon'];
-    
-    // Image inspection mode
-    let inspectMode = false;
-    let inspectImage = null;
-    let offsetX = 0, offsetY = 0;
-    let isDragging = false;
-    let dragStartX = 0, dragStartY = 0;
-    
-    function enableInspectMode(imgElement) {
-      const overlay = document.getElementById('inspectOverlay');
-      inspectImage = document.getElementById('inspectImage');
-      
-      overlay.style.display = 'block';
-      inspectMode = true;
-      
-      // Load image and position after load
-      inspectImage.onload = function() {
-        positionImageCenter();
-      };
-      
-      inspectImage.src = imgElement.src;
-      
-      // Add event listeners
-      overlay.addEventListener('mousedown', startDrag);
-      document.addEventListener('mousemove', dragImage);
-      document.addEventListener('mouseup', stopDrag);
-      document.addEventListener('keydown', handleKeydown);
-      document.getElementById('closeInspect').addEventListener('click', disableInspectMode);
-    }
-    
-    function disableInspectMode() {
-      const overlay = document.getElementById('inspectOverlay');
-      overlay.style.display = 'none';
-      inspectMode = false;
-      
-      // Remove event listeners
-      overlay.removeEventListener('mousedown', startDrag);
-      document.removeEventListener('mousemove', dragImage);
-      document.removeEventListener('mouseup', stopDrag);
-      document.removeEventListener('keydown', handleKeydown);
-      document.getElementById('closeInspect').removeEventListener('click', disableInspectMode);
-    }
-    
-    function positionImageCenter() {
-      if (!inspectImage) return;
-      const containerWidth = window.innerWidth;
-      const containerHeight = window.innerHeight;
-      const imgWidth = inspectImage.naturalWidth;
-      const imgHeight = inspectImage.naturalHeight;
-      if (imgWidth === 0) {
-        inspectImage.onload = positionImageCenter;
-        return;
-      }
-      
-      // Set scale to fit at least one dimension
-      const scaleX = containerWidth / imgWidth;
-      const scaleY = containerHeight / imgHeight;
-      const scale = Math.max(scaleX, scaleY, 1);
-      
-      // Center the image
-      offsetX = (containerWidth - imgWidth * scale) / 2;
-      offsetY = (containerHeight - imgHeight * scale) / 2;
-      
-      updateImageTransform();
-    }
-    
-    function startDrag(e) {
-      if (e.target === document.getElementById('closeInspect')) return;
-      e.preventDefault();
-      isDragging = true;
-      dragStartX = e.clientX - offsetX;
-      dragStartY = e.clientY - offsetY;
-      document.getElementById('inspectOverlay').style.cursor = 'grabbing';
-    }
-    
-    function dragImage(e) {
-      if (!isDragging || !inspectMode) return;
-      e.preventDefault();
-      offsetX = e.clientX - dragStartX;
-      offsetY = e.clientY - dragStartY;
-      updateImageTransform();
-    }
-    
-    function stopDrag() {
-      isDragging = false;
-      document.getElementById('inspectOverlay').style.cursor = 'grab';
-    }
-    
-    function handleKeydown(e) {
-      if (e.key === 'Escape') {
-        disableInspectMode();
-      }
-    }
-    
-    function updateImageTransform() {
-      if (!inspectImage) return;
-      const containerWidth = window.innerWidth;
-      const containerHeight = window.innerHeight;
-      const imgWidth = inspectImage.naturalWidth;
-      const imgHeight = inspectImage.naturalHeight;
-      
-      if (imgWidth === 0) return;
-      
-      // Calculate scale to fit image
-      const scaleX = containerWidth / imgWidth;
-      const scaleY = containerHeight / imgHeight;
-      const scale = Math.max(scaleX, scaleY, 1);
-      
-      inspectImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-    }
-    
-    // Override selectListener to add inspection
-    function selectListenerWithInspect(imageid){
-      document.getElementById(imageid).addEventListener('click', function(e){
-        // Prevent inspection if clicking on controls
-        if (e.target.closest('.floating-controls')) return;
-        
-        // Remove selected class from all images
-        document.querySelectorAll('.image-container img').forEach(img => {
-          img.classList.remove('selected');
-        });
-        
-        // Add selected class to clicked image
-        this.classList.add('selected');
-        
-        // Update active image display in floating controls
-        document.getElementById('active-image-name').textContent = imageNames[imageid] || imageid;
-        
-        // Set as active image for transformations
-        operateImage = imageid;
-        
-        // Enable inspection mode
-        enableInspectMode(this);
-      });
-    }
-    
-    // Re-initialize with inspection
-    ['recon', 'recon_phase', 'recon_input', 'solved', 'residual_img', 'logimg'].forEach(id => {
-      selectListenerWithInspect(id);
-    });
-    
-    document.getElementById("rotate_btn").addEventListener('click',async ()=>{
-      degree += 90;
-      if(degree == 360) degree = 0;
-      document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
-      layui.layer.msg(`Rotated to ${degree}°`, {time: 1000, icon: 1});
-    });
-    
-    document.getElementById("rotate180_btn").addEventListener('click',async ()=>{
-      degree += 180;
-      if(degree == 360) degree = 0;
-      document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
-      layui.layer.msg(`Transposed`, {time: 1000, icon: 1});
-    });
-    
-    document.getElementById("flip_btn").addEventListener('click',async ()=>{
-      flip *=-1;
-      document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
-      layui.layer.msg(`Flipped horizontally`, {time: 1000, icon: 1});
-    });
-    
-    document.getElementById("reset_btn").addEventListener('click',async ()=>{
-      flip=1;
-      degree=0;
-      document.getElementById(operateImage).style.transform = "rotate(" + degree.toString() + "deg) scaleX(" + flip + ")";
-      document.getElementById(operateImage).classList.add('selected');
-      layui.layer.msg('Image reset to original state', {time: 1000, icon: 1});
-    });
-    
-    document.getElementById("cdi_btn").addEventListener('click',async ()=>{
-      button = document.getElementById("cdi_btn");
-      button.disabled = true;
-      const path = repo + document.getElementById('path').value +"/"
-      var timestamp = new Date().getTime();
-      fetch(url_cmd, {
-        method: 'POST',
-        body: "./runCDI.sh "+path
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        document.getElementById('cdilog').innerText = data;
-        document.getElementById('recon').src = path+"recon_intensity_cropped.png?t=" + timestamp;
-        document.getElementById('recon').title = "CDI reconstruction";
-        document.getElementById('recon_input').src = path+"init_logpattern.png?t=" + timestamp;
-        document.getElementById('recon_input').title = "CDI input";
-        document.getElementById('recon_phase').src = path+"recon_phase_cropped.png?t=" + timestamp;
-        document.getElementById('recon_phase').title = "CDI reconstruction phase";
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('CDI reconstruction completed', {icon: 1});
-      }).catch(error => {
-        button.removeAttribute("disabled");
-        layui.layer.closeAll('loading');
-        layui.layer.msg('Error during CDI reconstruction: ' + error, {icon: 2});
-      });
-      return;
-    });
-    
-    document.getElementById("selGPU_btn").addEventListener('click',async ()=>{
-      var cmd = "echo export CUDA_VISIBLE_DEVICES="+ document.getElementById('iGPU').value + " > selectGPU.sh";
-      console.log(cmd)
-      fetch(url_cmd, {
-        method: 'POST',
-        body: cmd
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        console.log(data)
-        layui.layer.msg('GPU selection saved', {icon: 1});
-      }).catch(error => {
-        layui.layer.msg('Error setting GPU: ' + error, {icon: 2});
-      });
-      return;
-    });
-    
-    function saveText(buttonID, filename, contentId){
-      button = document.getElementById(buttonID);
-      button.addEventListener('click',async ()=>{
-        button.disabled = true;
-        url_write = "writefile.php/";
-        await fetch(url_write + filename,{
-          method: 'POST',
-          body: document.getElementById(contentId).value
-        }).then(response=>{
-          return response.text();
-        }).then(data=>{
-          button.removeAttribute("disabled");
-          console.log(data);
-          layui.layer.msg('File saved successfully', {icon: 1});
-        }).catch(error => {
-          button.removeAttribute("disabled");
-          layui.layer.msg('Error saving file: ' + error, {icon: 2});
-        });
-      })
-    }
-    
-    function saveTextDir(buttonID, filename, contentId){
-      button = document.getElementById(buttonID);
-      button.addEventListener('click',async ()=>{
-        button.disabled = true;
-        url_write = "writefile.php/";
-        await fetch(url_write +repo+document.getElementById('path').value+"/"+ filename,{
-          method: 'POST',
-          body: document.getElementById(contentId).value
-        }).then(response=>{
-          return response.text();
-        }).then(data=>{
-          button.removeAttribute("disabled");
-          console.log(data);
-          layui.layer.msg('File saved to working directory', {icon: 1});
-        }).catch(error => {
-          button.removeAttribute("disabled");
-          layui.layer.msg('Error saving file: ' + error, {icon: 2});
-        });
-      })
-    }
-    
-    saveTextDir("savepulse", "pulse.cfg", "monoconfig");
-    saveTextDir("savenote", "ExperimentLog.txt", "note");
-    saveTextDir("savecdi", "cdi.cfg", "cdiconfig");
-    saveText("savepulse_def", "default/pulse.cfg", "monoconfig");
-    saveText("savenote_def", "default/ExperimentLog.txt", "note");
-    saveText("savecdi_def", "default/cdi.cfg", "cdiconfig");
-    
-    function autocomplete(inp, dictName) {
-      var currentFocus;
-      inp.addEventListener("input", openMenu);
-      
-      function openMenu(){
-          arr = autoFillDictionary[dictName];
-          var a, b, i, val = this.value;
-          closeAllLists();
-          if (!val) { return false;}
-          currentFocus = -1;
-          a = document.createElement("DIV");
-          a.setAttribute("id", this.id + "autocomplete-list");
-          a.setAttribute("class", "autocomplete-items");
-          this.parentNode.appendChild(a);
-          
-          // Filter and display matching items
-          let matches = 0;
-          for (i = 0; i < arr.length; i++) {
-            if (arr[i] && arr[i].substr(0, val.length).toUpperCase() == val.toUpperCase()) {
-              matches++;
-              b = document.createElement("DIV");
-              b.innerHTML = "<strong>" + arr[i].substr(0, val.length) + "</strong>";
-              b.innerHTML += arr[i].substr(val.length);
-              b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
-              b.addEventListener("click", function(e) {
-                  inp.value = this.getElementsByTagName("input")[0].value;
-                  closeAllLists();
-              });
-              a.appendChild(b);
+            
+            formData.append('path', path);
+            document.getElementById('runbkgfile' + idata).value = files[0]?.name || '';
+            document.getElementById('runimgfile' + idata).value = sigfiles[0]?.name || '';
+            
+            if (files[0]) formData.append('files[]', files[0], files[0].name);
+            if (sigfiles[0]) formData.append('files[]', sigfiles[0], sigfiles[0].name);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.text();
+                console.log(data);
+                
+                await listFiles("cd " + repo + workpath + " ; ls *.tif 2>/dev/null")
+                    .then(data => {
+                        autoFillDictionary["bkg"] = data;
+                        autoFillDictionary["pattern"] = data;
+                    });
+                
+                showNotification('Images uploaded successfully', 'success');
+            } catch (error) {
+                showNotification('Error uploading images: ' + error, 'error');
             }
-          }
-          
-          // Show message if no matches found
-          if (matches === 0) {
-            b = document.createElement("DIV");
-            b.innerHTML = "<em>No matches found</em>";
-            b.style.padding = "8px 12px";
-            b.style.color = "#999";
-            a.appendChild(b);
-          }
-      };
-      
-      inp.addEventListener("keydown", function(e) {
-          var x = document.getElementById(this.id + "autocomplete-list");
-          if (x) x = x.getElementsByTagName("div");
-          if (e.keyCode == 40) {
-            currentFocus++;
-            addActive(x);
-          } else if (e.keyCode == 38) {
-            currentFocus--;
-            addActive(x);
-          } else if (e.keyCode == 13) {
-            e.preventDefault();
-            if (currentFocus > -1) {
-              if (x) x[currentFocus].click();
+        });
+        
+        document.getElementById("uploadspectrum")?.addEventListener('click', async () => {
+            const path = repo + "spectrum/";
+            const url = 'savefile.php';
+            const filearray = document.getElementById('spectrumtoupload').files;
+            const formData = new FormData();
+            
+            if (filearray[0]) {
+                document.getElementById('runspectfile').value = filearray[0].name;
             }
-          }
-      });
-      
-      function addActive(x) {
-        if (!x) return false;
-        removeActive(x);
-        if (currentFocus >= x.length) currentFocus = 0;
-        if (currentFocus < 0) currentFocus = (x.length - 1);
-        x[currentFocus].classList.add("autocomplete-active");
-      }
-      
-      function removeActive(x) {
-        for (var i = 0; i < x.length; i++) {
-          x[i].classList.remove("autocomplete-active");
+            
+            formData.append('path', path);
+            Array.from(filearray).forEach(file => {
+                formData.append('files[]', file);
+            });
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                await response.text();
+                showNotification('Spectrum files uploaded successfully', 'success');
+            } catch (error) {
+                showNotification('Error uploading spectrum: ' + error, 'error');
+            }
+        });
+        
+        document.getElementById("uploadfiles")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            const url = 'savefile.php';
+            const filearray = document.getElementById('filestoupload').files;
+            const formData = new FormData();
+            
+            formData.append('path', path);
+            Array.from(filearray).forEach(file => {
+                formData.append('files[]', file);
+            });
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                await response.text();
+                showNotification('Files uploaded successfully', 'success');
+            } catch (error) {
+                showNotification('Error uploading files: ' + error, 'error');
+            }
+        });
+        
+        // ==================== Processing Functions ====================
+        document.getElementById("prepare")?.addEventListener('click', async () => {
+            const list = document.getElementsByName("idata");
+            let idata = "1";
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].checked) idata = list[i].value;
+            }
+            
+            const path = repo + workpath + "/";
+            const cmd = `./runStacker.sh ${path} ${document.getElementById('runbkgfile' + idata).value} ${document.getElementById('runimgfile' + idata).value} ${document.getElementById('nmerge').value} ${document.getElementById('runimgout' + idata).value} ${(document.getElementById('symmetric').checked ? "1" : "0")} ${document.getElementById('shiftx' + idata).value} ${document.getElementById('shifty' + idata).value}`;
+            
+            try {
+                setLoading('prepare');
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: cmd
+                });
+                const data = await response.text();
+                document.getElementById('preparelog').innerText = data;
+                document.getElementById('logimg').src = path + "logimagemerged.png?t=" + getTimestamp();
+                clearLoading('prepare');
+                showNotification('Data preparation completed', 'success');
+            } catch (error) {
+                clearLoading('prepare');
+                showNotification('Error during data preparation: ' + error, 'error');
+            }
+        });
+        
+        document.getElementById("setspect")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            const cmd = `./setSpectrum.sh ${path} ${repo} spectrum/${document.getElementById('runspectfile').value}`;
+            
+            try {
+                setLoading('setspect');
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: cmd
+                });
+                const data = await response.text();
+                document.getElementById('spectrum_plt').src = path + "rawspectrum.pdf?t=" + getTimestamp() + "#toolbar=0";
+                clearLoading('setspect');
+                showNotification('Spectrum set successfully', 'success');
+            } catch (error) {
+                clearLoading('setspect');
+                showNotification('Error setting spectrum: ' + error, 'error');
+            }
+        });
+        
+        document.getElementById("compute_prtf")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            const cmd = `./compute_prtf.sh ${path}`;
+            
+            try {
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: cmd
+                });
+                const data = await response.text();
+                document.getElementById('prtf_plt').src = path + "prtf.pdf?t=" + getTimestamp() + "#toolbar=0";
+                showNotification('PRTF computed successfully', 'success');
+            } catch (error) {
+                showNotification('Error computing PRTF: ' + error, 'error');
+            }
+        });
+        
+        document.getElementById("monochrome_btn")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            
+            try {
+                setLoading('monochrome_btn');
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: `./runPulseGen.sh ${path}`
+                });
+                const data = await response.text();
+                
+                document.getElementById('monolog').innerText = data;
+                const timestamp = getTimestamp();
+                
+                document.getElementById('logimg').src = path + "mergedlog0.png?t=" + timestamp;
+                document.getElementById('solved').src = path + "solvedlog0.png?t=" + timestamp;
+                document.getElementById('residual').src = path + "residual_iter_pulseGen.pdf?t=" + timestamp;
+                document.getElementById('residual_img').src = path + "residual_pulseGen.png?t=" + timestamp;
+                document.getElementById('spectrum_plt').src = path + "spectra.pdf?t=" + timestamp + "#toolbar=0";
+                
+                clearLoading('monochrome_btn');
+                showNotification('Monochromatization completed', 'success');
+            } catch (error) {
+                clearLoading('monochrome_btn');
+                showNotification('Error during monochromatization: ' + error, 'error');
+            }
+        });
+        
+        document.getElementById("cdi_btn")?.addEventListener('click', async () => {
+            const path = repo + workpath + "/";
+            
+            try {
+                setLoading('cdi_btn');
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: `./runCDI.sh ${path}`
+                });
+                const data = await response.text();
+                
+                document.getElementById('cdilog').innerText = data;
+                const timestamp = getTimestamp();
+                
+                document.getElementById('recon').src = path + "recon_intensity_cropped.png?t=" + timestamp;
+                document.getElementById('recon_input').src = path + "init_logpattern.png?t=" + timestamp;
+                document.getElementById('recon_phase').src = path + "recon_phase_cropped.png?t=" + timestamp;
+                
+                clearLoading('cdi_btn');
+                showNotification('CDI reconstruction completed', 'success');
+            } catch (error) {
+                clearLoading('cdi_btn');
+                showNotification('Error during CDI reconstruction: ' + error, 'error');
+            }
+        });
+        
+        // ==================== GPU Selection ====================
+        document.getElementById("selGPU_btn")?.addEventListener('click', async () => {
+            const cmd = `echo export CUDA_VISIBLE_DEVICES=${document.getElementById('iGPU').value} > selectGPU.sh`;
+            
+            try {
+                const response = await fetch(url_cmd, {
+                    method: 'POST',
+                    body: cmd
+                });
+                const data = await response.text();
+                console.log(data);
+                showNotification('GPU selection saved', 'success');
+            } catch (error) {
+                showNotification('Error setting GPU: ' + error, 'error');
+            }
+        });
+        
+        // ==================== Save Configuration Files ====================
+        saveTextToWorkingDir("savepulse", "pulse.cfg", "monoconfig");
+        saveTextToWorkingDir("savenote", "ExperimentLog.txt", "note");
+        saveTextToWorkingDir("savecdi", "cdi.cfg", "cdiconfig");
+        saveTextToFile("savepulse_def", "default/pulse.cfg", "monoconfig");
+        saveTextToFile("savenote_def", "default/ExperimentLog.txt", "note");
+        saveTextToFile("savecdi_def", "default/cdi.cfg", "cdiconfig");
+        
+        // ==================== HLS Stream Setup ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            const streamUrl = '/CDIxx/stream/stream.m3u8';
+            setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
+        });
+        
+        // ==================== Autocomplete Initialization ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            const autocompleteIds = [
+                {id: "runbkgfile1", dict: "bkg"},
+                {id: "runimgfile1", dict: "pattern"},
+                {id: "runbkgfile2", dict: "bkg"},
+                {id: "runimgfile2", dict: "pattern"},
+                {id: "path", dict: "path"},
+                {id: "runspectfile", dict: "spect"}
+            ];
+            
+            autocompleteIds.forEach(item => {
+                const element = document.getElementById(item.id);
+                if (element) {
+                    autocomplete(element, item.dict);
+                }
+            });
+        });
+        
+        // ==================== Initialize ====================
+        if (workpath) {
+            document.getElementById('path').value = workpath;
+            setPath(workpath, {
+                'pulse.cfg': 'monoconfig',
+                'ExperimentLog.txt': 'note',
+                'cdi.cfg': 'cdiconfig'
+            });
         }
-      }
-      
-      function closeAllLists(elmnt) {
-        var x = document.getElementsByClassName("autocomplete-items");
-        for (var i = 0; i < x.length; i++) {
-          if (elmnt != x[i] && elmnt != inp) {
-            x[i].parentNode.removeChild(x[i]);
-          }
-        }
-      }
-      
-      document.addEventListener("click", function (e) {
-          closeAllLists(e.target);
-      });
-    }
-    
-    function listFiles(comd){
-      return fetch(url_cmd, {
-        method: 'POST',
-        body: comd,
-      }).then(response => {
-        return response.text();
-      }).then(data => {
-        return data.split("\n").filter(item => item.trim() !== '');
-      });
-    }
-    
-    // Initialize autocompletes
-    document.addEventListener('DOMContentLoaded', function() {
-      const autocompleteIds = [
-        {id: "runbkgfile1", dict: "bkg"},
-        {id: "runimgfile1", dict: "pattern"},
-        {id: "runbkgfile2", dict: "bkg"},
-        {id: "runimgfile2", dict: "pattern"},
-        {id: "path", dict: "path"},
-        {id: "runspectfile", dict: "spect"}
-      ];
-      
-      autocompleteIds.forEach(item => {
-        const element = document.getElementById(item.id);
-        if (element) {
-          autocomplete(element, item.dict);
-        }
-      });
-      
-      // Initialize form rendering after DOM is ready
-      layui.form.render();
-      
-    });
-    // Toggle floating controls
-    document.getElementById('toggle-floating-btn').addEventListener('click', function() {
-      const fc = document.querySelector('.floating-controls');
-      const btn = this;
-      if (fc.style.display === 'none' || fc.style.display === '') {
-        fc.style.display = 'flex';
-        btn.innerHTML = '<i class="layui-icon layui-icon-up"></i> Hide Image Tools';
-      } else {
-        fc.style.display = 'none';
-        btn.innerHTML = '<i class="layui-icon layui-icon-down"></i> Show Image Tools';
-      }
-    });
-    
-    // Close button inside panel
-    document.getElementById('close-floating-btn').addEventListener('click', function() {
-      document.querySelector('.floating-controls').style.display = 'none';
-      document.getElementById('toggle-floating-btn').innerHTML = 
-        '<i class="layui-icon layui-icon-down"></i> Show Image Tools';
-    });
-  </script>
+    </script>
 </body>
 </html>

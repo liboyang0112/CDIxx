@@ -71,7 +71,7 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool onlin
     fmt::print("You created too many videos (100), please release some before create new ones");
     exit(0);
   }
-  auto strfname = std::string(filename);
+  auto strfname = prefix + std::string(filename);
   strfname.erase(strfname.size() - 4);
   if(online){
     videoWriterVec[handle] = createVideo((strfname + "/").c_str(), rows, cols, fps, NULL);

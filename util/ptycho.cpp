@@ -62,9 +62,9 @@ class ptycho : public experimentConfig{
     ptycho(const char* configfile):experimentConfig(configfile){}
     Real computeErrorSim();
     void readScan(){
-      std::ifstream file(distFile);
+      std::ifstream file(std::string(outputDir) + distFile);
       if (!file.is_open()) {
-        throw std::runtime_error(fmt::format("Could not open file '{}' for reading.", distFile));
+        throw std::runtime_error(fmt::format("Could not open file '{}' for reading.", std::string(outputDir) + distFile));
       }
       std::vector<std::vector<float>> distances;
       std::string line;
@@ -121,7 +121,7 @@ class ptycho : public experimentConfig{
       int offsety = -column*0.23;
       fmt::println("scanning {} x {} steps", scanx, scany);
       allocScan();
-      fmt::ostream scanFile(fmt::output_file("scan.txt"));
+      fmt::ostream scanFile(fmt::output_file(std::string(outputDir) + "scan.txt"));
       scanFile.print("{}\n", stepSize*resolution);
       int iscan = 0;
       for(int i = 0; i < scanx; i++){
@@ -144,7 +144,7 @@ class ptycho : public experimentConfig{
       int offsety = column_O/2 - column/2;
       allocScan();
       fmt::println("Vertices of a regular pentagon with edge length {:.1f}:", EDGE_LENGTH);
-      fmt::ostream scanFile(fmt::output_file("scan.txt"));
+      fmt::ostream scanFile(fmt::output_file(std::string(outputDir) + "scan.txt"));
       scanFile.print("{}\n", stepSize*resolution);
       for (int i = 0; i < N; ++i) {
         Real angle = 2.0 * M_PI * i / N; // start from top (rotate -90°)
@@ -370,7 +370,7 @@ class ptycho : public experimentConfig{
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
       resize_cuda_image(row,column);
       Real probeStepSize = 0.20;
-      Real objStepSize = 0.10;
+      Real objStepSize = 0.40;
       myCuDMalloc(Real, d_norm, 2);
       findSum(tmp, row*column, d_norm);
       myDMalloc(Real, h_norm, 2);

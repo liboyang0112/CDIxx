@@ -1,0 +1,434 @@
+/* ==================== Base Styles ==================== */
+body {
+    background-color: #f2f2f2;
+    padding: 15px;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+}
+
+.main-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 25px;
+    position: relative;
+    z-index: 10;
+}
+
+.section-title {
+    border-left: 4px solid #1E9FFF;
+    padding-left: 12px;
+    margin: 25px 0 15px;
+    font-weight: 600;
+    color: #333;
+    font-size: 18px;
+}
+
+.warning {
+    color: #FF5722;
+    margin: 8px 0;
+    padding: 10px;
+    background: #fffaf0;
+    border-radius: 4px;
+    border-left: 3px solid #FFB800;
+}
+
+.footer-note {
+    text-align: center;
+    margin-top: 25px;
+    color: #999;
+    font-size: 13px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.help-link {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    color: #1E9FFF;
+    text-decoration: none;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    z-index: 20;
+    background: rgba(255,255,255,0.9);
+    padding: 5px 10px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.help-link:hover {
+    color: #0066cc;
+    background: rgba(255,255,255,1);
+}
+
+/* ==================== Image Display ==================== */
+.image-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 15px 0 60px;
+    justify-content: center;
+    position: relative;
+    z-index: 5;
+}
+
+.image-container img {
+    border: 2px solid #FF5722;
+    border-radius: 4px;
+    max-width: 100%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+}
+
+.image-container img:hover {
+    transform: scale(1.03);
+    z-index: 10;
+}
+
+.image-container img.selected {
+    border: 3px solid #1E9FFF;
+    box-shadow: 0 0 12px rgba(30, 159, 255, 0.5);
+    z-index: 15;
+}
+
+.image-container img {
+    transition: transform 0.4s ease, box-shadow 0.3s ease, border 0.3s ease;
+}
+
+/* ==================== File Upload & Config ==================== */
+.file-upload-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+.config-section {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid #eee;
+}
+
+.config-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.config-textarea {
+    flex: 3;
+    min-width: 300px;
+}
+
+.config-buttons {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-self: center;
+}
+
+.config-buttons .layui-btn {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 12px !important;
+}
+
+.config-buttons .layui-btn i {
+    font-size: 16px;
+}
+
+.path-display {
+    background: #eef7ff;
+    padding: 8px 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+    border-left: 3px solid #1E9FFF;
+    font-family: monospace;
+}
+
+/* ==================== Data Set Sections ==================== */
+.data-set-section {
+    background: #f9fbfd;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    border: 1px solid #e6f7ff;
+    position: relative;
+}
+
+.data-set-section::before {
+    content: attr(data-title);
+    position: absolute;
+    top: -12px;
+    left: 15px;
+    background: #1E9FFF;
+    color: white;
+    padding: 0 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ==================== Embed & Log Containers ==================== */
+.embed-container {
+    display: flex;
+    justify-content: center;
+    margin: 15px 0;
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+    position: relative;
+    z-index: 5;
+}
+
+.embed-container embed {
+    max-width: 100%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.log-container {
+    background: #2d2d2d;
+    color: #f8f8f2;
+    padding: 15px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 10px 0;
+    border-left: 3px solid #4CAF50;
+}
+
+/* ==================== Autocomplete ==================== */
+.autocomplete {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid #e6e6e6;
+    border-bottom: none;
+    border-top: none;
+    z-index: 9999;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.autocomplete-items div {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f2f2f2;
+    font-size: 14px;
+}
+
+.autocomplete-items div:hover, .autocomplete-active {
+    background-color: #f2f2f2;
+}
+
+.autocomplete-active {
+    background-color: #5FB878 !important;
+    color: #fff;
+}
+
+/* ==================== Shift Input ==================== */
+.shift-input {
+    width: 70px !important;
+    margin: 0 5px;
+}
+
+.layui-form-label {
+    width: 130px;
+    padding: 9px 15px;
+}
+
+.layui-input-block {
+    margin-left: 155px;
+}
+
+/* ==================== Live Stream Video ==================== */
+.live-stream-container {
+    max-width: 1280px;
+    margin: 30px auto;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+
+.live-stream-header {
+    padding: 15px;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+    font-family: monospace;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ==================== Image Inspection Overlay ==================== */
+.inspect-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 10000;
+    display: none;
+    cursor: grab;
+    overflow: hidden;
+}
+
+.inspect-image {
+    position: absolute;
+    transform-origin: 0 0;
+    transition: transform 0.1s ease;
+}
+
+.inspect-overlay .close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10001;
+    background: rgba(0,0,0,0.5);
+    padding: 10px 15px;
+    border-radius: 20px;
+}
+
+/* ==================== Floating Controls ==================== */
+.floating-controls {
+    position: fixed;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 15px;
+    min-width: 160px;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+#toggle-floating-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9997;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.floating-controls:hover {
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+}
+
+.floating-controls .layui-btn {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 12px !important;
+}
+
+.floating-controls .layui-btn i {
+    font-size: 16px;
+}
+
+/* ==================== Responsive Design ==================== */
+@media (max-width: 992px) {
+    .config-layout {
+        flex-direction: column;
+    }
+    
+    .config-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .config-buttons .layui-btn {
+        min-width: 140px;
+    }
+    
+    .floating-controls {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .layui-form-label {
+        width: 100%;
+        text-align: left;
+        padding: 9px 0;
+    }
+    
+    .layui-input-block {
+        margin-left: 0;
+        margin-top: 5px;
+    }
+    
+    .shift-input {
+        width: 60px !important;
+    }
+    
+    .data-set-section::before {
+        position: relative;
+        top: auto;
+        left: auto;
+        display: inline-block;
+        margin-bottom: 10px;
+    }
+    
+    .main-container {
+        padding: 15px;
+    }
+    
+    .section-title {
+        font-size: 16px;
+        margin-top: 15px;
+    }
+}

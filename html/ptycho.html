@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="icon" type="image/png" href="logo.png">
+    <title>Ptychography Reconstruction - Layui Interface</title>
+    <link rel="stylesheet" href="/layui/dist/css/layui.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+.upload-section {
+  background: #f9fbfd;
+  border-radius: 6px;
+  padding: 20px;
+  margin: 20px 0;
+  border: 1px solid #e6f7ff;
+}
+
+        .dataset-input {
+          display: flex;
+          gap: 15px;
+          align-items: center;
+          margin: 15px 0;
+          flex-wrap: wrap;
+        }
+
+        .dataset-input label {
+          font-weight: 500;
+          color: #333;
+        }
+
+        .dataset-input input {
+          width: 250px !important;
+        }
+
+        .recon-images-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 15px;
+          margin: 20px 0;
+        }
+
+        .processing-config-layout {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 20px;
+          margin: 15px 0;
+        }
+
+        .config-block {
+          flex: 1;
+          min-width: 300px;
+          background: #f8f9fa;
+          border-radius: 6px;
+          padding: 15px;
+          border: 1px solid #eee;
+        }
+
+        .config-block h4 {
+          margin: 0 0 10px 0;
+          color: #1E9FFF;
+          font-size: 14px;
+          font-weight: 600;
+        }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <a href="ptycho_help.pdf" class="help-link">
+        <i class="layui-icon layui-icon-help"></i> HELP!
+      </a>
+
+      <h1 style="text-align: center; margin-bottom: 25px; color: #1E9FFF; font-weight: 600;">
+        <i class="layui-icon layui-icon-chart" style="font-size: 28px; margin-right: 8px;"></i>
+        Ptychography Reconstruction Interface
+      </h1>
+
+      <div class="layui-row">
+        <div class="layui-col-md12">
+          <div class="layui-form">
+
+            <!-- Working Folder Section -->
+            <div class="layui-form-item">
+              <label class="layui-form-label">Working Folder</label>
+              <div class="layui-input-inline" style="width: 250px;">
+                <div class="autocomplete">
+                  <input type="text" autocomplete="off" placeholder="Your Subdirectory" id="path" class="layui-input">
+                </div>
+              </div>
+              <div class="layui-input-inline">
+                <button class="layui-btn" id="setpath">
+                  <i class="layui-icon layui-icon-ok"></i> Confirm Folder
+                </button>
+              </div>
+              <div class="layui-input-inline">
+                <a href="images" class="layui-btn layui-btn-normal layui-btn-sm">
+                  <i class="layui-icon layui-icon-folder"></i> Show Repository
+                </a>
+              </div>
+            </div>
+            <div class="path-display">
+              <a id="showpath">No working folder selected</a>
+            </div>
+
+            <!-- GPU Selection -->
+            <div class="layui-form-item">
+              <label class="layui-form-label">Select GPU</label>
+              <div class="layui-input-inline" style="width: 100px;">
+                <div class="autocomplete">
+                  <input type="text" autocomplete="off" placeholder="0" id="iGPU" class="layui-input">
+                </div>
+              </div>
+              <div class="layui-input-inline">
+                <button class="layui-btn layui-btn-warm" id="selGPU_btn">
+                  <i class="layui-icon layui-icon-set"></i> Confirm GPU
+                </button>
+              </div>
+            </div>
+
+            <!-- Dataset Upload Section -->
+            <div class="section-title">Dataset Upload</div>
+            <div class="upload-section">
+              <div class="dataset-input">
+                <label>Dataset Name:</label>
+                <input type="text" id="datasetNameInput" placeholder="Enter dataset folder name" class="layui-input">
+                <button class="layui-btn layui-btn-normal" id="createDatasetBtn">
+                  <i class="layui-icon layui-icon-add-1"></i> Create Dataset Folder
+                </button>
+              </div>
+
+              <div class="file-upload-container">
+                <span>Upload Scan Positions (scan.txt):</span>
+                <div class="layui-input-inline" style="width: 280px;">
+                  <input type="file" id="scanFile" class="layui-input" accept=".txt">
+                </div>
+                <span>Upload Background (bkg.png):</span>
+                <div class="layui-input-inline" style="width: 280px;">
+                  <input type="file" id="bkgFile" class="layui-input" accept=".png,.tif,.tiff">
+                </div>
+              </div>
+
+              <div class="file-upload-container">
+                <span>Upload Diffraction Images:</span>
+                <div class="layui-input-inline" style="width: 280px;">
+                  <input type="file" id="diffImages" multiple class="layui-input" accept=".png,.tif,.tiff">
+                </div>
+                <button class="layui-btn" id="uploadDataset">
+                  <i class="layui-icon layui-icon-upload"></i> Upload Dataset
+                </button>
+              </div>
+
+              <div class="warning">
+                <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
+                Dataset structure: datasetName/{image0.png, image1.png, ..., bkg.png, scan.txt}
+              </div>
+            </div>
+
+            <!-- Processing Configuration -->
+            <div class="section-title">Processing Configuration</div>
+            <div class="processing-config-layout">
+              <div class="config-block">
+                <h4><i class="layui-icon layui-icon-file"></i> Directory Selection</h4>
+                <div class="layui-form-item">
+                  <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">RawData:</label>
+                  <div class="layui-input-inline" style="width: 200px;">
+                    <div class="autocomplete">
+                      <input type="text" autocomplete="off" id="datasetName" placeholder="Select dataset" class="layui-input">
+                    </div>
+                  </div>
+                  <div class="layui-input-inline">
+                    <button class="layui-btn layui-btn-primary" id="viewDatasetBtn">
+                      <i class="layui-icon layui-icon-file"></i> View Dataset Files
+                    </button>
+                  </div>
+                </div>
+                <div class="layui-form-item">
+                  <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">Processed:</label>
+                  <div class="layui-input-inline" style="width: 200px;">
+                    <input type="text" id="ptychoOutputName" placeholder="Enter output name" class="layui-input">
+                  </div>
+                  <div class="layui-input-block">
+                    <button class="layui-btn layui-btn-primary layui-btn-sm" id="reload">
+                      <i class="layui-icon layui-icon-refresh"></i> Load Images
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="config-block">
+                <h4><i class="layui-icon layui-icon-folder"></i> Parameters</h4>
+
+                <div class="layui-form-item">
+                  <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">Nmerge:</label>
+                  <div class="layui-input-inline" style="width: 100px;">
+                    <select id="nmerge" class="layui-select">
+                      <option value="1">1x1</option>
+                      <option value="2">2x2</option>
+                      <option value="3" selected>3x3</option>
+                      <option value="4">4x4</option>
+                      <option value="5">5x5</option>
+                      <option value="6">6x6</option>
+                      <option value="7">7x7</option>
+                      <option value="8">8x8</option>
+                    </select>
+                  </div>
+                  <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">Mode:</label>
+                  <div class="layui-input-inline" style="width: 100px;">
+                    <select id="mode" class="layui-select">
+                      <option value="0" selected>Mode 0</option>
+                      <option value="1">Mode 1</option>
+                      <option value="2">Mode 2</option>
+                      <option value="3">Mode 3</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="layui-form-item">
+                  <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">Shift (x, y):</label>
+                  <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
+                    <input type="text" id="shiftx" class="layui-input shift-input" value="0" style="width: 50px;">
+                    <span style="font-size: 14px; color: #666;">,</span>
+                    <input type="text" id="shifty" class="layui-input shift-input" value="0" style="width: 50px;">
+                  </div>
+                  <div class="layui-input-inline">
+                    <button class="layui-btn layui-btn-danger" id="processImgBtn">
+                      <i class="layui-icon layui-icon-play"></i> Process Images
+                    </button>
+                  </div>
+                </div>
+
+
+
+              </div>
+            </div>
+
+            <div class="log-container" id="processlog">No log available</div>
+<!-- Diagnostic Images Section -->
+<div class="section-title">Processed Image Diagnostics</div>
+<div class="diagnostic-images-container" id="diagnostic-images-container">
+    <div class="empty-state">Process images to see diagnostic outputs (logimage/autocorrelation)</div>
+</div>
+
+            <!-- Ptychography Configuration -->
+            <div class="section-title">Ptychography Configuration</div>
+            <div class="config-section">
+              <div class="config-layout">
+                <div class="config-textarea">
+                  <div class="layui-form-item layui-form-text">
+                    <div class="layui-input-block">
+                      <textarea id="ptychoConfig" placeholder="After selecting working folder, you can edit config file here" class="layui-textarea" rows="10"></textarea>
+                    </div>
+                  </div>
+                </div>
+                <div class="config-buttons">
+                  <button class="layui-btn" id="savePtychoConfig">
+                    <i class="layui-icon layui-icon-save"></i> Save
+                  </button>
+                  <button class="layui-btn layui-btn-primary" id="savePtychoConfigDef">
+                    <i class="layui-icon layui-icon-template-1"></i> Save As Default
+                  </button>
+                  <button class="layui-btn layui-btn-danger" id="runPtychoBtn">
+                    <i class="layui-icon layui-icon-play"></i> Run Reconstruction
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Reconstruction Stream -->
+            <div class="section-title">Live Reconstruction Stream</div>
+            <div class="live-stream-container">
+              <div class="live-stream-header">
+                <span style="display: flex; align-items: center;">
+                  <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; animation: pulse 1.5s infinite;" id="streamStatus"></span>
+                  Live Reconstruction (1s delay)
+                </span>
+                <span>Latency: <span id="latency">--</span> s</span>
+              </div>
+              <video id="ptychoStream" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+            </div>
+
+            <!-- Reconstruction Results -->
+            <div class="section-title">Reconstruction Results</div>
+            <div class="recon-images-container">
+              <img id="recon_pupil_proj" width="220" alt="Pupil Projection">
+              <img id="recon_pupil" width="220" alt="Recon Pupil">
+              <img id="recon_pupil_b4_proj" width="220" alt="Pupil Before Projection">
+              <img id="ptycho_afterIterwave" width="220" alt="Wave After Iteration">
+              <img id="ptycho_probe_afterIter" width="220" alt="Probe After Iteration">
+            </div>
+
+            <!-- Reconstruction Log -->
+            <div class="section-title">Reconstruction Log</div>
+            <div class="log-container" id="ptycholog">No log available</div>
+
+            <div class="footer-note">
+              <p>Ptychography Reconstruction System &copy; 2026 | Version 1.0.0</p>
+              <p>Developed with Layui Framework for optimal performance and user experience</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image inspection overlay -->
+      <div class="inspect-overlay" id="inspectOverlay">
+        <div class="close-btn" id="closeInspect">✕ Close (Click or ESC)</div>
+        <img class="inspect-image" id="inspectImage" src="">
+      </div>
+    </div>
+
+    <!-- Floating Image Controls -->
+    <button id="toggle-floating-btn" class="layui-btn layui-btn-primary layui-btn-sm">
+      <i class="layui-icon layui-icon-down"></i> Show Image Tools
+    </button>
+    <div class="floating-controls">
+      <button id="close-floating-btn" class="layui-btn layui-btn-primary">
+        <i class="layui-icon layui-icon-close"></i>
+      </button>
+      <button class="layui-btn layui-btn-primary" id="rotate_btn">
+        <i class="layui-icon layui-icon-rotate"></i> Rotate 90°
+      </button>
+      <button class="layui-btn layui-btn-primary" id="rotate180_btn">
+        <i class="layui-icon layui-icon-rotate-180"></i> Transpose
+      </button>
+      <button class="layui-btn layui-btn-primary" id="flip_btn">
+        <i class="layui-icon layui-icon-horizontal"></i> Flip
+      </button>
+      <button class="layui-btn layui-btn-primary" id="reset_btn">
+        <i class="layui-icon layui-icon-refresh"></i> Reset
+      </button>
+      <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #666;">
+        <div>Active Image:</div>
+        <div id="active-image-name" style="font-weight: bold; color: #1E9FFF; min-height: 18px;">recon_pupil_proj</div>
+      </div>
+    </div>
+
+    <script src="hls.js"></script>
+    <script src="/layui/dist/layui.js"></script>
+    <script src="main.js"></script>
+    <script>
+      // ==================== Page-Specific Initialization ====================
+      const ptychoImages = [
+        'recon_pupil_proj', 
+        'recon_pupil', 
+        'recon_pupil_b4_proj', 
+        'ptycho_afterIterwave', 
+        'ptycho_probe_afterIter'
+      ];
+
+      // Single click for selection, double click for preview
+      ptychoImages.forEach(id => {
+        selectListenerWithInspect(id)
+      });
+
+      if (document.getElementById('recon_pupil_proj')) {
+        document.getElementById('recon_pupil_proj').classList.add('selected');
+        operateImage = 'recon_pupil_proj';
+        if (document.getElementById('active-image-name')) {
+          document.getElementById('active-image-name').textContent = imageNames['recon_pupil_proj'];
+        }
+      }
+
+      // ==================== Path Setting ====================
+      document.getElementById("setpath")?.addEventListener('click', async () => {
+        const pathValue = document.getElementById('path').value;
+        workpath = pathValue;
+        document.cookie = 'ptychoworkpath=' + workpath + '; path=/';
+
+        setPath(pathValue, {
+          'ptycho.cfg': 'ptychoConfig'
+        });
+
+        showNotification('Working folder confirmed', 'success');
+
+        // Load autocomplete data for datasets (directories in working folder)
+        await listFiles("cd " + repo + pathValue + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
+          .then(data => {
+            autoFillDictionary["ptycho_dataset"] = data;
+            console.log('Datasets loaded:', data);
+          })
+          .catch(error => {
+            console.error('Error loading datasets:', error);
+          });
+      });
+
+      // ==================== GPU Selection ====================
+      document.getElementById("selGPU_btn")?.addEventListener('click', async () => {
+        const cmd = "echo export CUDA_VISIBLE_DEVICES=" + document.getElementById('iGPU').value + " > selectGPU.sh";
+        try {
+          const response = await fetch(url_cmd, {
+            method: 'POST',
+            body: cmd
+          });
+          const data = await response.text();
+          console.log(data);
+          showNotification('GPU selection saved', 'success');
+        } catch (error) {
+          showNotification('Error setting GPU: ' + error, 'error');
+        }
+      });
+
+      // ==================== Dataset Creation ====================
+      document.getElementById("createDatasetBtn")?.addEventListener('click', async () => {
+        const datasetName = document.getElementById('datasetNameInput').value;
+        if (!datasetName) {
+          showNotification('Please enter a dataset name', 'error');
+          return;
+        }
+
+        const path = repo + workpath + "/" + datasetName;
+        const cmd = "mkdir -p " + path;
+
+        try {
+          const response = await fetch(url_cmd, {
+            method: 'POST',
+            body: cmd
+          });
+          const data = await response.text();
+          console.log(data);
+
+          // Auto-fill the datasetName field in Processing Configuration
+          document.getElementById('datasetName').value = datasetName;
+
+          showNotification(`Dataset folder created: ${datasetName}`, 'success');
+
+          // Refresh dataset list
+          await listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
+            .then(data => {
+              autoFillDictionary["ptycho_dataset"] = data;
+            });
+        } catch (error) {
+          showNotification('Error creating dataset folder: ' + error, 'error');
+        }
+      });
+
+      // ==================== Dataset Upload ====================
+      document.getElementById("uploadDataset")?.addEventListener('click', async () => {
+        const datasetName = document.getElementById('datasetNameInput').value;
+        if (!datasetName) {
+          showNotification('Please enter a dataset name', 'error');
+          return;
+        }
+
+        const path = repo + workpath + "/" + datasetName + "/";
+        const url = 'savefile.php';
+        const formData = new FormData();
+
+        formData.append('path', path);
+
+        // Upload scan.txt
+        const scanFile = document.getElementById('scanFile').files[0];
+        if (scanFile) {
+          formData.append('files[]', scanFile, 'scan.txt');
+        }
+
+        // Upload bkg.png
+        const bkgFile = document.getElementById('bkgFile').files[0];
+        if (bkgFile) {
+          formData.append('files[]', bkgFile, 'bkg.png');
+        }
+
+        // Upload diffraction images
+        const diffFiles = document.getElementById('diffImages').files;
+        Array.from(diffFiles).forEach(file => {
+          formData.append('files[]', file);
+        });
+
+        try {
+          setLoading('uploadDataset');
+          const response = await fetch(url, {
+            method: 'POST',
+            body: formData
+          });
+          const data = await response.text();
+          console.log(data);
+          clearLoading('uploadDataset');
+          showNotification('Dataset uploaded successfully', 'success');
+        } catch (error) {
+          clearLoading('uploadDataset');
+          showNotification('Error uploading dataset: ' + error, 'error');
+        }
+      });
+
+      // ==================== Process Images ====================
+      document.getElementById("processImgBtn")?.addEventListener('click', async () => {
+        const datasetName = document.getElementById('datasetName').value;
+        const outputName = document.getElementById('ptychoOutputName').value;
+
+        if (!datasetName || !outputName) {
+          showNotification('Please enter both dataset name and output name', 'error');
+          return;
+        }
+
+        const nmerge = document.getElementById('nmerge').value;
+        const mode = document.getElementById('mode').value;
+        const shiftx = document.getElementById('shiftx').value;
+        const shifty = document.getElementById('shifty').value;
+
+        const path = repo + workpath + "/";
+        const cmd = `./runProcessPtycho.sh ${path} ${datasetName} ${outputName} ${nmerge} ${mode} ${shiftx} ${shifty}`;
+
+        try {
+          setLoading('processImgBtn');
+          const response = await fetch(url_cmd, {
+            method: 'POST',
+            body: cmd
+          });
+          const data = await response.text();
+          document.getElementById('processlog').innerText = data;
+          clearLoading('processImgBtn');
+          displayDiagnosticImages(outputName);
+          showNotification('Image processing completed', 'success');
+        } catch (error) {
+          clearLoading('processImgBtn');
+          showNotification('Error during image processing: ' + error, 'error');
+        }
+      });
+
+function displayDiagnosticImages(outputDir) {
+    const container = document.getElementById('diagnostic-images-container');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
+    
+    // Get list of diagnostic files from server
+    const cmd = `cd ${repo}${workpath} && ls ${outputDir}/*_logimage.png ${outputDir}/*_autocorrelation.png 2>/dev/null | sort -V`;
+    console.log(cmd)
+    
+    fetch(url_cmd, { method: 'POST', body: cmd })
+        .then(response => response.text())
+        .then(data => {
+            const files = data.trim().split('\n').filter(f => f && f.trim());
+            
+            if (files.length === 0) {
+                container.innerHTML = '<div class="empty-state">No diagnostic images found</div>';
+                return;
+            }
+            
+            // Create grid of images - CORRECTED PATH
+            container.innerHTML = files.map(file => {
+                const filename = file.split('/').pop();
+                // Full path: repo + workpath + / + outputDir + / + filename
+                const fullPath = `${repo}${workpath}/${outputDir}/${filename}`;
+                return `
+                    <div class="diagnostic-image-card">
+                        <img src="${fullPath}?t=${Date.now()}" 
+                             alt="${filename}" 
+                             class="diagnostic-image"
+                             onclick="enableInspectMode(this)">
+                        <div class="image-label">${filename}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add CSS for the new section (add to your styles.css)
+            if (!document.getElementById('diagnostic-styles')) {
+                const style = document.createElement('style');
+                style.id = 'diagnostic-styles';
+                style.textContent = `
+                    #diagnostic-images-container {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                        gap: 15px;
+                        margin: 20px 0;
+                    }
+                    .diagnostic-image-card {
+                        background: #f8f9fa;
+                        border-radius: 6px;
+                        overflow: hidden;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                        transition: transform 0.2s;
+                    }
+                    .diagnostic-image-card:hover {
+                        transform: translateY(-3px);
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    }
+                    .diagnostic-image {
+                        width: 100%;
+                        height: 150px;
+                        object-fit: contain;
+                        background: #eee;
+                        cursor: zoom-in;
+                    }
+                    .image-label {
+                        padding: 8px;
+                        font-size: 12px;
+                        text-align: center;
+                        color: #555;
+                        border-top: 1px solid #eee;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .loading, .empty-state {
+                        grid-column: 1 / -1;
+                        text-align: center;
+                        padding: 20px;
+                        color: #888;
+                        font-style: italic;
+                    }
+                    .error {
+                        grid-column: 1 / -1;
+                        text-align: center;
+                        padding: 20px;
+                        color: #f44336;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        })
+        .catch(err => {
+            console.error('Error loading diagnostic images:', err);
+            container.innerHTML = `<div class="error">Failed to load diagnostic images: ${err.message}</div>`;
+        });
+}
+      // ==================== View Dataset ====================
+      document.getElementById("viewDatasetBtn")?.addEventListener('click', async () => {
+        const datasetName = document.getElementById('datasetName').value;
+        if (!datasetName) {
+          showNotification('Please select a dataset name', 'error');
+          return;
+        }
+
+        const path = repo + workpath + "/" + datasetName;
+        window.open(path, '_blank');
+      });
+
+      // ==================== Ptychography Reconstruction ====================
+      // ==================== RECONSTRUCTION TOGGLE BUTTON ====================
+      document.getElementById("runPtychoBtn")?.addEventListener('click', async () => {
+        const btn = document.getElementById('runPtychoBtn');
+        const outputName = document.getElementById('ptychoOutputName').value?.trim();
+        const path = repo + workpath + "/";
+
+        // VALIDATION
+        if (!window.reconstructionState.isRunning && !outputName) {
+          showNotification('Enter output directory name first', 'error');
+          return;
+        }
+
+        // === TERMINATE MODE (second click) ===
+        if (window.reconstructionState.isRunning) {
+          try {
+            // Cancel pending stream reload
+            if (window.reconstructionState.streamTimeout) {
+              clearTimeout(window.reconstructionState.streamTimeout);
+              window.reconstructionState.streamTimeout = null;
+            }
+
+            // Send termination command (BACKEND MUST IMPLEMENT killPtycho.sh)
+            const killCmd = `./killPtycho.sh "${path}" "${window.reconstructionState.outputName}"`;
+            const response = await fetch(url_cmd, { method: 'POST', body: killCmd });
+            if (response.ok) {
+              showNotification('Reconstruction terminated', 'success');
+            } else {
+              showNotification('Termination failed (process may have already finished)', 'warning');
+            }
+
+            showNotification('Termination signal sent', 'warning');
+          } catch (err) {
+            console.error('Termination failed:', err);
+            showNotification('Termination error (check logs)', 'error');
+          } finally {
+            // Reset UI state
+            btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
+            btn.className = 'layui-btn layui-btn-danger'; // Restore original class
+            window.reconstructionState.isRunning = false;
+            window.reconstructionState.outputName = null;
+          }
+          return;
+        }
+
+        // === START MODE (first click) ===
+        window.reconstructionState.isRunning = true;
+        window.reconstructionState.outputName = outputName;
+
+        // Update button UI IMMEDIATELY (before any async operations)
+        btn.innerHTML = '<i class="layui-icon layui-icon-close"></i> Terminate Reconstruction';
+        btn.className = 'layui-btn layui-btn-warm'; // Visual distinction
+
+        // START RECONSTRUCTION (non-blocking)
+        const startCmd = "./runPtycho.sh " + path;
+        console.log(startCmd)
+        fetch(url_cmd, { method: 'POST', body: startCmd })
+          .then(resp => resp.text())
+          .then(data => {
+            document.getElementById('ptycholog').innerText = data;
+            showNotification('Reconstruction terminated', 'success');
+            window.reconstructionState.isRunning = false;
+            btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
+            btn.className = 'layui-btn layui-btn-danger';
+            btn.disabled = false;
+            clearLoading('runPtychoBtn');
+            loadImage(); // Load static images
+          })
+          .catch(err => {
+            console.error('Reconstruction start failed:', err);
+            showNotification('Failed to start reconstruction', 'error');
+            resetReconstructionUI();
+          });
+
+        showNotification('Reconstruction started! Stream refreshing in 1s...', 'success');
+
+        // SCHEDULE STREAM RELOAD EXACTLY 1 SECOND AFTER CLICK (critical requirement)
+        if (window.reconstructionState.streamTimeout) {
+          clearTimeout(window.reconstructionState.streamTimeout);
+        }
+
+        window.reconstructionState.streamTimeout = setTimeout(() => {
+          if (!window.reconstructionState.isRunning) return;
+
+          // CACHE-BUSTING: Append UNIQUE timestamp to URL (critical!)
+          const timestamp = Date.now(); // Milliseconds since epoch = guaranteed unique
+          const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8?t=${timestamp}`;
+
+          console.log(`[STREAM] Reloading with cache-buster: t=${timestamp}`);
+          setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
+        }, 3000);
+      });
+
+      // Helper to reset UI state
+      function resetReconstructionUI() {
+        const btn = document.getElementById('runPtychoBtn');
+        if (!btn) return;
+
+        btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
+        btn.className = 'layui-btn layui-btn-danger';
+        window.reconstructionState.isRunning = false;
+        window.reconstructionState.outputName = null;
+
+        if (window.reconstructionState.streamTimeout) {
+          clearTimeout(window.reconstructionState.streamTimeout);
+          window.reconstructionState.streamTimeout = null;
+        }
+      }
+
+      // ==================== Save Configuration ====================
+      saveTextToWorkingDir("savePtychoConfig", "ptycho.cfg", "ptychoConfig");
+      saveTextToFile("savePtychoConfigDef", "default/ptycho.cfg", "ptychoConfig");
+
+      // ==================== Load Images ====================
+      function loadImage(){
+        const outputName = document.getElementById('ptychoOutputName').value;
+        if (!outputName) {
+          showNotification('Please enter output directory name', 'error');
+          return;
+        }
+        const timestamp = getTimestamp();
+        const path = repo + workpath + "/" + outputName + "/";
+
+        ptychoImages.forEach(imgId => {
+          const img = document.getElementById(imgId);
+          if (img) {
+            img.src = path + imgId + ".png?t=" + timestamp;
+          }
+        });
+        displayDiagnosticImages(outputName)
+        showNotification('Images loaded from output directory', 'success');
+      }
+      document.getElementById("reload")?.addEventListener('click', async () => {
+        loadImage();
+      });
+
+      // ==================== Setup HLS Stream ====================
+      document.addEventListener('DOMContentLoaded', () => {
+        const outputName = document.getElementById('ptychoOutputName').value;
+        const path = repo + workpath + "/" + outputName + "/recon_object/";
+        const streamUrl = path + 'stream.m3u8';
+        setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
+      });
+
+      // ==================== Autocomplete Initialization ====================
+      document.addEventListener('DOMContentLoaded', function() {
+        const autocompleteIds = [
+          {id: "path", dict: "path"},
+          {id: "datasetName", dict: "ptycho_dataset"}
+        ];
+
+        autocompleteIds.forEach(item => {
+          const element = document.getElementById(item.id);
+          if (element) {
+            autocomplete(element, item.dict);
+          }
+        });
+      });
+
+      // ==================== Initialize Path ====================
+      if (workpath) {
+        document.getElementById('path').value = workpath;
+        setPath(workpath, {
+          'ptycho.cfg': 'ptychoConfig'
+        });
+      }
+    </script>
+  </body>
+</html>
