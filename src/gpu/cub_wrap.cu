@@ -93,7 +93,6 @@ Real findMax(Real* d_in, int num, void* d_out)
 
 int findMaxIdx(Real* d_in, int num, void* d_out)
 {
-  /*
   cub::KeyValuePair<int, Real> output;
   bool hascache = 1;
   if(!d_out) {
@@ -114,7 +113,6 @@ int findMaxIdx(Real* d_in, int num, void* d_out)
     memMngr.returnCache(d_out);
     return output.key;
   }
-  */
   return 0;
 }
 

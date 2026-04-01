@@ -94,7 +94,7 @@ int main() {
   init_cuda_image();
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
-  myCuDMalloc(Real, image1, rows*cols);
+  //myCuDMalloc(Real, image1, rows*cols);
   C_circle spt;
   spt.r = 255;
   //spt.r = 13;

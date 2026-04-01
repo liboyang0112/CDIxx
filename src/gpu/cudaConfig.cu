@@ -1061,21 +1061,6 @@ cuFuncc(multiplyFresnelPhaseOblique_Device,(complexFormat* amp, Real phaseFactor
 
 //-------experimentConfig.cc-end
 
-//-------cdi.cc-begin
-/*
-    if (!(fresnelFactor > 1e-4f && iter < 400)) return;
-    if (!inside) return;
-    int dx = x - (cuda_row >> 1);
-    int dy = y - (cuda_column >> 1);
-    //oblique: Real phase = M_PI*fresnelFactor*(sq((x-(cuda_row>>1))*costheta_r)+sq(y-(cuda_column>>1)));
-    Real phase = (Real)M_PI * fresnelFactor * (dx*dx + dy*dy);
-    Real c, s;
-    sincosf(phase, &s, &c);  // Single call: ~2x faster than separate sin/cos
-    Real mod = fabsf(gkp1data.x * c + gkp1data.y * s);  // Real part after rotation
-    gkp1data.x = mod * c;
-    gkp1data.y = mod * s;
-    */
-//-------cdi.cc-end
 
 //-------FISTA.cc-------begin
 cuFunc(partialx, (Real* b, Real* p), (b,p),{

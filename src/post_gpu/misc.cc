@@ -186,3 +186,9 @@ void convolute(complexFormat* store, complexFormat* input1, complexFormat* input
   }else
     myIFFT(store, store);
 }
+Real* createBeamStop(int row, int column, int beamStopSize){
+  Real* beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  createCircleMask(beamstop, row>>1, column>>1, beamStopSize, 1);
+  return beamstop;
+}
+

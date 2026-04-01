@@ -84,7 +84,8 @@ void holo::simulate(){
     fmt::println("phase factor, {:f}, {:f}, {:f}, {}", lambda, d, pixelsize, row);
     createWaveFront( d_intensity, d_phase, (complexFormat*)objectWave_holo, objrow, objcol, (row/oversampling-objrow)/2, (column/oversampling-objcol)/2, phasefactor);
     add( (complexFormat*)objectWave_holo, (complexFormat*)objectWave, 1);
-    propagate((complexFormat*)objectWave_holo, (complexFormat*)patternWave_holo, 1);
+    myFFT((complexFormat*)objectWave_holo, (complexFormat*)patternWave_holo);
+    applyNorm((complexFormat*)patternWave_holo, 1./sqrt(row*column));
     getMod2( patternData_holo, (complexFormat*)patternWave_holo);
     plt.plotComplex(objectWave_holo, MOD2, 0, 1, "holoIntensity");
     plt.plotComplex(objectWave_holo, PHASE, 0, 1, "holoPhase");
@@ -108,7 +109,8 @@ void holo::simulate(){
     prepareIter();
     phaseRetrieve();
   }else if(runSim){
-    propagate((complexFormat*)objectWave,(complexFormat*)patternWave, 1);
+    myFFT((complexFormat*)objectWave,(complexFormat*)patternWave);
+    applyNorm((complexFormat*)patternWave, 1./sqrt(row*column));
     getMod2(patternData, (complexFormat*)patternWave);
   }else{
     prepareIter();

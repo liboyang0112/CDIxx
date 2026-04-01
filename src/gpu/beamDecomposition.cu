@@ -227,7 +227,7 @@ struct ZernikeHandle {
   int maxN;
   int nmodes;
   int nblocks;
-  int width, height;
+  int width;
   size_t shared_mem_size;
   cuComplex* block_coeff;
   cuComplex* final_coeff;
@@ -236,14 +236,14 @@ struct ZernikeHandle {
   bool initialized;
 };
 
-void* zernike_init(int width, int height, int maxN, int max_blocks) {
+
+void* zernike_init(int width, int maxN, int max_blocks) {
   ZernikeHandle* handle = new ZernikeHandle();
   handle->width = width;
-  handle->height = height;
   handle->maxN = maxN;
   handle->nmodes = (maxN + 1) * (maxN + 2) / 2;
   handle->nthread = 128;
-  int npixels = width * height;
+  int npixels = width * width;
   handle->nblocks = (npixels + handle->nthread-1) / handle->nthread;
   if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
   handle->shared_mem_size = (handle->nthread + 1) * 14 * 2 * sizeof(Real);
@@ -253,6 +253,43 @@ void* zernike_init(int width, int height, int maxN, int max_blocks) {
   myCuMalloc(cuComplex, handle->final_coeff, handle->nmodes);
   handle->initialized = true;
   return static_cast<void*>(handle);
+}
+
+void* zernike_init_shared_mem(void* handle_shared, int width, int maxN, int max_blocks) {
+  ZernikeHandle* handle = new ZernikeHandle();
+  handle->width = width;
+  handle->maxN = maxN;
+  handle->nmodes = (maxN + 1) * (maxN + 2) / 2;
+  handle->nthread = 128;
+  int npixels = width * width;
+  handle->nblocks = (npixels + handle->nthread-1) / handle->nthread;
+  if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
+  handle->shared_mem_size = (handle->nthread + 1) * 14 * 2 * sizeof(Real);
+
+  handle->block_coeff = ((ZernikeHandle*)handle_shared)->block_coeff;
+  handle->host_coeff = ((ZernikeHandle*)handle_shared)->host_coeff;
+  handle->final_coeff = ((ZernikeHandle*)handle_shared)->final_coeff;
+  handle->initialized = true;
+  return static_cast<void*>(handle);
+}
+
+void** zernike_init_group(int* widths, int maxN, int max_blocks, int n) {
+  myDMalloc(void*, handles, n);
+  int max_width = 0, max_idx = 0;
+  for (int i = 0 ; i < n ; i++) {
+    if(widths[i] > max_width) {
+      max_width = widths[i];
+      max_idx = 0;
+    }
+  }
+  handles[max_idx] = zernike_init(max_width, maxN, max_blocks);
+  for (int i = 0 ; i < n ; i++) {
+    if(i == max_idx) {
+      continue;
+    }
+    handles[max_idx] = zernike_init_shared_mem(handles[max_idx], widths[i], maxN, max_blocks);
+  }
+  return handles;
 }
 
 complexFormat* zernike_coeff(void* handle_ptr) {
@@ -277,7 +314,7 @@ void zernike_destroy(void* handle_ptr) {
 }
 __global__ void zernike_project_mode(
     const cuComplex* phi,
-    int width, int height,
+    int width,
     Real cx, Real cy, Real norm,
     int maxN,
     cuComplex* block_coeff_mode
@@ -295,7 +332,7 @@ __global__ void zernike_project_mode(
   Real rho = 10.0f, theta = 0.0f;
   Real rho_pow = 1.0f;
   cuComplex phi_val = make_cuComplex(0.0f, 0.0f);
-  if (gid < width * height) {
+  if (gid < width * width) {
     int x = gid % width;
     int y = gid / width;
     Real dx = x - cx;
@@ -449,9 +486,9 @@ __global__ void regularize_zernike_coefficients(
   final_coeff[mode].y = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
 }
 
-__global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, int height, Real cx, Real cy, Real radius, int maxN, const cuComplex* coeff, int nmodes) {
+__global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, Real cx, Real cy, Real radius, int maxN, const cuComplex* coeff, int nmodes) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
-  int npixels = width * height;
+  int npixels = width * width;
   if (gid >= npixels) return;
   int x = gid % width, y = gid / width;
   Real dx = x - cx, dy = y - cy;
@@ -512,7 +549,7 @@ complexFormat* zernike_compute(
   if (!handle->initialized) return nullptr;
 
   zernike_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
-      (cuComplex*)phi, handle->width, handle->height, cx, cy, radius, handle->maxN, handle->block_coeff
+      (cuComplex*)phi, handle->width, cx, cy, radius, handle->maxN, handle->block_coeff
       );
   int reduce_threads = handle->nthread;
   int reduce_blocks = (handle->nmodes + reduce_threads - 1) / reduce_threads;
@@ -531,16 +568,15 @@ void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius) 
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
   if (!handle->initialized) return;
 
-  int npixels = handle->width * handle->height;
+  int npixels = handle->width * handle->width;
   dim3 blockSize(512);
   dim3 gridSize((npixels + blockSize.x - 1) / blockSize.x);
 
   zernike_reconstruct_kernel<<<gridSize, blockSize>>>(
       (cuComplex*)phi_out,
       handle->width,
-      handle->height,
       Real(handle->width-1)/2,   // cx
-      Real(handle->height-1)/2.0f,  // cy
+      Real(handle->width-1)/2,   // cy
       radius,
       handle->maxN,
       handle->final_coeff,    // ← internal coefficient cache
@@ -550,7 +586,7 @@ void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius) 
 
 __global__ void laguerre_project_mode(
     const cuComplex* phi,
-    int width, int height, Real radius,
+    int width, Real radius,
     Real cx, Real cy,
     int maxN, int maxM,
     cuComplex* block_coeff_mode
@@ -568,7 +604,7 @@ __global__ void laguerre_project_mode(
   Real z = 0.0f, theta = 0.0f;
   cuComplex phi_val = make_cuComplex(0.0f, 0.0f);
   radius  = 1./radius;
-  if (gid < width * height) {
+  if (gid < width * width) {
     int x = gid % width;
     int y = gid / width;
     Real dx = (x - cx)*radius;
@@ -661,7 +697,7 @@ struct LaguerreHandle {
   int maxM;
   int nmodes;
   int nblocks;
-  int width, height;
+  int width;
   size_t shared_mem_size;
   cuComplex* block_coeff;
   cuComplex* final_coeff;
@@ -669,15 +705,14 @@ struct LaguerreHandle {
   int nthread;
   bool initialized;
 };
-void* laguerre_init(int width, int height, int maxN, int maxM, int max_blocks) {
+void* laguerre_init(int width, int maxN, int maxM, int max_blocks) {
   LaguerreHandle* handle = new LaguerreHandle();
   handle->width = width;
-  handle->height = height;
   handle->maxN = maxN;
   handle->maxM = maxM;
   handle->nmodes = (maxN+1) * (2 * maxM + 1);
   handle->nthread = 128;
-  int npixels = width * height;
+  int npixels = width * width;
   handle->nblocks = (npixels + handle->nthread - 1) / handle->nthread;
   if (max_blocks > 0 && handle->nblocks > max_blocks) handle->nblocks = max_blocks;
   handle->shared_mem_size = (handle->nthread + 1) * 14 * 2 * sizeof(Real);
@@ -695,7 +730,7 @@ complexFormat* laguerre_compute(void* handle_ptr, complexFormat* phi, Real cx, R
 
   laguerre_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
       (cuComplex*)phi,
-      handle->width, handle->height, radius,
+      handle->width, radius,
       cx, cy,
       handle->maxN, handle->maxM,
       handle->block_coeff
@@ -730,7 +765,7 @@ void laguerre_destroy(void* handle_ptr) {
 }
 __global__ void laguerre_reconstruct_kernel(
     cuComplex* phi_out,
-    int width, int height,
+    int width,
     Real radius,
     Real cx, Real cy,
     int maxN, int maxM,
@@ -738,7 +773,7 @@ __global__ void laguerre_reconstruct_kernel(
     int nmodes
     ) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
-  int npixels = width * height;
+  int npixels = width * width;
   if (gid >= npixels) return;
 
   int x = gid % width;
@@ -821,17 +856,16 @@ void laguerre_reconstruct(
   LaguerreHandle* handle = static_cast<LaguerreHandle*>(handle_ptr);
   if (!handle->initialized) return;
 
-  int npixels = handle->width * handle->height;
+  int npixels = handle->width * handle->width;
   dim3 blockSize(512);
   dim3 gridSize((npixels + blockSize.x - 1) / blockSize.x);
 
   laguerre_reconstruct_kernel<<<gridSize, blockSize>>>(
       (cuComplex*)phi_out,
       handle->width,
-      handle->height,
       radius,                    // ← passed as argument
       handle->width / 2.0f,      // cx (centered by default)
-      handle->height / 2.0f,     // cy
+      handle->width / 2.0f,      // cy (centered by default)
       handle->maxN,
       handle->maxM,
       handle->final_coeff,

@@ -10,3 +10,4 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
 uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow, int mcol, int shiftx, int shifty);
 void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq = 0);
 void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache, int upsample, void* handle);
+Real* createBeamStop(int row, int column, int beamStopSize);

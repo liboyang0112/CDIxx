@@ -1,24 +1,28 @@
-#include "experimentConfig.hpp"
+#include "propagator.hpp"
+#include "readConfig.hpp"
+#include "format.hpp"
 #include <string>
 
-class CDI : public experimentConfig{
+class CDI : public readConfig{
   public:
     CDI(const char* configfile);
     Real* patternData = 0;
+    Real* beamstop = 0;
+    propagator propagate;
     complexFormat* patternWave = 0;
     complexFormat* autoCorrelation = 0;
+    int row = 0, column = 0;
+    complexFormat* objectWave = 0;
     Real* support = 0;
     Real residual = 0;
+    Real resolution = 0;
     void *cuda_spt;
     void *mnist_dat = 0;
     std::string save_suffix = "";
     void *devstates;
-    void multiplyPatternPhaseMid(complexFormat* amp, Real distance);
-    void multiplyFresnelPhaseMid(complexFormat* amp, Real distance);
     void allocateMem();
     void readObjectWave();
     void readPattern();
-    void calculateParameters();
     void readFiles();
     void setPattern(Real* pattern);
     void setPattern_c(complexFormat* pattern);

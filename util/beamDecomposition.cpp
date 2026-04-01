@@ -92,7 +92,7 @@ int main () {
   //  }
   //  */
   //
-    void* handle = zernike_init(row, col, maxn, 0);
+    void* handle = zernike_init(row, maxn, 0);
     zernike_compute(handle , img, 511.5,511.5,radius);
     complexFormat* coeff = zernike_coeff(handle);
     Real threshold = 1e-4;

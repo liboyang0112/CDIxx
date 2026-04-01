@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include "fmt/core.h"
 #include "imgio.hpp"
+#include "cudaConfig.hpp"
+#include "cuPlotter.hpp"
 #include "cdi.hpp"
 #include <bits/stdc++.h>
 //#include <tracy/Tracy.hpp>
@@ -20,6 +22,12 @@ int main(int argc, char** argv )
   fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
   Real fresnelNumber = M_PI*sq(setups.beamspotsize)/(setups.d*setups.lambda);
   fmt::println("Fresnel Number = {:f}",fresnelNumber);
+  int sz = setups.row*setups.column*sizeof(complexFormat);
+  complexFormat* cuda_pupilAmp = 0, *cuda_ESW = 0, *cuda_ESWP = 0, *cuda_ESWPattern = 0, *cuda_pupilAmp_SIM = 0;
+  if(setups.dopupil){
+    cuda_pupilAmp = (complexFormat*)memMngr.borrowCache(sz);
+    if(setups.runSim) myMemcpyD2D(cuda_pupilAmp, setups.objectWave, sz);
+  }
     if(setups.runSim && setups.domnist){
       for(int i = 0; i < setups.mnistN; i++){
         setups.save_suffix = to_string(i);

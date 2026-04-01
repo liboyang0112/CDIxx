@@ -8,7 +8,7 @@
 #include "imageFile.hpp"
 #include <ctime>
 #include "cudaConfig.hpp"
-#include "experimentConfig.hpp"
+#include "readConfig.hpp"
 #include "memManager.hpp"
 #include "mnistData.hpp"
 #include "tvFilter.hpp"
@@ -17,6 +17,9 @@
 #include "misc.hpp"
 #include "cdi.hpp"
 #include <complex.h>
+
+#define verbose(i,a) if(verbose>=i){a;}
+#define m_verbose(m,i,a) if(m.verbose>=i){a;}
 using namespace std;
 
 void applySupport
@@ -31,17 +34,11 @@ void applySupport
       default:      ApplyFHIOSupport  (gkp1, gkprime, spt);break;
     }
 }
-CDI::CDI(const char* configfile):experimentConfig(configfile){
-  verbose(4, print())
-    if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
+CDI::CDI(const char* configfile):readConfig(configfile){
+  verbose(4, print());
+  if(runSim) d = oversampling_spt*pixelsize*beamspotsize/lambda; //distance to guarentee setups.oversampling
 }
-void CDI::multiplyPatternPhaseMid(complexFormat* amp, Real distance){
-  multiplyPatternPhase_factor(amp, resolution*resolution*M_PI/(distance*lambda), 2*distance*M_PI/lambda);
-}
-void CDI::multiplyFresnelPhaseMid(complexFormat* amp, Real distance){
-  Real fresfactor = M_PI*lambda*distance/(sq(resolution*row));
-  multiplyFresnelPhase_factor(amp, fresfactor);
-}
+
 void CDI::allocateMem(){
   if(objectWave) return;
   fmt::println("allocating memory");
@@ -56,6 +53,11 @@ void CDI::allocateMem(){
   init_fft(row,column);
   fmt::println("initializing cuda plotter");
   plt.init(row,column);
+  propagate.row = row;
+  propagate.column = column;
+  propagate.pixelsize = pixelsize;
+  propagate.lambda = lambda;
+  propagate.distance = d;
 }
 void CDI::readObjectWave(){
   if(domnist){
@@ -104,16 +106,6 @@ void CDI::readPattern(){
   applyNorm(patternData, 1./exposure);
   fmt::println("Created pattern data");
 }
-void CDI::calculateParameters(){
-  experimentConfig::calculateParameters();
-  if(dopupil) {
-    Real k = row*sq(pixelsize)/(lambda*d);
-    dpupil = d*k/(k+1);
-    resolution = lambda*dpupil/(row*pixelsize);
-    fmt::println("Resolution={:4.2f}um", resolution);
-    fresnelFactorpupil = lambda*dpupil/sq(pixelsize)/row/column;
-  }
-}
 void CDI::readFiles(){
   if(runSim) {
     fmt::println("running simulation, reading input images");
@@ -152,10 +144,14 @@ void CDI::init(){
       plt.plotFloat(beamstop, MOD, 1, 1, "beamstop");
     }
     else
-      createBeamStop();
+      beamstop = createBeamStop(row, column, beamStopSize);
   }
-  calculateParameters();
-  //inittvFilter(row,column);
+  if(dopupil) {
+    Real k = row*sq(pixelsize)/(lambda*d);
+    dpupil = d*k/(k+1);
+    resolution = lambda*dpupil/(row*pixelsize);
+    fmt::println("Resolution={:4.2f}um", resolution);
+  }
   createSupport();
   devstates = newRand(column * row);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -175,7 +171,7 @@ void CDI::prepareIter(){
       memMngr.returnCache(intensity);
       if(phaseModulation) memMngr.returnCache(phase);
     }
-    if(isFresnel) multiplyFresnelPhase(objectWave, d);
+    if(isFresnel) propagate.multiplyFresnelPhase(objectWave);
     //applyRandomPhase(objectWave, 0, devstates);
     verbose(2,plt.plotComplex(objectWave, MOD2, 0, 1, "inputIntensity", 0));
     verbose(2,plt.plotComplex(objectWave, PHASE, 0, 1, "inputPhase", 0));
@@ -226,7 +222,8 @@ void CDI::prepareIter(){
     createWaveFront(patternData, 0, patternWave, 1);
     applyRandomPhase(patternWave, useBS?beamstop:NULL, devstates);
   }
-  propagate(patternWave, objectWave, 0);
+  myIFFT(patternWave, objectWave);
+  applyNorm(objectWave, 1./sqrt(row*column));
   initSupport();
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, "init_logpattern", 1, 0, 1));
   verbose(1,plt.plotFloat(patternData, MOD, 1, exposure, ("init_pattern"+save_suffix).c_str(), 0));
@@ -263,7 +260,7 @@ void CDI::saveState(){
 
   complexFormat *cuda_gkp1 = objectWave;
   verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, 0, 1))
-  plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
+    plt.plotComplex(cuda_gkp1, MOD2, 0, 1, ("recon_intensity"+save_suffix).c_str(), 0, isFlip);
   plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase"+save_suffix).c_str(), 0, isFlip);
   bitMap( support, support);
   plt.plotFloat(support, MOD, 0, 1, "support", 0);
@@ -286,7 +283,7 @@ void CDI::saveState(){
   plt.init(row,column);
   memMngr.returnCache(tmp);
   if(isFresnel) {
-    multiplyFresnelPhase(cuda_gkp1, -d);
+    propagate.removeFresnelPhase(cuda_gkp1);
     plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
   }
   Real* tmp2 = (Real*)memMngr.useOnsite(row*column*sizeof(Real));
@@ -423,7 +420,7 @@ complexFormat* CDI::phaseRetrieve(){
   getMod2(cuda_objMod, cuda_objMod);
   residual = findSum(cuda_objMod);
   fmt::println("residual= {:f}",residual);
-  
+
   getMod(cuda_objMod,prtf_map);
   cudaConvertFO(cuda_objMod);
   applyNorm(cuda_objMod, 1./(iter - prtfIter));

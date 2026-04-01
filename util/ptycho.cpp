@@ -8,7 +8,8 @@
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
-#include "experimentConfig.hpp"
+#include "readConfig.hpp"
+#include "propagator.hpp"
 #include "cuPlotter.hpp"
 #include "cub_wrap.hpp"
 #include "memManager.hpp"
@@ -17,6 +18,8 @@
 #include "tvFilter.hpp"
 #include "beamDecomposition.hpp"
 
+#define verbose(i,a) if(verbose>=i){a;}
+#define m_verbose(m,i,a) if(m.verbose>=i){a;}
 
 using namespace std;
 
@@ -35,15 +38,18 @@ void shuffle_array(int *array, int n) {
 #define N 5                // number of vertices
 #define EDGE_LENGTH 1.0
 
-class ptycho : public experimentConfig{
+class ptycho : public readConfig{
   public:
     int row_O = 1280;  //in ptychography this is different from row (the size of probe).
     int column_O = 1280;
+    int row, column;
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
     void* registerFFTHandle = 0;
     int nscan = 0;
+    propagator propagate;
+    Real resolution = 0;
     Real *scanpos = 0;
     Real *scanposx = 0;
     Real *scanposy = 0;
@@ -54,12 +60,16 @@ class ptycho : public experimentConfig{
     Real *d_shift = 0;
     Real *d_shifts = 0;
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
+    Real *beamstop = 0;
     complexFormat *esw;
+    complexFormat* objectWave = 0;
     complexFormat* objectWave_t = 0;
     complexFormat* pupilpatternWave_t = 0;
+    complexFormat* pupilpatternWave = 0;
+    complexFormat* pupilobjectWave = 0;
     void *devstates = 0;
 
-    ptycho(const char* configfile):experimentConfig(configfile){}
+    ptycho(const char* configfile):readConfig(configfile){propagate.lambda = lambda;}
     Real computeErrorSim();
     void readScan(){
       std::ifstream file(std::string(outputDir) + distFile);
@@ -180,9 +190,7 @@ class ptycho : public experimentConfig{
       readComplexWaveFront(common.Intensity, common.Phase, d_object_intensity, d_object_phase, row_O, column_O);
       Real* pupil_intensity = readImage(pupil.Intensity, row, column);
       sz = row*column*sizeof(Real);
-      int row_tmp=row*oversampling;
-      int column_tmp=column*oversampling;
-      calculateParameters();
+      resolution = lambda*d/pixelsize/row;
       initScan_triangle();
       allocateMem();
       createWaveFront(d_object_intensity, d_object_phase, objectWave_t, 1);
@@ -205,22 +213,22 @@ class ptycho : public experimentConfig{
         myMemcpyH2D(d_phase, pupil_phase, sz);
         ccmemMngr.returnCache(pupil_phase);
       }
-      pupilobjectWave = (complexFormat*)memMngr.borrowCache(row_tmp*column_tmp*sizeof(complexFormat));
-      resize_cuda_image(row_tmp,column_tmp);
-      createWaveFront(d_intensity, d_phase, pupilobjectWave, oversampling);
+      pupilobjectWave = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+      resize_cuda_image(row,column);
+      createWaveFront(d_intensity, d_phase, pupilobjectWave, 1);
       memMngr.returnCache(d_intensity);
       if(d_phase) memMngr.returnCache(d_phase);
-      plt.init(row_tmp,column_tmp, outputDir);
-      plt.plotComplexColor(pupilobjectWave, 0, 1, "pupilWave", 0);
-      init_fft(row_tmp,column_tmp);
-      //opticalPropagate(pupilobjectWave, lambda, dpupil, beamspotsize*oversampling, row_tmp*column_tmp); //granularity changes
-      angularSpectrumPropagate(pupilobjectWave, pupilobjectWave, beamspotsize*oversampling/lambda, dpupil/lambda, row_tmp*column_tmp); //granularity is the same
-      plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilPattern", 0);
-      resize_cuda_image(row,column);
-      init_fft(row,column);
-      crop(pupilobjectWave, pupilpatternWave_t, row_tmp, column_tmp);
       plt.init(row,column, outputDir);
-      plt.plotComplexColor(pupilpatternWave_t, 0, 1, "probeWave", 0);
+      plt.plotComplexColor(pupilobjectWave, 0, 1, "pupilWave", 0);
+      init_fft(row,column);
+      //opticalPropagate(pupilobjectWave, lambda, dpupil, beamspotsize, row_tmp*column_tmp); //granularity changes
+      propagate.row = row;
+      propagate.column = column;
+      propagate.distance = dpupil;
+      propagate.pixelsize = beamspotsize/row;
+      propagate.angularSpectrumPropagate(pupilobjectWave, pupilobjectWave);
+      plt.plotComplex(pupilobjectWave, MOD2, 0, 1, "pupilPattern", 0);
+      plt.plotComplexColor(pupilpatternWave, 0, 1, "probeWave", 0);
     }
     void initPosition(){
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -239,7 +247,7 @@ class ptycho : public experimentConfig{
     }
     void createPattern(){
       if(useBS) {
-        createBeamStop();
+        beamstop = createBeamStop(row,column,beamStopSize);
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
       complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
@@ -254,7 +262,11 @@ class ptycho : public experimentConfig{
         }
         multiply(esw, pupilpatternWave_t, window);
         verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
-        if(isFresnel) multiplyFresnelPhase(esw, d);
+        if(isFresnel) {
+          propagate.distance = d;
+          propagate.pixelsize = pixelsize;
+          propagate.multiplyFresnelPhase(esw);
+        }
         myFFT(esw,esw);
         if(!patterns[i]) patterns[i] = (Real*)memMngr.borrowCache(sz);
         getMod2(patterns[i], esw, 1./(row*column));
@@ -284,7 +296,11 @@ class ptycho : public experimentConfig{
       random(objectWave, devstates);
       resize_cuda_image(row,column);
       pupilFunc(pupilpatternWave);
-      angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+      propagate.row = row;
+      propagate.column = column;
+      propagate.distance = dpupil;
+      propagate.pixelsize = beamspotsize/row;
+      propagate.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
     }
     void updatePosition(int scanidx, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){
       size_t n = row*column;
@@ -364,7 +380,7 @@ class ptycho : public experimentConfig{
       createPlan(&objFFT, row_O, column_O); 
       int pupildiameter = pupilSize;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
-      void* zernike = zernike_init(pupildiameter, pupildiameter, 25, 0); //40 is already high enough for modelling complex beams
+      void* zernike = zernike_init(pupildiameter, 25, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, pupilSupport, pupildiameter*pupildiameter);
       resize_cuda_image(pupildiameter, pupildiameter);
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
@@ -434,7 +450,12 @@ class ptycho : public experimentConfig{
             shiftWave(objCache, shiftxpix, shiftypix);
           }
           multiply(esw, pupilpatternWave, objCache);
-          if(isFresnel) multiplyFresnelPhase(esw, d);
+          if(isFresnel) {
+            propagate.column = column;
+            propagate.row = row;
+            propagate.distance = d;
+            propagate.multiplyFresnelPhase(esw);
+          }
           myFFT(esw,Fn);
           if(iter == nIter - 1){
             verbose(4,plt.plotComplex(Fn, MOD2, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
@@ -449,7 +470,7 @@ class ptycho : public experimentConfig{
           //if(doUpdatePosition) updatePosition(i, objCache, pupilpatternWave, Fn);
           add(esw, Fn, -1);
           //add(esw, Fn, -norm);
-          if(isFresnel) multiplyFresnelPhase(esw, -d);
+          if(isFresnel) propagate.removeFresnelPhase(esw);
           if(iter < update_probe_iter) updateObject(objCache, pupilpatternWave, esw, probeMax);
           else {
             //updateObjectAndProbe(objCache, pupilpatternWave, esw,probeMax, objMax);
@@ -467,9 +488,9 @@ class ptycho : public experimentConfig{
           }else
             updateWindow(objectWave, posx, posy, row_O, column_O, objCache);
         }
-        if(mPIE && iter >= update_probe_iter){
+        if(mPIE){
           resize_cuda_image(row_O, column_O);
-          applyNorm(objStep, 0.98);
+          applyNorm(objStep, 0.98*Real(iter+1)/(Real(iter+1)+3)); //this is FISTA momentum update
           add(objectWave, objStep, 1);
           //FISTA(objStep, objStep, 3e-3, 1, NULL);
           //FISTA(objectWave, objectWave, 3e-3, 1, NULL);
@@ -477,7 +498,7 @@ class ptycho : public experimentConfig{
         resize_cuda_image(row, column);
         if(iter >= update_probe_iter) {
           add(pupilpatternWave, probeStep);
-          applyNorm(probeStep, 0.);
+          applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
         }
         if(doUpdatePosition){
           resize_cuda_image(nscan*2, 1);
@@ -520,7 +541,9 @@ class ptycho : public experimentConfig{
           //Real biasy = cimagf(middle);
           //shiftWave(pupilpatternWave, -biasx*row, -biasy*column);
           //shiftWave(probeStep, -biasx*row, -biasy*column);
-          angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
+          propagate.pixelsize = beamspotsize / row;
+          propagate.distance = dpupil;
+          propagate.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
             plt.toVideo = vidhandle_pupil;
             plt.plotComplexColor(pupilpatternWave, 0, 1, ("recon_pupil"+to_string(iter)).c_str(), 0, isFlip);
@@ -543,7 +566,7 @@ class ptycho : public experimentConfig{
           if(iter == zernikeIter - 1) {
             plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
           }
-          angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, dpupil/lambda, row*column); //granularity is the same
+          propagate.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
           myFFT(pupilpatternWave, esw); //just reuse esw, instread of allocating new memory
           cudaConvertFO(esw);
           getMod2(tmp, esw);
@@ -567,7 +590,9 @@ class ptycho : public experimentConfig{
         }
       }
       plt.plotComplexColor(pupilpatternWave, 0, 1, "ptycho_probe_afterIter", 1);
-      angularSpectrumPropagate(pupilpatternWave, pupilpatternWave, beamspotsize*oversampling/lambda, -dpupil/lambda, row*column); //granularity is the same
+      propagate.pixelsize = beamspotsize / row;
+      propagate.distance = dpupil;
+      propagate.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
       plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
       if(verbose>=3){
         for(int i = 0 ; i < nscan; i++){
@@ -607,13 +632,13 @@ class ptycho : public experimentConfig{
       plt.init(row,column, outputDir);
       init_fft(row,column);
       sz = row*column*sizeof(Real);
-      calculateParameters();
+      resolution = lambda*d/pixelsize/row;
       readScan();
       row_O = column_O = int(stepSize * (sqrt(nscan)*0.8-1.25) + row)/4*4;
       allocateMem();
       resize_cuda_image(row,column);
       if(useBS) {
-        createBeamStop();
+        beamstop = createBeamStop(row,column,beamStopSize);
       }
       for(int i = 0; i < nscan; i++){
         if(i!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".bin").c_str(), row, column);
@@ -625,10 +650,6 @@ class ptycho : public experimentConfig{
         verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
       }
       fmt::println("Created pattern data");
-    }
-    void calculateParameters(){
-      resolution = lambda*d/pixelsize/row;
-      experimentConfig::calculateParameters();
     }
 };
 Real ptycho::computeErrorSim(){
@@ -664,11 +685,9 @@ int main(int argc, char** argv )
     setups.readPattern();
   }
   fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
-  fmt::println("fresnel factor = {:f}", setups.fresnelFactor);
   fmt::println("Resolution = {:4.2f}um", setups.resolution);
 
   fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
-  fmt::println("pupil fresnel factor = {:f}", setups.fresnelFactorpupil);
   setups.initObject();
   setups.iterate();
 
