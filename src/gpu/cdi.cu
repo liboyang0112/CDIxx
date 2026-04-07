@@ -340,7 +340,7 @@ cuFuncc(applyModAccurate,
     Real maximum = vars.scale * 0.95f;
     if (mod2 >= maximum) {
         if(srcmod2 >= mod2){
-          source[index] = make_cuComplex(1.003*rx, 1.003*ry);
+          source[index] = make_cuComplex(rx, ry);
           return;
         }
     }

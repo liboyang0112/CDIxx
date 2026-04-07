@@ -11,15 +11,12 @@ class propagator{
     int column = 0;
     Real distance = 0;
     Real lambda = 0;
-    void fresnelPropagate(complexFormat* field);
     void multiplyPatternPhase(complexFormat* amp);
     void multiplyPatternPhase_reverse(complexFormat* amp);
     void multiplyFresnelPhase(complexFormat* amp);
     void removeFresnelPhase(complexFormat* amp);
-    void multiplyPatternPhase_factor(complexFormat* amp, Real factor1, Real factor2);
-    void multiplyFresnelPhase_factor(complexFormat* amp, Real factor);
+    void fresnelPropagate(complexFormat* field);
     void angularSpectrumPropagate(complexFormat* input, complexFormat* output);
     void angularSpectrumPropagateReverse(complexFormat* input, complexFormat* output);
-    void fresnelPropagate(complexFormat* field, Real lambda, Real d, Real imagesize, int n);
 };
 #endif

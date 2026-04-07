@@ -11,3 +11,5 @@ uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow
 void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq = 0);
 void convolute(complexFormat* store, complexFormat* input1, complexFormat* input2, complexFormat* cache, int upsample, void* handle);
 Real* createBeamStop(int row, int column, int beamStopSize);
+void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, double* spectrum);
+void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum);

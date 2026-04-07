@@ -1,10 +1,8 @@
-#include <iostream>
 #include <chrono>
-#include <fstream>
-#include <vector>
+#include <math.h>
+#include <string.h>
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"
-#include <string.h>
 #include "fmt/core.h"
 #include "mnistData.hpp"
 #include "imgio.hpp"
@@ -12,95 +10,8 @@
 #include "cdi.hpp"
 #include "cdilmdb.hpp"
 #include "cub_wrap.hpp"
-#include <gsl/gsl_spline.h>
-#include <math.h>
+#include "misc.hpp"
 using namespace std;
-
-void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum){
-  std::vector<double> spectrum_lambda;
-  std::vector<double> spectrum;
-  std::vector<double> ccd_lambda;
-  std::vector<double> ccd_rate;
-  std::ifstream file_spectrum, file_ccd_response;
-  std::ofstream file_out("spectTccd.txt");
-  double threshold = 1e-3;
-  file_spectrum.open(fspectrum);
-  file_ccd_response.open(ccd_response);
-  double lambda, val, maxval;
-  maxval = 0;
-  while(file_spectrum){
-    file_spectrum >> lambda >> val;
-    spectrum_lambda.push_back(lambda);
-    spectrum.push_back(val);
-    if(val > maxval) maxval = val;
-  }
-  while(file_ccd_response>>lambda>>val){
-    ccd_lambda.push_back(lambda);
-    ccd_rate.push_back(val);
-  }
-  endLambda = std::min(Real(spectrum_lambda.back()),endLambda);
-  bool isShortest = 1;
-  nlambda = 0;
-  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
-  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
-  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
-  double ccdmax = ccd_lambda.back();
-  double ccd_rate_max = ccd_rate.back();
-  for(unsigned int i = 0; i < spectrum.size(); i++){
-    lambda = spectrum_lambda[i];
-    if(lambda<startLambda) continue;
-    if(lambda>=endLambda) break;
-    if(isShortest && spectrum[i] < threshold*maxval) continue;
-    if(isShortest) startLambda = lambda;
-    isShortest = 0;
-    double ccd_rate_i = ccd_rate[0];
-    if(lambda >= ccdmax) ccd_rate_i = ccd_rate_max;
-    else if(lambda > ccd_lambda[0]) ccd_rate_i = gsl_spline_eval (spline, lambda, acc);
-    spectrum_lambda[nlambda] = lambda/startLambda;
-    //if(lambda >= 940) ccd_rate_i*=2;
-    //if(lambda < 800) ccd_rate_i *= 0.9;
-    spectrum[nlambda] = spectrum[i]/maxval*ccd_rate_i;
-    nlambda++;
-  }
-  endLambda /= startLambda;
-  outlambda = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  outspectrum = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  for(int i = 0; i < nlambda; i++){
-    outlambda[i] = spectrum_lambda[i];
-    outspectrum[i] = spectrum[i];
-    file_out << spectrum_lambda[i]*startLambda<<" "<<spectrum[i]<<std::endl;
-  }
-  file_out.close();
-  gsl_spline_free (spline);
-  gsl_interp_accel_free (acc);
-}
-void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, double* spectrum){
-  std::vector<double> ccd_lambda;
-  std::vector<double> ccd_rate;
-  std::ifstream file_ccd_response;
-  file_ccd_response.open(ccd_response);
-  double lambda, val;
-  while(file_ccd_response>>lambda>>val){
-    ccd_lambda.push_back(lambda);
-    ccd_rate.push_back(val);
-  }
-  gsl_interp_accel *acc = gsl_interp_accel_alloc ();
-  gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, ccd_lambda.size());
-  gsl_spline_init (spline, &ccd_lambda[0], &ccd_rate[0], ccd_lambda.size());
-  if(0)
-    for(int i = 0; i < nlambda; i++){
-      if(lambdas[i] < ccd_lambda[0]){
-        fmt::println("lambda smaller than ccd curve min {:f} < {:f}", lambdas[i], ccd_lambda[0]);
-        spectrum[i] /= ccd_rate[0];
-      }else if(lambdas[i] > ccd_lambda.back()){
-        fmt::println("lambda larger than ccd curve max {:f} > {:f}", lambdas[i], ccd_lambda.back());
-        spectrum[i] /= ccd_rate.back();
-      }else
-        spectrum[i] /= gsl_spline_eval (spline, lambdas[i], acc);
-    }
-  gsl_spline_free (spline);
-  gsl_interp_accel_free (acc);
-}
 
 int main(int argc, char** argv){
   if(argc < 2) {
@@ -174,29 +85,6 @@ int main(int argc, char** argv){
     }
     mwl.init(objrow, objcol, lambdas, spectra, nlambda);
   }
-  //else if(string(cdi.spectrum) == "comb"){
-  //  int maxh = 37;
-  //  int maxl = 6;
-  //  int minh = ((maxh / maxl)>>1<<1) - 1 ;
-  //  int nlambda = (maxh - minh)/2;
-  //  myMalloc(double, lambdas, nlambda);
-  //  myMalloc(double, spectra, nlambda);
-  //  float spectsum = 0;
-  //  for(int i = 0; i < nlambda; i++){
-  //    lambdas[i] = float(maxh)/(maxh-2*i);
-  //      //spectra[i] = exp(-pow(2*((lambdas[i]-1)*2./(maxl-1)-1),2))*5; //gaussian, -1,1 with sigma=1
-  //    if(i < 4) spectra[i] = 0.03+i*0.03;
-  //    else if(i >=nlambda-3) spectra[i] = 0.1+(nlambda-i)*0.3;
-  //    else if(i == 5) spectra[i] = 0.6;
-  //    else if(i == 4) spectra[i] = 0.3;
-  //    else spectra[i] = 0.3+0.08*i;
-  //    spectsum += spectra[i];
-  //  }
-  //  for(int i = 0; i < nlambda; i++){
-  //     spectra[i]/=spectsum;
-  //  }
-  //  mwl.init(objrow, objcol, nlambda, lambdas, spectra);
-  //}
   else{
     Real startlambda = 500;
     Real endlambda = 1000;
