@@ -34,8 +34,6 @@ struct video {
 static void* encode(void* arg) {
   struct video* v = (struct video*)arg;
 
-  v->frame->duration = 1;
-  
   int ret = avcodec_send_frame(v->c, v->frame);
   if (ret < 0) {
     fmt::println(stderr, "Error sending frame: {}", av_err2str(ret));
@@ -221,8 +219,6 @@ void* createVideo(const char* output_path, int row, int col, int fps, const char
     frame->width = c->width;
     frame->height = c->height;
     frame->pts = 0;
-    frame->time_base = c->time_base;
-
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0) {
       fmt::println(stderr, "Could not allocate frame buffer: {}", av_err2str(ret));
@@ -299,8 +295,6 @@ void* createVideo(const char* output_path, int row, int col, int fps, const char
     frame->width = c->width;
     frame->height = c->height;
     frame->pts = 0;
-    frame->time_base = c->time_base;
-
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0) {
       fmt::println(stderr, "Could not allocate frame buffer: {}", av_err2str(ret));
@@ -325,8 +319,6 @@ void flushVideo(void* ptr, void* buffer) {
   );
 
   thisvid->frame->pts = thisvid->next_pts++;
-  thisvid->frame->duration = 1;
-  
   encode(thisvid);
 }
 
