@@ -99,7 +99,8 @@ int main(int argc, char** argv){
       getNormSpectrum(cdi.spectrum,cdi.ccd_response,startlambda,endlambda,nlambda,lambdas,spectra); //this may change startlambda
       fmt::println("lambda range = ({:f}, {:f}), ratio={:f}, first bin: {:f}", startlambda, endlambda*startlambda, endlambda, startlambda*(1 + mwl.skip*2./objrow));
       mwl.init(objrow, objcol, lambdas, spectra, nlambda);
-      mwl.writeSpectra("spectra.txt", startlambda);
+      mwl.lambda_ref = startlambda;
+      mwl.writeSpectra("spectra.txt");
     }
   }
   init_fft(objrow, objcol);
@@ -185,7 +186,8 @@ int main(int argc, char** argv){
       if(cdi.solveSpectrum) {
         mwl.resetSpectra();
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 1, 1, 0, 1);
-        mwl.writeSpectra("spectrum_solved.txt", monoLambda);
+        mwl.lambda_ref = monoLambda;
+        mwl.writeSpectra("spectrum_solved.txt");
         spectra = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
         memcpy(spectra, mwl.spectra, mwl.nlambda*sizeof(double));
       }

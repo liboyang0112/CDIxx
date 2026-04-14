@@ -4,6 +4,7 @@ void multiplyProbe(complexFormat* object, complexFormat* probe, complexFormat* U
 void getWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window);
 void updateWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window);
 void addWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window, Real norm = 1);
+void addWindow(Real* object, int shiftx, int shifty, int objrow, int objcol, Real *window, Real norm = 1);
 void updateObject(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe);
 void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj);
 void updateObjectAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize);

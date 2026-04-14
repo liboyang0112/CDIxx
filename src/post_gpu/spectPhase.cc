@@ -116,8 +116,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
   myCuFree(d_amp);
   myCuFree(d_obj);
 }
-void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
-  BaseMaterial* matp = (BaseMaterial*) mat;
+void spectPhase::generateMWL(void* d_pattern, Real thickness){
   myCuDMalloc(Real, single_pattern, row*column);
   myCuDMalloc(complexFormat, img0, row*column);
   myCuDMalloc(complexFormat, d_amp, rows[nlambda-1]*cols[nlambda-1]);
@@ -128,7 +127,6 @@ void spectPhase::generateMWL(void* d_pattern, void* mat, Real thickness){
     int thiscol = cols[j];
     Real rat = Real(thisrow)/row;
     complexFormat amp = 1;
-    if(0) amp = cexp(1.0i*(matp->getRefractiveIndex(rat)-1)*thickness*2*M_PI/rat);
     file1.print("{} {} {} {} {} {}\n", j, rat, creal(amp), cimag(amp), cabs(amp), carg(amp));
     resize_cuda_image(pixCount, 1);
     expandRef(d_support, d_ref, (uint32_t*)d_supportMap, row, column, row, column, amp);

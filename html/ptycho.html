@@ -363,18 +363,24 @@
 
       // ==================== Path Setting ====================
       document.getElementById("setpath")?.addEventListener('click', async () => {
-        const pathValue = document.getElementById('path').value;
+        const pathValue = document.getElementById('path').value?.trim();
+        if (!pathValue) {
+          showNotification('Please enter a working folder path', 'error');
+          return;
+        }
+
+        // Update global variable AND cookie
         workpath = pathValue;
-        document.cookie = 'ptychoworkpath=' + workpath + '; path=/';
+        setCookie('ptychoworkpath', workpath);  // Use helper, not raw document.cookie
 
         setPath(pathValue, {
           'ptycho.cfg': 'ptychoConfig'
         });
 
-        showNotification('Working folder confirmed', 'success');
+        showNotification('Working folder confirmed: ' + workpath, 'success');
 
-        // Load autocomplete data for datasets (directories in working folder)
-        await listFiles("cd " + repo + pathValue + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
+        // Load autocomplete data for datasets
+        await listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
           .then(data => {
             autoFillDictionary["ptycho_dataset"] = data;
             console.log('Datasets loaded:', data);
@@ -517,32 +523,32 @@
         }
       });
 
-function displayDiagnosticImages(outputDir) {
-    const container = document.getElementById('diagnostic-images-container');
-    if (!container) return;
-    
-    container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
-    
-    // Get list of diagnostic files from server
-    const cmd = `cd ${repo}${workpath} && ls ${outputDir}/*_logimage.png ${outputDir}/*_autocorrelation.png 2>/dev/null | sort -V`;
-    console.log(cmd)
-    
-    fetch(url_cmd, { method: 'POST', body: cmd })
-        .then(response => response.text())
-        .then(data => {
+      function displayDiagnosticImages(outputDir) {
+        const container = document.getElementById('diagnostic-images-container');
+        if (!container) return;
+
+        container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
+
+        // Get list of diagnostic files from server
+        const cmd = `cd ${repo}${workpath} && ls ${outputDir}/*_logimage.png ${outputDir}/*_autocorrelation.png 2>/dev/null | sort -V`;
+        console.log(cmd)
+
+        fetch(url_cmd, { method: 'POST', body: cmd })
+          .then(response => response.text())
+          .then(data => {
             const files = data.trim().split('\n').filter(f => f && f.trim());
-            
+
             if (files.length === 0) {
-                container.innerHTML = '<div class="empty-state">No diagnostic images found</div>';
-                return;
+              container.innerHTML = '<div class="empty-state">No diagnostic images found</div>';
+              return;
             }
-            
+
             // Create grid of images - CORRECTED PATH
             container.innerHTML = files.map(file => {
-                const filename = file.split('/').pop();
-                // Full path: repo + workpath + / + outputDir + / + filename
-                const fullPath = `${repo}${workpath}/${outputDir}/${filename}`;
-                return `
+              const filename = file.split('/').pop();
+              // Full path: repo + workpath + / + outputDir + / + filename
+              const fullPath = `${repo}${workpath}/${outputDir}/${filename}`;
+              return `
                     <div class="diagnostic-image-card">
                         <img src="${fullPath}?t=${Date.now()}" 
                              alt="${filename}" 
@@ -552,12 +558,12 @@ function displayDiagnosticImages(outputDir) {
                     </div>
                 `;
             }).join('');
-            
+
             // Add CSS for the new section (add to your styles.css)
             if (!document.getElementById('diagnostic-styles')) {
-                const style = document.createElement('style');
-                style.id = 'diagnostic-styles';
-                style.textContent = `
+              const style = document.createElement('style');
+              style.id = 'diagnostic-styles';
+              style.textContent = `
                     #diagnostic-images-container {
                         display: grid;
                         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -606,14 +612,14 @@ function displayDiagnosticImages(outputDir) {
                         color: #f44336;
                     }
                 `;
-                document.head.appendChild(style);
+              document.head.appendChild(style);
             }
-        })
-        .catch(err => {
+          })
+          .catch(err => {
             console.error('Error loading diagnostic images:', err);
             container.innerHTML = `<div class="error">Failed to load diagnostic images: ${err.message}</div>`;
-        });
-}
+          });
+      }
       // ==================== View Dataset ====================
       document.getElementById("viewDatasetBtn")?.addEventListener('click', async () => {
         const datasetName = document.getElementById('datasetName').value;
@@ -707,14 +713,17 @@ function displayDiagnosticImages(outputDir) {
           clearTimeout(window.reconstructionState.streamTimeout);
         }
 
+        // In the runPtychoBtn click handler, replace the setTimeout block with:
         window.reconstructionState.streamTimeout = setTimeout(() => {
           if (!window.reconstructionState.isRunning) return;
 
-          // CACHE-BUSTING: Append UNIQUE timestamp to URL (critical!)
-          const timestamp = Date.now(); // Milliseconds since epoch = guaranteed unique
-          const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8?t=${timestamp}`;
+          const outputName = document.getElementById('ptychoOutputName').value?.trim();
+          if (!outputName) return;
 
-          console.log(`[STREAM] Reloading with cache-buster: t=${timestamp}`);
+          const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
+          console.log(`[STREAM] Loading: ${streamUrl}`);
+
+          // Simple reload - setupHLSStream handles cache-busting internally
           setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
         }, 3000);
       });
@@ -741,11 +750,16 @@ function displayDiagnosticImages(outputDir) {
 
       // ==================== Load Images ====================
       function loadImage(){
-        const outputName = document.getElementById('ptychoOutputName').value;
+        const outputName = document.getElementById('ptychoOutputName').value?.trim();
         if (!outputName) {
           showNotification('Please enter output directory name', 'error');
           return;
         }
+
+        // ✅ Save to cookie for persistence
+        setCookie('ptycho_outputname', outputName);
+        console.log('[loadImage] Saved output name to cookie:', outputName);
+
         const timestamp = getTimestamp();
         const path = repo + workpath + "/" + outputName + "/";
 
@@ -755,9 +769,13 @@ function displayDiagnosticImages(outputDir) {
             img.src = path + imgId + ".png?t=" + timestamp;
           }
         });
-        displayDiagnosticImages(outputName)
+        displayDiagnosticImages(outputName);
         showNotification('Images loaded from output directory', 'success');
       }
+
+      document.getElementById("reload")?.addEventListener('click', async () => {
+        loadImage();
+      });
       document.getElementById("reload")?.addEventListener('click', async () => {
         loadImage();
       });
@@ -786,12 +804,36 @@ function displayDiagnosticImages(outputDir) {
       });
 
       // ==================== Initialize Path ====================
-      if (workpath) {
-        document.getElementById('path').value = workpath;
-        setPath(workpath, {
-          'ptycho.cfg': 'ptychoConfig'
-        });
-      }
+      // ===== Initialize workpath from cookie on page load =====
+      document.addEventListener('DOMContentLoaded', () => {
+        // === Restore workpath (existing code) ===
+        const savedPath = getCookie('ptychoworkpath');
+        if (savedPath) {
+          workpath = savedPath;
+          const pathInput = document.getElementById('path');
+          const pathDisplay = document.getElementById('showpath');
+          if (pathInput) pathInput.value = workpath;
+          if (pathDisplay) pathDisplay.textContent = workpath;
+          if (typeof setPath === 'function') {
+            setPath(workpath, { 'ptycho.cfg': 'ptychoConfig' });
+          }
+          if (typeof listFiles === 'function' && typeof repo !== 'undefined') {
+            listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
+              .then(data => { if (typeof autoFillDictionary !== 'undefined') autoFillDictionary["ptycho_dataset"] = data; });
+          }
+          console.log('✅ workpath restored from cookie:', workpath);
+        }
+
+        // === ✅ NEW: Restore output name ===
+        const savedOutput = getCookie('ptycho_outputname');
+        if (savedOutput) {
+          const outputInput = document.getElementById('ptychoOutputName');
+          if (outputInput) {
+            outputInput.value = savedOutput;
+            console.log('✅ output name restored from cookie:', savedOutput);
+          }
+        }
+      });
     </script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-#define ALPHA 0.1
+#define ALPHA 0.15
 #define BETA 0.5
 #define DELTA 1e-3
 
@@ -35,6 +35,13 @@ cuFuncc(addWindow,(complexFormat* object, int shiftx, int shifty, int objrow, in
   int idx = (x+shiftx)*objcol+y+shifty;
   object[idx].x = norm*window[index].x + object[idx].x;
   object[idx].y = norm*window[index].y + object[idx].y;
+})
+
+cuFunc(addWindow,(Real* object, int shiftx, int shifty, int objrow, int objcol, Real *window, Real norm),(object,shiftx,shifty,objrow,objcol, window, norm),{
+  cudaIdx();
+  if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
+  int idx = (x+shiftx)*objcol+y+shifty;
+  object[idx] = norm*window[index] + object[idx];
 })
 
 
@@ -108,11 +115,7 @@ cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* prob
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
-  Real phaseshift = curand_uniform(&state[index]);
-  Real c, s;
-  sincosf(phaseshift*0.0*M_PI, &s, &c);
-  object[index].x = c;
-  object[index].y = s;
+  sincosf(curand_uniform(&state[index])*0.0*M_PI, &object[index].y, &object[index].x);
 })
 
 static __device__ Real gaussian(float x, float y, float sigma){

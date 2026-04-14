@@ -21,6 +21,11 @@
   void name argsf{\
     name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar param);\
   }
+#define cuFuncc3D(name,argsf,argsw,param,content...)\
+  __global__ void name##Wrap(addVarArg3D argsw) content \
+  void name argsf{\
+    name##Wrap<<<numBlocks, threadsPerBlock>>>(addVar3D param);\
+  }
 #define cuFuncTemplate(name,args,param,content...)\
   template<typename T>\
   __global__ void name##Wrap(addVarArg args) content \

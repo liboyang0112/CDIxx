@@ -10,5 +10,5 @@ class spectPhase: public broadBand{
     spectPhase():broadBand(){};
     void initRefSupport(complexFormat* refer, complexFormat* support);
     void solvecSpectrum(Real* pattern, int niter);
-    void generateMWL(void* pattern, void* mat, Real thickness);
+    void generateMWL(void* pattern, Real thickness);
 };

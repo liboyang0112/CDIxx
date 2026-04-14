@@ -17,6 +17,7 @@
 #include "ptycho.hpp"
 #include "tvFilter.hpp"
 #include "beamDecomposition.hpp"
+#include "broadBand.hpp"
 
 #define verbose(i,a) if(verbose>=i){a;}
 #define m_verbose(m,i,a) if(m.verbose>=i){a;}
@@ -38,11 +39,10 @@ void shuffle_array(int *array, int n) {
 #define N 5                // number of vertices
 #define EDGE_LENGTH 1.0
 
-class ptycho : public readConfig{
+class multi_ptycho : public readConfig, public broadBand_constRatio{
   public:
     int row_O = 1280;  //in ptychography this is different from row (the size of probe).
     int column_O = 1280;
-    int row, column;
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
@@ -62,14 +62,14 @@ class ptycho : public readConfig{
     Real *d_shifts = 0;
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
     Real *beamstop = 0;
+    int nlambda = 0;
     complexFormat *esw;
-    complexFormat* objectWave = 0;
-    complexFormat* objectWave_t = 0;
+    complexFormat* objectWave = 0; // stores reconstructed, higher resolution for short wave, C, H, W
+    complexFormat* objectWave_t = 0; //stores truth, same resolution for all wavelength, C, H, W
     complexFormat* pupilpatternWave_t = 0;
     complexFormat* pupilpatternWave = 0;
-    void *devstates = 0;
 
-    ptycho(const char* configfile):readConfig(configfile){
+    multi_ptycho(const char* configfile):readConfig(configfile), broadBand_constRatio(){
       propagate_esw.lambda = propagate_pupil.lambda = lambda;
       propagate_esw.distance = d;
       propagate_esw.pixelsize = pixelsize;
@@ -175,17 +175,17 @@ class ptycho : public readConfig{
       if(devstates) return;
       devstates = newRand(column_O * row_O);
       fmt::println("allocating memory");
-      objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
-      objectWave_t = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
-      pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
-      pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(sz*2);
-      esw = (complexFormat*) memMngr.borrowCache(sz*2);
+      objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*nlambda*2);
+      objectWave_t = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*nlambda*2);
+      pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*nlambda*2);
+      pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(sz*nlambda*2);
+      esw = (complexFormat*) memMngr.borrowCache(sz*nlambda*2);
       propagate_esw.row = propagate_pupil.row = row;
       propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = beamspotsize/row;
       fmt::println("initializing cuda image");
-      resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
+      resize_cuda_image(row_O,column_O);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
       initRand(devstates,seed);
       if(runSim && positionUncertainty > 1e-4){
@@ -259,7 +259,7 @@ class ptycho : public readConfig{
         Real posy = scanposy[i] + shifty[i];
         int shiftxpix = posx-round(posx);
         int shiftypix = posy-round(posy);
-        getWindow(objectWave_t, +round(posx), round(posy), row_O, column_O, window);
+        getWindow(objectWave_t, round(posx), round(posy), row_O, column_O, window);
         if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
           shiftWave(window, shiftxpix, shiftypix);
         }
@@ -367,10 +367,9 @@ class ptycho : public readConfig{
       myCuDMallocClean(complexFormat, probeStep, row*column);
       complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
       myCuDMallocClean(complexFormat, objStep, row_O*column_O);
-      myCuDMallocClean(complexFormat, objectWave_prev, row_O*column_O);
       Real *maxCache = (Real*)memMngr.borrowCache(max(row_O*column_O/4, row*column)*sizeof(Real));
       myCuDMalloc(complexFormat, cropObj, row_O*column_O/4);
-      myCuDMallocClean(Real, tmp, row*column);
+      myCuDMalloc(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
       int positionUpdateIter = 500;
@@ -386,6 +385,7 @@ class ptycho : public readConfig{
       Real probeStepSize = 0.20;
       Real objStepSize = 0.40;
       myCuDMalloc(Real, d_norm, 2);
+      findSum(tmp, row*column, d_norm);
       myDMalloc(Real, h_norm, 2);
       int vidhandle_pupil = 0;
       int vidhandle_probe = 0;
@@ -404,24 +404,6 @@ class ptycho : public readConfig{
       for (int i = 0 ; i < nscan ; i++) {
         iterOrder[i] = i;
       }
-      C_circle pupilmask;
-      pupilmask.r = pupilSize/2;
-      pupilmask.x0 = pupilmask.y0 = row>>1;
-      myCuDMalloc(C_circle , pupilmask_d, 1);
-      myMemcpyH2D(pupilmask_d, &pupilmask, sizeof(C_circle));
-      createMask(tmp, pupilmask_d);
-      Real* masksum = (Real*)objStep;
-      for (int i = 0 ; i < nscan; i++) {
-        addWindow(masksum, scanposx[i], scanposy[i], row_O, column_O, tmp, 1);
-      }
-      Real maxOverlap = findMax(masksum, row*column);
-      bitMap(masksum, masksum, 0.5);
-      Real redundancy = findSum(masksum, row*column);
-      redundancy = (nscan*M_PI*pupilSize*pupilSize)/(4*redundancy);
-      fmt::println("Max overlap = {}, Redundancy = {}", maxOverlap, redundancy - 1);
-      clearCuMem(masksum, row*column);
-      Real tk = 0.5+sqrt(1.25);
-      Real tkp1, fact1;
       for(int iter = 0; iter < nIter; iter++){
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
@@ -443,8 +425,7 @@ class ptycho : public readConfig{
           resize_cuda_image(row_O,column_O);
           Real sf = pow(probeMax/objMax, 0.25);
           applyNorm(objectWave, sf);
-          applyNorm(objectWave_prev, sf);
-          //applyNorm(objStep, sf);
+          applyNorm(objStep, sf);
           resize_cuda_image(row,column);
           applyNorm(pupilpatternWave, 1./sf);
           applyNorm(probeStep, 1./sf);
@@ -503,16 +484,8 @@ class ptycho : public readConfig{
         }
         if(mPIE){
           resize_cuda_image(row_O, column_O);
-          //applyNorm(objStep, 0.98*Real(iter+1)/(Real(iter)+3)); //this is FISTA momentum update
-          add(objectWave, objStep, 4./maxOverlap); //x_k
-          add(objectWave_prev, objectWave, objectWave_prev, -1);
-          tkp1 = 0.5+sqrt(0.25+tk*tk);
-          fact1 = (tk-1)/tkp1;
-          tk = tkp1;
-          add(objectWave_prev, objectWave, objectWave_prev, fact1);
-          complexFormat* tmp;
-          tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
-          applyNorm(objStep, 0);
+          applyNorm(objStep, 0.98*Real(iter+1)/(Real(iter)+3)); //this is FISTA momentum update
+          add(objectWave, objStep, 1);
           //FISTA(objStep, objStep, 3e-3, 1, NULL);
           //FISTA(objectWave, objectWave, 3e-3, 1, NULL);
         }
@@ -534,7 +507,7 @@ class ptycho : public readConfig{
           linearConst(d_shifts+nscan, d_shifts+nscan, 1, -h_norm[1]);
           resize_cuda_image(row_O, column_O);
           shiftWave(objFFT,objectWave, -h_norm[0], -h_norm[1]);
-          shiftWave(objFFT,objectWave_prev, -h_norm[0], -h_norm[1]);
+          shiftWave(objFFT,objStep, -h_norm[0], -h_norm[1]);
           myMemcpyD2H(shifts, d_shifts, nscan*sizeof(Real)*2);
           //for (int iscan = 0; iscan < nscan; iscan++) {
           //  fmt::println("{},{}", shiftx[iscan], shifty[iscan]);
@@ -669,7 +642,7 @@ class ptycho : public readConfig{
       fmt::println("Created pattern data");
     }
 };
-Real ptycho::computeErrorSim(){
+Real multi_ptycho::computeErrorSim(){
   int upsampling = 3;
   if(!registerFFTHandle){
     createPlan(&registerFFTHandle, row*upsampling, column*upsampling);
@@ -691,7 +664,7 @@ Real ptycho::computeErrorSim(){
 }
 int main(int argc, char** argv )
 {
-  ptycho setups(argv[1]);
+  multi_ptycho setups(argv[1]);
   if(argc < 2){
     fmt::println("please feed the object intensity and phase image");
   }

@@ -244,17 +244,17 @@ void broadBand_base::resetSpectra(){
     spectra[i] = 1./nlambda;
   }
 }
-void broadBand_base::writeSpectra(const char* filename, Real factor){
+void broadBand_base::writeSpectra(const char* filename){
   fmt::ostream spectrafile = fmt::output_file(filename);
   for(int i = 0; i < nlambda; i++){
-    spectrafile.print("{} {}\n", lambdas[i]*factor,spectra[i]);
+    spectrafile.print("{} {}\n", lambdas[i]*lambda_ref,spectra[i]);
   }
   spectrafile.close();
 }
-void broadBand_constRatio::writeSpectra(const char* filename, Real factor){
+void broadBand_constRatio::writeSpectra(const char* filename){
   fmt::ostream spectrafile = fmt::output_file(filename);
   for(int i = 0; i < nlambda; i++){
-    spectrafile.print("{} {}\n", lambdas[i]*factor,spectra[i]/lambdas[i]);
+    spectrafile.print("{} {}\n", lambdas[i]*lambda_ref,spectra[i]/lambdas[i]);
   }
   spectrafile.close();
 }

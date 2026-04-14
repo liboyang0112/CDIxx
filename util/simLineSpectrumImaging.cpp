@@ -13,7 +13,6 @@ int main(int argc, char* argv[]){
     fmt::println("Usage: simLineSpectrumImaging_run xxx.cfg");
     return 0;
   }
-  ToyMaterial mat;
   readConfig cfg(argv[1]);
   //split reference and object support into two images.
   const int nlambda = 5;

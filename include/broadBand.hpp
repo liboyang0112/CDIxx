@@ -8,12 +8,13 @@ class broadBand_base{
     int jump = 20;
     int skip = 10;
     int nlambda;
+    Real lambda_ref = 1;
     int row;
     int column;
     void *devstates = 0;
     complexFormat* padding_cache = 0;
     broadBand_base(){};
-    void writeSpectra(const char* filename, Real scale = 1);
+    void writeSpectra(const char* filename);
     void resetSpectra();
     void plotAutoCorr(const char* filename, Real* pattern, Real weight = 1);
     void applyAT(complexFormat* image, complexFormat* output, int trow, int tcol, void* plan, char freq = 0b10);
@@ -34,7 +35,7 @@ class broadBand_constRatio : public broadBand_base{
   public:
     int patternptr;
     char nextPattern(complexFormat* currentp, complexFormat* nextp, complexFormat* origin, char transpose = 0);
-    void writeSpectra(const char* filename, Real factor);
+    void writeSpectra(const char* filename);
     void initptr(){patternptr = nmiddle;}
     int nmiddle;
     int thisrow, thiscol, thisrowp, thiscolp;

@@ -8,6 +8,22 @@ const cookieName = isPtychoPage ? 'ptychoworkpath' : 'cdiworkpath';
 // Get workpath from the appropriate cookie
 let workpath = document.cookie.split("; ").find((row) => row.startsWith(cookieName + "="))?.split("=")[1];
 
+// ===== Cookie Utilities =====
+function setCookie(name, value, days = 30, path = '/') {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=${path};SameSite=Lax`;
+}
+
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function clearCookie(name, path = '/') {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path}`;
+}
+
 window.hlsInstances = window.hlsInstances || {};
 window.reconstructionState = {
   isRunning: false,
@@ -472,13 +488,16 @@ function setupHLSStream(videoElementId, streamUrl, latencyElementId = null, stat
   const video = document.getElementById(videoElementId);
   if (!video) return;
 
-  // DESTROY EXISTING INSTANCE (critical fix)
-  if (window.hlsInstances[videoElementId]) {
+  // Clean up existing instance
+  if (window.hlsInstances?.[videoElementId]) {
     window.hlsInstances[videoElementId].destroy();
     delete window.hlsInstances[videoElementId];
-    video.src = '';
-    video.load();
   }
+  
+  // Reset video element cleanly
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
 
   // Reset status indicator
   const statusEl = statusElementId ? document.getElementById(statusElementId) : null;
@@ -487,43 +506,92 @@ function setupHLSStream(videoElementId, streamUrl, latencyElementId = null, stat
     statusEl.style.animation = 'pulse 1.5s infinite';
   }
 
-  // Initialize NEW stream
+  // Add single cache-busting param to manifest URL only
+  const separator = streamUrl.includes('?') ? '&' : '?';
+  const cacheBustedUrl = `${streamUrl}${separator}_cb=${Date.now()}`;
+
   if (Hls.isSupported()) {
     const hls = new Hls({
       enableWorker: true,
-      lowLatencyMode: true,
-      backBufferLength: 3,
-      maxBufferLength: 6
+      lowLatencyMode: false,  // More stable for local files
+      backBufferLength: 90,
+      maxBufferLength: 30,
+      // Simple cache-busting for segments via xhrSetup
+      xhrSetup: function(xhr, url) {
+        const sep = url.includes('?') ? '&' : '?';
+        xhr.open('GET', `${url}${sep}_cb=${Date.now()}`, true);
+      }
     });
     
-    hls.loadSource(streamUrl + `?_=${Date.now()}`); // Cache-busting
+    hls.loadSource(cacheBustedUrl);
     hls.attachMedia(video);
     
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+      console.log('[HLS] Manifest parsed, attempting play');
       if (statusEl) {
         statusEl.style.background = '#4caf50';
         statusEl.style.animation = 'none';
       }
-      video.play().catch(e => console.log('Autoplay warning:', e));
+      video.play().catch(err => {
+        console.warn('[HLS] Autoplay blocked:', err);
+        // Show play button hint if needed
+      });
     });
     
-    hls.on(Hls.Events.ERROR, (event, data) => {
-      if (data.fatal) hls.destroy();
+    hls.on(Hls.Events.ERROR, function(event, data) {
+      console.error('[HLS] Error:', data);
+      if (data.fatal) {
+        if (statusEl) {
+          statusEl.style.background = '#f44336';
+        }
+        // Don't auto-destroy; let user retry
+      }
     });
     
+    hls.on(Hls.Events.FRAG_LOADED, function() {
+      // First fragment loaded = stream is working
+      if (statusEl && statusEl.style.background !== '#4caf50') {
+        statusEl.style.background = '#4caf50';
+        statusEl.style.animation = 'none';
+      }
+    });
+    
+    window.hlsInstances = window.hlsInstances || {};
     window.hlsInstances[videoElementId] = hls;
     
-    // Latency monitor
+    // Latency monitor (optional)
     if (latencyElementId) {
-      setInterval(() => {
-        if (hls.liveSyncPosition && video.currentTime) {
-          const latency = hls.liveSyncPosition - video.currentTime;
-          document.getElementById(latencyElementId).textContent = latency.toFixed(1);
-        }
-      }, 1000);
+      const latencyEl = document.getElementById(latencyElementId);
+      if (latencyEl) {
+        setInterval(() => {
+          if (hls.liveSyncPosition && !isNaN(video.currentTime)) {
+            const latency = hls.liveSyncPosition - video.currentTime;
+            if (latency >= 0 && latency < 300) {  // Sanity check
+              latencyEl.textContent = latency.toFixed(1);
+            }
+          }
+        }, 1000);
+      }
     }
-  } 
-  // Safari fallback handled in original function - omitted for brevity
+    
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari native HLS
+    video.src = cacheBustedUrl;
+    video.addEventListener('loadedmetadata', function onMeta() {
+      video.removeEventListener('loadedmetadata', onMeta);
+      if (statusEl) {
+        statusEl.style.background = '#4caf50';
+        statusEl.style.animation = 'none';
+      }
+      video.play().catch(e => console.log('Safari autoplay:', e));
+    }, { once: true });
+  } else {
+    console.error('HLS not supported in this browser');
+    if (statusEl) {
+      statusEl.style.background = '#999';
+      statusEl.title = 'HLS not supported';
+    }
+  }
 }
 
 // ==================== Initialization ====================

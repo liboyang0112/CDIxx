@@ -1,24 +1,17 @@
-class BaseMaterial{
-  public:
-    BaseMaterial(){};
-    virtual double getRefractiveIndex(double lambda) = 0;
-    virtual double getExtinctionLength(double lambda) = 0;
+#include<vector>
+#include<string>
+#include"format.hpp"
+class material {
+public:
+  Real* deltas;
+  Real* betas;
+  Real* deltas_d;
+  Real* betas_d;
+  int ne;
+  int nl;
+  double to_eV(int l) const { return 1239.84193 / static_cast<double>(l); }
+  material(const std::vector<std::string>& fnames, const std::vector<int>& lambdas);
+  complexFormat* computeTransmission(Real* maps);
+  ~material();
 };
-
-class ToyMaterial : BaseMaterial{
-  public:
-    ToyMaterial() : BaseMaterial(){};
-    double getRefractiveIndex(double lambda);
-    double getExtinctionLength(double lambda);
-};
-
-class TabledMaterial : BaseMaterial{
-  double *refractiveIdx;
-  double *extinctionLen;
-  public:
-    TabledMaterial() : BaseMaterial(), refractiveIdx(0), extinctionLen(0) {};
-    TabledMaterial(double* a, double* b) : BaseMaterial(), refractiveIdx(a), extinctionLen(b) {};
-    void setData(double* a, double* b){refractiveIdx = a; extinctionLen = b;}
-    double getRefractiveIndex(double lambda);
-    double getExtinctionLength(double lambda);
-};
+void* computeTransmission(complexFormat* out,Real* maps,Real* deltas,Real* betas,Real* lambdas,int ne,int nl);

@@ -5,6 +5,7 @@
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
+#include <cublas.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
@@ -30,6 +31,12 @@ void gpuAssert(int code, const char *file, int line)
     fmt::println(stderr,"GPUassert: {} {} {}", cudaGetErrorString((cudaError_t)code), file, line);
     abort();
   }
+}
+
+__forceinline__ __device__ cuComplex make_polar(Real r, Real theta) {
+  Real c, s;
+  sincosf(theta, &s, &c);
+  return make_float2(r*c, r*s);
 }
 int getCudaRows(){
   return cuda_imgsz.x;
@@ -547,6 +554,23 @@ cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat* t
     store[index] = cuCmulf(src[index], cuConjf(target[index]));
     })
 
+cuFuncc(applyTransmission,(complexFormat* out,Real* sum_d,Real* sum_b,Real* lambdas),(cuComplex* out,Real* sum_d,Real* sum_b,Real* lambdas),((cuComplex*)out,sum_d,sum_b,lambdas),{
+  cudaIdx()
+  Real k=2*M_PI/lambdas[x];
+  out[index]=make_polar(expf(-k*sum_b[index]), -k*sum_d[index]);
+})
+
+void computeTransmission(complexFormat* out,Real* maps,Real* deltas,Real* betas,Real* lambdas,int ne,int nl, int npix){
+  myCuDMalloc(Real, sum_d,npix*nl);
+  myCuDMalloc(Real, sum_b,npix*nl);
+  cublasSgemm(CUBLAS_OP_N,CUBLAS_OP_T,npix,nl,ne,1,maps,npix,deltas,nl,1,sum_d,npix);
+  cublasSgemm(CUBLAS_OP_N,CUBLAS_OP_T,npix,nl,ne,1,maps,npix,betas,nl,1,sum_b,npix);
+  resize_cuda_image(nl, npix);
+  applyTransmission(out,sum_d,sum_b,lambdas);
+  myCuFree(sum_d);
+  myCuFree(sum_b);
+}
+
 cuFuncc(multiplyRegular,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     Real fact = 1;//target[index].x*target[index].x + target[index].y*target[index].y + alpha;
@@ -656,10 +680,7 @@ cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* object
     phase += (d_phase[targetindex]-0.5)*2*M_PI;
     }
     if(phase){
-    Real c,s;
-    sincosf(phase, &s, &c);
-    objectWave[index].x = mod*c;
-    objectWave[index].y = mod*s;
+    objectWave[index] = make_polar(mod, phase);
     }else{
     objectWave[index].x = mod;
     objectWave[index].y = 0;
@@ -683,10 +704,7 @@ cuFuncc(createWaveFront,(Real* d_intensity, Real* d_phase, complexFormat* object
     if(d_phase) phase += (d_phase[targetindex]-0.5)*2*M_PI;
     //Real phase = d_phase? (d_phase[targetindex]-0.5) : 0;
     if(phase){
-    Real c,s;
-    sincosf(phase, &s, &c);
-    objectWave[index].x = mod*c;
-    objectWave[index].y = mod*s;
+    objectWave[index] = make_polar(mod, phase);
     }else{
     objectWave[index].x = mod;
     objectWave[index].y = 0;
@@ -794,10 +812,7 @@ cuFuncc(applyModAbs,(complexFormat* source, Real* target, void* state),(cuComple
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state + index)*2*M_PI:0;
-    Real c,s;
-    sincosf(randphase, &s, &c);
-    source[index].x = rat*c;
-    source[index].y = rat*s;
+    source[index] = make_polar(rat, randphase);
     return;
     }
     rat /= mod;
@@ -815,10 +830,7 @@ cuFuncc(applyModAbsinner,(complexFormat* source, Real* target,  int row, int col
     else rat = 0;
     if(mod==0) {
     Real randphase = state?curand_uniform((curandStateMRG32k3a*)state+index)*2*M_PI:0;
-    Real c,s;
-    sincosf(randphase, &s, &c);
-    source[index].x = rat*c;
-    source[index].x = rat*s;
+    source[index] = make_polar(rat, randphase);
     return;
     }
     rat /= mod;

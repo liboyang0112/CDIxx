@@ -16,6 +16,7 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     mwl.jump = binskip;
     mwl.skip = mwl.jump/2;
     mwl.init(row, col, lambdas, spectra, nlambda);
+    mwl.lambda_ref = lambdas[0];
     plt.init(row, col);
     complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
     complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
@@ -34,6 +35,6 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     myIFFT(solved, complexpattern);
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
-    mwl.writeSpectra("spectra_new.txt", lambdas[0]);
+    mwl.writeSpectra("spectra_new.txt");
     return 0;
 }

@@ -105,7 +105,7 @@ __forceinline__ __device__ Real Hermit(Real x,int n) {
     return p;
 }
 
-__forceinline__ __device__ cuComplex multiplyAM(Real r, Real theta) {
+__forceinline__ __device__ cuComplex make_polar(Real r, Real theta) {
   Real c, s;
   sincosf(theta, &s, &c);
   return make_cuComplex(r * c, r * s);
@@ -132,7 +132,7 @@ __forceinline__ __device__ Real laguerre_gaussian_R(Real z, int p, int m) {
   return f1;
 }
 __forceinline__ __device__ cuComplex laguerre_gaussian(Real x, Real y, int p, int m) {
-  return multiplyAM(laguerre_gaussian_R(2*(x*x + y*y), p, m), m*atan2f(y, x));
+  return make_polar(laguerre_gaussian_R(2*(x*x + y*y), p, m), m*atan2f(y, x));
 }
 __forceinline__ __device__ Real zernike_R(Real z, int n, int m_abs) {
   Real r = sqrtf(z);
@@ -157,14 +157,14 @@ __forceinline__ __device__ cuComplex zernike_complex(Real x, Real y, int n, int 
   const int m_abs = (m < 0) ? -m : m;
   if (m_abs > n || (n - m_abs) % 2 != 0)
     return cuComplex();
-  return multiplyAM(zernike_R(z, n, m_abs) * sqrtf(n + 1), m*atan2f(y, x));
+  return make_polar(zernike_R(z, n, m_abs) * sqrtf(n + 1), m*atan2f(y, x));
 }
 __forceinline__ __device__ cuComplex zernike_complex_polar(Real r, Real theta, int n, int m) {
   Real z = r*r;
   const int m_abs = (m < 0) ? -m : m;
   if (m_abs > n || (n - m_abs) % 2 != 0)
     return cuComplex();
-  return multiplyAM(zernike_R(z, n, m_abs) * sqrtf(n + 1), m*theta);
+  return make_polar(zernike_R(z, n, m_abs) * sqrtf(n + 1), m*theta);
 }
 cuFuncc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
     cudaIdx()
@@ -782,10 +782,6 @@ __global__ void laguerre_reconstruct_kernel(
   Real dy = (y - cy) / radius;
   Real z = 2.0f * (dx*dx + dy*dy);
   Real theta = atan2f(dy, dx);
-
-  // Early exit if outside support (optional, since Laguerre modes decay but are defined everywhere)
-  // We keep all pixels for completeness.
-
   Real sum_real = 0.0f, sum_imag = 0.0f;
   int mode_idx = 0;
 
@@ -831,13 +827,8 @@ __global__ void laguerre_reconstruct_kernel(
         sum_imag += coeff[mode_idx].y * cosR + coeff[mode_idx + 1].y * sinR;
         mode_idx += 2;
       }
-
-      // Update f0/f1 for next n (if needed)
       if (n == 0) {
         f0 = f;
-      } else if (n == 1) {
-        // f1 already set above; f0 was previous f
-        // No extra update needed beyond loop logic
       }
     }
 

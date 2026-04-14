@@ -15,7 +15,6 @@ int main(int argc, char* argv[]){
     exit(0);
   }
   init_cuda_image();
-  ToyMaterial mat;
   readConfig cfg(argv[1]);
   //split reference and object support into two images.
   double* lambdas, *spectra;
@@ -52,7 +51,7 @@ int main(int argc, char* argv[]){
   mwl.initRefSupport(refer, d_support);  //mask file, full image size,
   void* randstate = newRand(row*col);
   if(cfg.runSim){
-    mwl.generateMWL(d_pattern, &mat, 100);
+    mwl.generateMWL(d_pattern, 100);
     initRand(randstate, time(NULL));
     ccdRecord(d_pattern, d_pattern, cfg.noiseLevel, randstate, cfg.exposure);
     plt.plotFloat(d_pattern, MOD, 1, 1, "mergedlog", 1, 0, 1);
