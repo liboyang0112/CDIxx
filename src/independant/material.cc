@@ -3,7 +3,10 @@
 #include<fstream>
 #include<gsl/gsl_spline.h>
 #include<gsl/gsl_interp.h>
-material::material(const std::vector<std::string>& fnames, const std::vector<int>& lambdas) : ne(fnames.size()), nl(lambdas.size()) {
+void material::init(const std::vector<std::string>& fnames, double* lambdas, int nlambda, Real lambda_ref_) {
+    lambda_ref = lambda_ref_;
+    ne = fnames.size();
+    nl = nlambda;
     deltas = new Real[ne * nl];
     betas = new Real[ne * nl];
     gsl_interp_accel* acc_d = gsl_interp_accel_alloc();
@@ -35,7 +38,7 @@ material::material(const std::vector<std::string>& fnames, const std::vector<int
         double emin = en.front();
         double emax = en.back();
         for(int j = 0; j < nl; ++j) {
-          double qe = to_eV(lambdas[j]);
+          double qe = to_eV(lambdas[j]*lambda_ref);
           if(qe < emin) qe = emin;
           if(qe > emax) qe = emax;
           deltas[i * nl + j] = gsl_spline_eval(sp_d, qe, acc_d);
@@ -48,8 +51,10 @@ material::material(const std::vector<std::string>& fnames, const std::vector<int
     gsl_interp_accel_free(acc_b);
     myCuMalloc(Real, deltas_d, nl*ne);
     myCuMalloc(Real, betas_d, nl*ne);
-    myMemcpyH2D(deltas_d, deltas, nl*ne);
-    myMemcpyH2D(betas_d, betas, nl*ne);
+    myCuMalloc(double, lambdas_d, nlambda);
+    myMemcpyH2D(deltas_d, deltas, nl*ne*sizeof(Real));
+    myMemcpyH2D(betas_d, betas, nl*ne*sizeof(Real));
+    myMemcpyH2D(lambdas_d, lambdas, nlambda*sizeof(double));
   }
 material::~material() {
     delete[] deltas;
@@ -57,3 +62,6 @@ material::~material() {
     myCuFree(betas_d);
     delete[] betas;
   }
+void material::Transmission(complexFormat* data, Real* maps, int npix, Real thickness){
+  computeTransmission(data,maps,deltas_d,betas_d,lambdas_d,ne,nl,npix,lambda_ref, thickness);
+}

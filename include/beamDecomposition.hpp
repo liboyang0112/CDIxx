@@ -9,7 +9,8 @@ void addZernike(complexFormat* store, complexFormat coefficient, Real pupilsize,
 void addLaguerre(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
 void multiplyHermit(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
 void multiplyHermit(Real* store, Real* data, Real pupilsize, int n, int m);
-void* zernike_init(int width, int maxN, int max_blocks);
+void* zernike_init(int width, int maxN, int max_blocks = 0);
+void** zernike_init_group(int* widths, int maxN, int n, int max_blocks = 0);
 void zernike_destroy(void* handle_ptr);
 complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius);
 complexFormat* zernike_coeff(void* handle_ptr);

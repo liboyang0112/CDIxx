@@ -309,6 +309,46 @@ cuFunc(bitMap,(Real* store, Real* amp, Real threshold),(store,amp, threshold),{
     })
 
 cuFuncc(applyModAccurate,
+    (complexFormat* source, Real* source_mod2, Real* target, Real *bs, Real bsnorm),
+    (cuComplex* source, Real* source_mod2, Real* target, Real *bs, Real bsnorm),
+    ((cuComplex*)source, source_mod2, target, bs, bsnorm),
+{
+    cuda1Idx();
+
+    // Load data early
+    cuComplex sourcedata = source[index];
+    Real mod2 = fmaxf(0.0f, target[index]);
+    Real rx = sourcedata.x;
+    Real ry = sourcedata.y;
+    if (bsnorm != 1.0f) {
+        rx *= bsnorm;
+        ry *= bsnorm;
+    }
+
+    // Early return if blocked by bs flag (common case?)
+    if (bs && bs[index] > 0.5f) {
+        if (bsnorm != 1.0f) {
+            source[index] = make_cuComplex(rx, ry);
+        }
+        return;
+    }
+    Real srcmod2 = source_mod2[index];
+    if (srcmod2 == 0.0f) {
+        source[index] = make_cuComplex(0, 0.0f);
+        return;
+    }
+    Real maximum = vars.scale * 0.95f;
+    if (mod2 >= maximum) {
+        if(srcmod2 >= mod2){
+          source[index] = make_cuComplex(rx, ry);
+          return;
+        }
+    }
+    Real scale = sqrtf(mod2 / srcmod2); // Clamp val to avoid NaN
+    source[index] = make_cuComplex(scale * rx, scale * ry);
+})
+
+cuFuncc(applyModAccurate,
     (complexFormat* source, Real* target, Real *bs, Real bsnorm),
     (cuComplex* source, Real* target, Real *bs, Real bsnorm),
     ((cuComplex*)source, target, bs, bsnorm),
@@ -334,7 +374,7 @@ cuFuncc(applyModAccurate,
     }
     Real srcmod2 = rx*rx + ry*ry;
     if (srcmod2 == 0.0f) {
-        source[index] = make_cuComplex(sqrtf(mod2), 0.0f);
+        source[index] = make_cuComplex(0, 0.0f);
         return;
     }
     Real maximum = vars.scale * 0.95f;

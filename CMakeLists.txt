@@ -169,6 +169,7 @@ if(USE_HIP)
       include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
       link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
       #set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version") #clang
+      set(CMAKE_CUDA_FLAGS "-Wstrict-aliasing")
       #set(CMAKE_CUDA_FLAGS "-allow-unsupported-compiler -ccbin=clang++") #nvcc
       enable_language(CUDA)
 
@@ -248,11 +249,12 @@ if(USE_HIP)
     target_link_libraries(testSVD_run ${GPU_LIB_TARGET})
     target_link_libraries(freetype_run freetype_c imgio_cc memManager_cc)
     target_link_libraries(cdi_run cdi_cc)
+    target_link_libraries(material_cc gsl)
     target_link_libraries(ptycho_run propagator_cc readConfig_cc cuPlotter_cc misc_cc beamDecomposition_cc FISTA_cc)
-    target_link_libraries(multi_ptycho_run propagator_cc readConfig_cc cuPlotter_cc misc_cc beamDecomposition_cc FISTA_cc)
+    target_link_libraries(multi_ptycho_run broadBand_cc material_cc propagator_cc readConfig_cc cuPlotter_cc misc_cc beamDecomposition_cc FISTA_cc)
     target_link_libraries(sesolver_run cuPlotter_cc)
     target_link_libraries(frog_run cuPlotter_cc misc_cc)
-    target_link_libraries(beamGenerator_run memManager_cc imgio_cc ${GPU_LIB_TARGET} cuPlotter_cc)
+    target_link_libraries(beamGenerator_run memManager_cc imgio_cc ${GPU_LIB_TARGET} cuPlotter_cc misc_cc)
     target_link_libraries(testLMDB_run cdilmdb_c)
     target_link_libraries(testfitter_run orthFitter_cc)
     target_link_libraries(holo_run holo_cc)
@@ -293,7 +295,9 @@ if(USE_HIP)
     endif()
 
 
-    if(compileVTK)
+    target_link_libraries(test_mat_run imgio_cc ${GPU_LIB_TARGET} cuPlotter_cc material_cc)
+
+if(compileVTK)
       #install it by `apt install libvtk9-dev`
       find_package(VTK COMPONENTS 
         jsoncpp

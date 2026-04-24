@@ -4,6 +4,7 @@
 #include "fmt/core.h"
 #include "fmt/os.h"
 #include "memManager.hpp"
+#include <fmt/base.h>
 #include <gsl/gsl_spline.h>
 #include <math.h>
 
@@ -192,7 +193,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   spectrafile.close();
   return spectrumi[narray-1];
 }
-Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray){
+Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray, bool createplan){ // lambdasi starts from 1!
   nmiddle = 0;
   row = nrow;
   column = ncol;
@@ -228,8 +229,15 @@ Real broadBand_constRatio::init(int nrow, int ncol, double* lambdasi, double* sp
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 
-  myMalloc(void*, locplan, 1);
-  createPlan(locplan, thisrow, thiscol);
+  if(createplan){
+    myMalloc(void*, locplan, nlambda);
+    for (int i = 0 ; i < nlambda; i++) {
+      createPlan(locplan+i, row*lambdas[i], column*lambdas[i]);
+    }
+  }else{
+    myMalloc(void*, locplan, 1);
+    createPlan(locplan, thisrow, thiscol);
+  }
   fmt::ostream spectrafile = fmt::output_file("spectra.txt");
   for(int i = 0; i < nlambda; i++){
     spectra[i]/=spectrumi[narray-1];
@@ -251,6 +259,7 @@ void broadBand_base::writeSpectra(const char* filename){
   }
   spectrafile.close();
 }
+
 void broadBand_constRatio::writeSpectra(const char* filename){
   fmt::ostream spectrafile = fmt::output_file(filename);
   for(int i = 0; i < nlambda; i++){
@@ -367,19 +376,6 @@ char broadBand_constRatio::nextPattern(complexFormat* currentp, complexFormat* n
   else
     applyA(currentp, nextp, 1);
   return --patternptr;
-}
-char broadBand_constRatio::skipPattern(){
-  if(patternptr >= nlambda-1) return 0;
-  if(patternptr >= nmiddle){
-    patternptr++;
-  }else{
-    if(patternptr == 0){
-      patternptr = nmiddle+1;
-    }else{
-      patternptr--;
-    }
-  }
-  return 1;
 }
 void broadBand_constRatio::generateMWL(Real* d_input, Real* d_patternSum, complexFormat* single){
   myCuDMalloc(complexFormat, d_inputWave, row*column);

@@ -32,8 +32,8 @@ void propagator::angularSpectrumPropagate(complexFormat* input, complexFormat* o
   myFFT(input, output);
   applyNorm(output, 1./(row*column));
   cudaConvertFO(output);
-  Real imagesize_over_lambda = pixelsize*row/lambda;
-  multiplyPropagatePhase(output, 2*M_PI*distance/lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
+  Real lambda_over_imagesize = lambda/(pixelsize*row);
+  multiplyPropagatePhase(output, 2*M_PI*distance/lambda, lambda_over_imagesize*lambda_over_imagesize);
   cudaConvertFO(output);
   myIFFT(output, output);
 }

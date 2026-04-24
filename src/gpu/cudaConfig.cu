@@ -5,7 +5,7 @@
 #include <curand_kernel.h>
 #include <cub_wrap.hpp>
 #include <cufft.h>
-#include <cublas.h>
+#include <cublas_v2.h>
 #define FFTformat CUFFT_C2C
 #define FFTformatR2C CUFFT_R2C
 #define myCufftExec cufftExecC2C
@@ -549,24 +549,43 @@ cuFuncc(divide_sqrt,(Real* store, complexFormat* src, Real* target, Real* bs),(R
     store[index] = (bs && bs[index]>0.5)?0:(cuCabsf(src[index])*rsqrt(target[index]+1e-6));
     })
 
+cuFunc(sqrtdivide,(Real* store, Real* src, Real* target, Real* bs),(store,src,target, bs),{
+    cuda1Idx();
+    Real ret = 0;
+    if((bs && bs[index]>0.5) || (target[index] > 0.99 && src[index] > 0.99)) ret = 1;
+    else if(target[index] > 0) {
+      ret = sqrtf(target[index]/max(src[index],1e-6));
+    }
+    store[index] = ret;
+    })
+
 cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat* target),(cuComplex* store, cuComplex* src, cuComplex* target),((cuComplex*)store,(cuComplex*)src,(cuComplex*)target),{
     cuda1Idx()
     store[index] = cuCmulf(src[index], cuConjf(target[index]));
     })
 
-cuFuncc(applyTransmission,(complexFormat* out,Real* sum_d,Real* sum_b,Real* lambdas),(cuComplex* out,Real* sum_d,Real* sum_b,Real* lambdas),((cuComplex*)out,sum_d,sum_b,lambdas),{
+cuFuncc(multiplyConj,(complexFormat* store, complexFormat* src, complexFormat target),(cuComplex* store, cuComplex* src, cuComplex target),((cuComplex*)store,(cuComplex*)src,*(cuComplex*)&target),{
+    cuda1Idx()
+    store[index] = cuCmulf(src[index], cuConjf(target));
+    })
+
+cuFuncc(applyTransmission,(complexFormat* out,Real* sum_d,Real* sum_b,double* lambdas, Real lambda_ref),(cuComplex* out,Real* sum_d,Real* sum_b,double* lambdas, Real lambda_ref),((cuComplex*)out,sum_d,sum_b,lambdas, lambda_ref),{
   cudaIdx()
-  Real k=2*M_PI/lambdas[x];
+  Real k=2*M_PI/(lambdas[x]*lambda_ref);
   out[index]=make_polar(expf(-k*sum_b[index]), -k*sum_d[index]);
 })
 
-void computeTransmission(complexFormat* out,Real* maps,Real* deltas,Real* betas,Real* lambdas,int ne,int nl, int npix){
+void computeTransmission(complexFormat* out,Real* maps,Real* deltas,Real* betas,double* lambdas,int ne,int nl, int npix, Real lambda_ref, Real thickness){
   myCuDMalloc(Real, sum_d,npix*nl);
   myCuDMalloc(Real, sum_b,npix*nl);
-  cublasSgemm(CUBLAS_OP_N,CUBLAS_OP_T,npix,nl,ne,1,maps,npix,deltas,nl,1,sum_d,npix);
-  cublasSgemm(CUBLAS_OP_N,CUBLAS_OP_T,npix,nl,ne,1,maps,npix,betas,nl,1,sum_b,npix);
+  cublasHandle_t handle;
+  cublasCreate(&handle);
+  const float beta = 0.0f;
+  cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, npix, nl, ne, &thickness, maps, npix, deltas, nl, &beta, sum_d, npix);
+  cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, npix, nl, ne, &thickness, maps, npix, betas, nl, &beta, sum_b, npix);
+  cublasDestroy(handle);
   resize_cuda_image(nl, npix);
-  applyTransmission(out,sum_d,sum_b,lambdas);
+  applyTransmission(out,sum_d,sum_b,lambdas, lambda_ref);
   myCuFree(sum_d);
   myCuFree(sum_b);
 }
@@ -654,7 +673,12 @@ template<> void resize<complexFormat>(const complexFormat* input, complexFormat*
 cuFuncc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(cuComplex* amp, Real a, Real b),((cuComplex*)amp,a,b),{ // a=z/lambda, b = (lambda/s)^2, s is the image size
     cudaIdx();
     cuComplex phasefactor;
-    Real phase = a*sqrtf(1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b);
+    Real square = 1-(sq(x-(cuda_row>>1))+sq(y-(cuda_column>>1)))*b;
+    if(square < 0) {
+      amp[index] = cuComplex(); // ignore evanescent wave
+      return;
+    }
+    Real phase = a*sqrtf(square);
     sincosf(phase, &phasefactor.y, &phasefactor.x);
     amp[index] = cuCmulf(amp[index],phasefactor);
     })

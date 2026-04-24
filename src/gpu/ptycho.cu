@@ -73,6 +73,12 @@ cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat
   //ePIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
+cuFuncc(updateObjectStep,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
+  cuda1Idx()
+  rPIE_step(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
+  //ePIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
+})
+
 cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real mod2maxObj),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe,mod2maxObj),{
   cuda1Idx()
   cuComplex objectdat= object[index];
@@ -121,11 +127,11 @@ cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandSt
 static __device__ Real gaussian(float x, float y, float sigma){
   return exp(-(x*x+y*y)/2/(sigma*sigma));
 }
-cuFuncc(pupilFunc,(complexFormat* object),(cuComplex* object),((cuComplex*)object),{
+cuFuncc(pupilFunc,(complexFormat* object, Real r),(cuComplex* object, Real r),((cuComplex*)object, r),{
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
-  object[index].x = 3*gaussian(shiftx,shifty,cuda_row/4);
+  object[index].x = 3*gaussian(shiftx,shifty,r);
   object[index].y = 0;
 })
 

@@ -273,7 +273,7 @@ void* zernike_init_shared_mem(void* handle_shared, int width, int maxN, int max_
   return static_cast<void*>(handle);
 }
 
-void** zernike_init_group(int* widths, int maxN, int max_blocks, int n) {
+void** zernike_init_group(int* widths, int maxN, int n, int max_blocks) {
   myDMalloc(void*, handles, n);
   int max_width = 0, max_idx = 0;
   for (int i = 0 ; i < n ; i++) {
@@ -287,7 +287,7 @@ void** zernike_init_group(int* widths, int maxN, int max_blocks, int n) {
     if(i == max_idx) {
       continue;
     }
-    handles[max_idx] = zernike_init_shared_mem(handles[max_idx], widths[i], maxN, max_blocks);
+    handles[i] = zernike_init_shared_mem(handles[max_idx], widths[i], maxN, max_blocks);
   }
   return handles;
 }

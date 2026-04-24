@@ -6,11 +6,12 @@ void updateWindow(complexFormat* object, int shiftx, int shifty, int objrow, int
 void addWindow(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window, Real norm = 1);
 void addWindow(Real* object, int shiftx, int shifty, int objrow, int objcol, Real *window, Real norm = 1);
 void updateObject(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe);
+void updateObjectStep(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe);
 void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj);
 void updateObjectAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize);
 void updateObjectStepAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real norm = 1);
 void random(complexFormat* object, void *state);
-void pupilFunc(complexFormat* object);
+void pupilFunc(complexFormat* object, Real r);
 void multiplyx(complexFormat* object, complexFormat* out);
 void multiplyy(complexFormat* object, complexFormat* out);
 void calcPartial(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop);

@@ -104,6 +104,7 @@ void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, void *s
 void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
 void applyMod(complexFormat* source, Real* target, Real *bs = 0, int noiseLevel = 0, Real norm = 1);
 void applyModAccurate(complexFormat* source, Real* target, Real *bs = 0, Real norm = 1);
+void applyModAccurate(complexFormat* source, Real* source_mod2, Real* target, Real *bs = 0, Real norm = 1);
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);
 void applyModAbsinner(complexFormat* source, Real* target,  int row, int col, Real norm, void *state);
 void linearConst(Real* store, Real* data, Real factor, Real b);
@@ -114,7 +115,9 @@ template <typename T1, typename T2>
 void multiply(T1* store, T1* source, T2* target);
 void multiplyReal(Real* store, complexFormat* source, complexFormat* target);
 void divide_sqrt(Real* store, complexFormat* src, Real* target, Real* bs = 0);
+void sqrtdivide(Real* store, Real* src, Real* target, Real* bs = 0);
 void multiplyConj(complexFormat* store, complexFormat* src, complexFormat* target);
+void multiplyConj(complexFormat* store, complexFormat* src, complexFormat target);
 void multiplyRegular(complexFormat* store, complexFormat* src, complexFormat* target, Real alpha);
 void convertFOPhase(complexFormat* data, Real norm = 1);
 void mergePixel(Real* input, Real* output, int col, int nmerge);

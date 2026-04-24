@@ -40,9 +40,8 @@ class broadBand_constRatio : public broadBand_base{
     int nmiddle;
     int thisrow, thiscol, thisrowp, thiscolp;
     void init(int nrow, int ncol, double minlambda, double maxlambda);
-    Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray);
+    Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray, bool createplan=0);
     broadBand_constRatio() : broadBand_base(){};
-    char skipPattern();
     void reorderSpect();
     void applyAT(complexFormat* src, complexFormat* dest, char zoomout = 0);
     void applyA(complexFormat* src, complexFormat* dest, char zoomout = 0);

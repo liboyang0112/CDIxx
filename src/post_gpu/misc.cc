@@ -163,8 +163,7 @@ void createCircleMask(Real* data, Real x0, Real y0, Real r, bool isFreq){
   cir.x0=x0;
   cir.y0=y0;
   cir.r=r;
-  C_circle *cuda_spt;
-  cuda_spt = (C_circle*)memMngr.borrowCache(sizeof(cir));
+  myCuDMalloc(C_circle, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   createMask(data, cuda_spt,isFreq);
   myCuFree(cuda_spt);

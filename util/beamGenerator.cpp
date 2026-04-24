@@ -7,6 +7,7 @@
 #include "beamDecomposition.hpp"
 #include "cuPlotter.hpp"
 #include "cudaConfig.hpp"
+#include "misc.hpp"
 const uint16_t maxpix = 0xffff;
 uint16_t inline setHoloRef(int x, int y) {
   if (x <= 4 || y <= 4)
@@ -95,13 +96,7 @@ int main() {
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
   //myCuDMalloc(Real, image1, rows*cols);
-  C_circle spt;
-  spt.r = 255;
-  //spt.r = 13;
-  spt.x0=spt.y0 = (rows>>1)+10;
-  myCuDMalloc(C_circle, d_spt, 1);
-  myMemcpyH2D(d_spt, &spt, sizeof(C_circle));
-  createMask(image, d_spt);
+  createCircleMask(image, (rows>>1)+10 , (rows>>1)+10 , 255);
   applyGaussMult(image, image, 180, 0);
   //multiplyHermit(image, image, 100, 3,3);
   //rotate(image, image1, M_PI/4);

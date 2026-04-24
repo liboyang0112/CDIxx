@@ -14,21 +14,24 @@ struct pngdata{
   png_infop info_ptr;
 };
 
+struct ChannelData{
+  Real* r;
+  Real* g;
+  Real* b;
+};
+
 Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   void* (*cmalloc)(size_t) = malloc;
   if(funcptr) cmalloc = funcptr;
   printf("Reading image: %s\n", name);
   const char* fext = strrchr(name, '.');
   Real* ret = 0;
-  int row, col;
   if(!strcmp(fext, ".bin")){
     FILE* fin = fopen(name, "r");
     if(!fread(fdata, sizeof(struct imageFile), 1, fin)){
       printf("Warning: file is empty!\n");
     }
-    row = fdata->rows;
-    col = fdata->cols;
-    size_t datasz = row*col*typeSizes[(int)fdata->type];
+    size_t datasz = fdata->rows*fdata->cols*typeSizes[(int)fdata->type];
     ret = (Real*) cmalloc(datasz);
     if(!fread(ret, datasz, 1, fin)){
       //printf("Warning: image is empty!\n");
@@ -62,17 +65,15 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
       fprintf(stderr, "ERROR: get nchann failed with tiff file %s!\n", name);
       abort();
     }
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &row);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &col);
-    fdata->rows = row;
-    fdata->cols = col;
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &fdata->rows);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &fdata->cols);
     fdata->type = REALIDX;
     tdata_t buf = _TIFFmalloc(TIFFScanlineSize(tif));
-    ret = (Real*) cmalloc(row*col*sizeof(Real));
-    for(int i = 0; i < col; i++){
+    ret = (Real*) cmalloc(fdata->rows*fdata->cols*sizeof(Real));
+    for(int i = 0; i < fdata->cols; i++){
       TIFFReadScanline(tif, buf, i, 0);
-      int idx = i*row;
-      for(int j = 0; j < row; j++){
+      int idx = i*fdata->rows;
+      for(int j = 0; j < fdata->rows; j++){
         if(nchann == 1) {
           Real val;
           if(typesize==8) val = (Real)(((unsigned char*)buf)[j])/255;
@@ -126,6 +127,57 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
   return ret;
 }
 
+Real* readImage3_c(const char* name, struct imageFile *fdata, void* funcptr){
+  void* (*cmalloc)(size_t) = malloc;
+  if(funcptr) cmalloc = funcptr;
+  printf("Reading image: %s (3-channel)\n", name);
+  const char* fext = strrchr(name, '.');
+  Real* ret = 0;
+  if(!strcmp(fext, ".png")){
+    struct pngdata* pngfile = readpng(name, fdata);
+    png_structp png_ptr = pngfile->png_ptr;
+    png_infop info_ptr = pngfile->info_ptr;
+    void* rowbuf = png_malloc(png_ptr, png_get_rowbytes(png_ptr, info_ptr));
+    int row = fdata->rows;
+    int col = fdata->cols;
+    // allocate three planes: R, G, B
+    ret = (Real*) cmalloc(row * col * 3 * sizeof(Real));
+    Real* r = ret;
+    Real* g = ret + row * col;
+    Real* b = ret + 2 * row * col;
+    for(int i = 0; i < col; i++){
+      png_read_row(((struct pngdata*)pngfile)->png_ptr, rowbuf, NULL);
+      int idx = i * row;
+      for(int j = 0; j < row; j++){
+        int pixelIdx = idx + j;
+        if(fdata->nchann == 1){
+          Real gray;
+          if(fdata->typesize == 8) gray = (Real)(((unsigned char*)rowbuf)[j]) / 255;
+          else gray = (Real)(((uint16_t*)rowbuf)[j]) / 65535;
+          r[pixelIdx] = gray;
+          g[pixelIdx] = gray;
+          b[pixelIdx] = gray;
+        } else if(fdata->nchann == 3){
+          for(int ic = 0; ic < 3; ic++){
+            Real val;
+            if(fdata->typesize == 8) val = (Real)(((unsigned char*)rowbuf)[3*j+ic]) / 255;
+            else val = (Real)(((uint16_t*)rowbuf)[3*j+ic]) / 65535;
+            if(ic == 0) r[pixelIdx] = val;
+            else if(ic == 1) g[pixelIdx] = val;
+            else b[pixelIdx] = val;
+          }
+        }
+      }
+    }
+    png_free(png_ptr, rowbuf);
+    png_destroy_info_struct(png_ptr, &info_ptr);
+    png_destroy_read_struct(&png_ptr, NULL, NULL);
+  } else {
+    fprintf(stderr, "ERROR: file extension %s not known for 3-channel reading\n", fext);
+    abort();
+  }
+  return ret;
+}
 void* readpng(const char* fname, struct imageFile* fdata){
   struct pngdata* data = (struct pngdata*) malloc(sizeof(void*)*2);
   FILE *f = fopen(fname, "rb");
