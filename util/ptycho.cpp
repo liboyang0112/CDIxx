@@ -184,7 +184,7 @@ class ptycho : public readConfig{
       esw = (complexFormat*) memMngr.borrowCache(sz*2);
       propagate_esw.row = propagate_pupil.row = row;
       propagate_esw.column = propagate_pupil.column = column;
-      propagate_pupil.pixelsize = beamspotsize/row;
+      propagate_pupil.pixelsize = resolution;
       fmt::println("initializing cuda image");
       resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
@@ -231,7 +231,6 @@ class ptycho : public readConfig{
       plt.init(row,column, outputDir);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "pupilWave", 0);
       init_fft(row,column);
-      //opticalPropagate(pupilpatternWave_t, lambda, dpupil, beamspotsize, row_tmp*column_tmp); //granularity changes
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave_t, pupilpatternWave_t);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "probeWave", 0);
     }

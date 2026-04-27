@@ -294,9 +294,6 @@ if(USE_HIP)
       target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
     endif()
 
-
-    target_link_libraries(test_mat_run imgio_cc ${GPU_LIB_TARGET} cuPlotter_cc material_cc)
-
 if(compileVTK)
       #install it by `apt install libvtk9-dev`
       find_package(VTK COMPONENTS 
