@@ -62,6 +62,7 @@ void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
 void normAdd(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1, Real d = 1);
 void drawCircle(complexFormat* img, Real cx, Real cy, Real r, Real w, complexFormat data);
 void addRemoveOE(Real* src, Real* sub, Real mult);
+void addRemoveOE(Real* store, Real* src, Real* sub, Real mult);
 void bitMap(Real* store, Real* data, Real threshold = 0);
 void bitMap(Real* store, complexFormat* data, Real threshold = 0);
 void applyThreshold(Real* store, Real* input, Real threshold = 0.5);

@@ -917,6 +917,15 @@ cuFunc(addRemoveOE, (Real* src, Real* sub, Real mult), (src, sub,mult), {
     }
     });
 
+cuFunc(addRemoveOE, (Real* store, Real* src, Real* sub, Real mult), (store, src, sub,mult), {
+    cuda1Idx();
+    if(sub[index] < 0.99){
+    store[index]=src[index] + sub[index]*mult;
+    }else{
+    store[index] = 0;
+    }
+    });
+
 cuFuncc(drawCircle,(complexFormat* img, Real cx, Real cy, Real r, Real w, complexFormat data),(cuComplex* img, Real cx, Real cy, Real r, Real w, cuComplex data ),((cuComplex*)img,cx,cy,r,w, *(cuComplex*)&data),{
     cudaIdx()
     Real d2 = sq(cx-x) + sq(cy-y);

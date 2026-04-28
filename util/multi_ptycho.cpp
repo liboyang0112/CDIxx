@@ -233,6 +233,9 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       }
       broadBand_constRatio::init(row, column, lambdasi, spectrai, nlambdai, true);
       //spectra[0] = spectra[1] = spectra[2] = spectra[3] = 0.24;
+      loop(i, nlambda){
+        spectra[i] = 1./nlambda;
+      }
 
       //broadBand_constRatio::init(row, column, 1, 2);
       fmt::println("nlambda = {}", nlambda);
@@ -570,7 +573,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
             verbose(4,plt.plotFloat(patternSum, MOD, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
           }
           applyNorm(patternSum, norm*norm);
-          addRemoveOE( tmp, patterns[i], -1);
+          addRemoveOE( tmp, patternSum, patterns[i], -1);
           getMod2(tmp, tmp);
           residual += findSum(tmp) / (row*column);
           //sqrtdivide(patternSum, patternSum, patterns[i]);
@@ -616,10 +619,10 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
             }
           }
         }
-        if(iter%100 == 0) fmt::println("residual = {}", residual/nscan);
+        if(iter%20 == 0) fmt::println("residual = {}", residual/nscan);
         if(mPIE){
           resize_cuda_image(row_O*column_O*nlambda, 1);
-          add(objectWave, objStep, 2./maxOverlap); //x_k
+          add(objectWave, objStep, 4./maxOverlap); //x_k
           add(objectWave_prev, objectWave, objectWave_prev, -1);
           tkp1 = 0.5+sqrt(0.25+tk*tk);
           add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
@@ -630,7 +633,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         }
         if(iter >= update_probe_iter) {
           resize_cuda_image(row*column*nlambda, 1);
-          add(pupilpatternWave, probeStep, 1./nscan);
+          add(pupilpatternWave, probeStep, 0.2/nscan);
           //clearCuMem(probeStep, row*column*nlambda*sizeof(complexFormat));
           applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
         }
@@ -749,6 +752,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       //phaseUnwrapping(angle, angle, rowc, colc);
       //plt.plotFloat(angle, REAL, 0, 1, ("ptycho_afterIterphase" + to_string(il)).c_str());
       complexFormat sum = findSum(cropped);
+      sum /= hypot(crealf(sum), cimagf(sum));
       multiplyConj(cropped, cropped, sum);
       plt.plotComplexColor(cropped, 0, 1, ("ptycho_afterIterwave" + to_string(il)).c_str());
       }

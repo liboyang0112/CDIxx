@@ -644,6 +644,7 @@ class ptycho : public readConfig{
       //phaseUnwrapping(angle, angle, rowc, colc);
       plt.plotFloat(angle, REAL, 0, 1, "ptycho_afterIterphase");
       complexFormat sum = findSum(cropped);
+      sum /= hypot(crealf(sum), cimagf(sum));
       multiplyConj(cropped, cropped, sum);
       plt.plotComplexColor(cropped, 0, 1, "ptycho_afterIterwave");
     }
