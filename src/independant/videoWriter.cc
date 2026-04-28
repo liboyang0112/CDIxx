@@ -186,7 +186,6 @@ void* createVideo(const char* output_path, int row, int col, int fps, const char
     c->gop_size = fps;      // Keyframe every 1 second
     c->keyint_min = fps;
 
-    av_opt_set(c->priv_data, "preset", "p7", 0);
     av_opt_set(c->priv_data, "tune", "ll", 0);
     av_opt_set(c->priv_data, "profile", "main", 0);
 
@@ -259,7 +258,6 @@ void* createVideo(const char* output_path, int row, int col, int fps, const char
     c->gop_size = fps;
     c->keyint_min = fps;
 
-    av_opt_set(c->priv_data, "preset", "p7", 0);
     av_opt_set(c->priv_data, "tune", "ll", 0);
     av_opt_set(c->priv_data, "profile", "main", 0);
 
