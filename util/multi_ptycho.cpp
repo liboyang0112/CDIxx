@@ -6,10 +6,8 @@
 #include <stdio.h>
 #include <random>
 #include <chrono>
-#include <string>
-#include <unistd.h>
 #include <vector>
-#include "fmt/core.h"
+#include <cstdlib>
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
 #include "readConfig.hpp"
@@ -19,7 +17,6 @@
 #include "memManager.hpp"
 #include "misc.hpp"
 #include "ptycho.hpp"
-#include "tvFilter.hpp"
 #include "beamDecomposition.hpp"
 #include "broadBand.hpp"
 #include "material.hpp"
@@ -241,9 +238,9 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       fmt::println("nlambda = {}", nlambda);
       lambda_ref = lambda; //2 nm, range: 2~4 nm
       std::vector<std::string> fnames;
-      fnames.push_back("/home/boyang/softwares/Imaging/CDIxx/data/H2O.dat");
-      fnames.push_back("/home/boyang/softwares/Imaging/CDIxx/data/C.dat");
-      fnames.push_back("/home/boyang/softwares/Imaging/CDIxx/data/N.dat");
+      fnames.push_back(std::getenv("CDI_DIR") + std::string("/data/H2O.dat"));
+      fnames.push_back(std::getenv("CDI_DIR") + std::string("/data/C.dat"));
+      fnames.push_back(std::getenv("CDI_DIR") + std::string("/data/N.dat"));
       mat.init(fnames , lambdas, nlambda);
       sz = row*column*sizeof(Real);
       resolution = lambda_ref*d/pixelsize/row;
