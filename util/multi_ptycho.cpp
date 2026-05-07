@@ -106,16 +106,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         }
       }
       nscan = distances.size();
-      size_t scansz = nscan*sizeof(Real);
-      patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
-      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
-      scanpos = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
-      scanposx = scanpos;
-      scanposy = scanpos + nscan;
-      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
-      shiftx = shifts;
-      shifty = shifts+nscan;
-      d_shift = (Real*)memMngr.borrowCache(scansz*2);
+      allocScan();
       int offsetx = row/10;
       int offsety = column/8;
       loop(i, nscan){
@@ -229,6 +220,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         spectrai[i] = exp(-pow(2*(i*2./nlambdai-1),2))/nlambdai; //gaussian, -1,1 with sigma=1
       }
       broadBand_constRatio::init(row, column, lambdasi, spectrai, nlambdai, true);
+      writeSpectra("spectrum.txt");
       //spectra[0] = spectra[1] = spectra[2] = spectra[3] = 0.24;
       loop(i, nlambda){
         spectra[i] = 1./nlambda;
@@ -505,6 +497,8 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       clearCuMem(masksum, row_O*column_O);
       Real tk = 0.5+sqrt(1.25);
       Real tkp1;
+      Real residual = 0, residual_prev = 0;
+      int momentum_tolerance = 0;
       loop(iter, nIter){
         loop(il, nlambda){
           resize_cuda_image(row, column);
@@ -539,7 +533,8 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
 
         shuffle_array(iterOrder, nscan);
-        Real residual = 0;
+        residual_prev = residual;
+        residual = 0;
         loop(ic, nscan){
           int i = iterOrder[ic];
           Real posx0 = scanposx[i] + shiftx[i];
@@ -616,10 +611,17 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
             }
           }
         }
+        if(residual>residual_prev) {
+          momentum_tolerance++;
+          if(momentum_tolerance>3){
+            myMemcpyD2D(objectWave_prev, objectWave, nlambda*row_O*column_O*sizeof(complexFormat));
+            momentum_tolerance = 0;
+          }
+        }
         if(iter%20 == 0) fmt::println("residual = {}", residual/nscan);
         if(mPIE){
           resize_cuda_image(row_O*column_O*nlambda, 1);
-          add(objectWave, objStep, 4./maxOverlap); //x_k
+          add(objectWave, objStep, 2./maxOverlap); //x_k
           add(objectWave_prev, objectWave, objectWave_prev, -1);
           tkp1 = 0.5+sqrt(0.25+tk*tk);
           add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
@@ -630,7 +632,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         }
         if(iter >= update_probe_iter) {
           resize_cuda_image(row*column*nlambda, 1);
-          add(pupilpatternWave, probeStep, 0.2/nscan);
+          add(pupilpatternWave, probeStep, 0.1/nscan);
           //clearCuMem(probeStep, row*column*nlambda*sizeof(complexFormat));
           applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
         }
@@ -777,6 +779,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
       }
       fmt::println("Created pattern data");
+      broadBand_constRatio::init(row, column, 1, 2);
     }
 };
 Real multi_ptycho::computeErrorSim(){
