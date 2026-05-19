@@ -40,6 +40,7 @@ class broadBand_constRatio : public broadBand_base{
     int nmiddle;
     int thisrow, thiscol, thisrowp, thiscolp;
     void init(int nrow, int ncol, double minlambda, double maxlambda);
+    void init_flatspectrum(int nrow, int ncol, double maxlambda, bool createplan = 0);
     Real init(int nrow, int ncol, double* lambdasi, double* spectrumi, int narray, bool createplan=0);
     broadBand_constRatio() : broadBand_base(){};
     void reorderSpect();

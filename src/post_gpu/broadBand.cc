@@ -68,6 +68,32 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   }
   padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
 }
+void broadBand_constRatio::init_flatspectrum(int nrow, int ncol, double maxlambda, bool createplan){
+  nmiddle = 0;
+  row = nrow;
+  column = ncol;
+  thisrow = row+2*jump;
+  thiscol = column+2*jump;
+  Real skiplambda = 2./row*skip;
+  Real factor = Real(thisrow)/row;
+  nlambda = log(maxlambda)/log(factor)+1;
+  myMalloc(double, spectra, nlambda);
+  myMalloc(double, lambdas, nlambda);
+  for(int i = 0; i < nlambda-1; i++){
+    lambdas[i+1] = lambdas[i]*factor;
+    spectra[i] = 1./nlambda;
+  }
+  spectra[nlambda-1] = 1./nlambda;
+  if(createplan){
+    myMalloc(void*, locplan, nlambda);
+    for (int i = 0 ; i < nlambda; i++) {
+      createPlan(locplan+i, row*lambdas[i], column*lambdas[i]);
+    }
+  }else{
+    myMalloc(void*, locplan, 1);
+    createPlan(locplan, thisrow, thiscol);
+  }
+}
 void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;
   column = ncol;

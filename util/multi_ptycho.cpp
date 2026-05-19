@@ -347,7 +347,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         cudaConvertFO(patterns[i]);
         verbose(2, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)).c_str()));
         verbose(4, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
-        //plt.saveFloat(patterns[i], (common.Pattern+to_string(i)).c_str());
+        plt.saveFloat(patterns[i], (common.Pattern+to_string(i)).c_str());
         if(i == 0) {
           extendToComplex(patterns[0],esw);
           myFFT(esw, esw);
@@ -814,7 +814,8 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       sz = row*column*sizeof(Real);
       resolution = lambda*d/pixelsize/row;
       readScan();
-      row_O = column_O = int(stepSize * (sqrt(nscan)*0.8-1.25) + row)/4*4;
+      row_O = column_O = int(stepSize * (sqrt(nscan)*0.8-1.25) + row)/32*32;
+      fmt::println("object size: {} x {}.", row_O, column_O);
       allocateMem();
       resize_cuda_image(row,column);
       if(useBS) {
@@ -830,7 +831,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
       }
       fmt::println("Created pattern data");
-      broadBand_constRatio::init(row, column, 1, 2);
+      broadBand_constRatio::init_flatspectrum(row, column, 2, true);
     }
 };
 Real multi_ptycho::computeErrorSim(){
