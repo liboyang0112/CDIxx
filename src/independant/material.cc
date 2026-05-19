@@ -1,8 +1,11 @@
+#include <fmt/base.h>
 #include <material.hpp>
 #include "cudaConfig.hpp"
 #include<fstream>
 #include<gsl/gsl_spline.h>
 #include<gsl/gsl_interp.h>
+
+double to_eV(double l) { return 1239.84193 / l; }
 void material::init(const std::vector<std::string>& fnames, double* lambdas, int nlambda, Real lambda_ref_) {
     lambda_ref = lambda_ref_;
     ne = fnames.size();
@@ -38,7 +41,7 @@ void material::init(const std::vector<std::string>& fnames, double* lambdas, int
         double emin = en.front();
         double emax = en.back();
         for(int j = 0; j < nl; ++j) {
-          double qe = to_eV(lambdas[j]*lambda_ref);
+          double qe = to_eV(lambdas[j]*lambda_ref*1e3);
           if(qe < emin) qe = emin;
           if(qe > emax) qe = emax;
           deltas[i * nl + j] = gsl_spline_eval(sp_d, qe, acc_d);

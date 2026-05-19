@@ -21,6 +21,7 @@ typedef struct col_rgb{
 const int rcolor=65535;
 enum Algorithm {RAAR, ER, POSER, HIO, POSHIO, FHIO, shrinkWrap, XCORRELATION, KKT, TV, cnt};
 
+#define loop(var, max) for(int var = 0; var < max; var++)
 #define Real float
 #define complexFormat _Complex Real
 #define REALIDX FLOAT

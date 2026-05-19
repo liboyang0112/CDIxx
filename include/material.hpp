@@ -11,7 +11,6 @@ public:
   Real lambda_ref = 1;
   int ne;
   int nl;
-  double to_eV(int l) const { return 1239.84193 / static_cast<double>(l); }
   material(){};
   void init(const std::vector<std::string>& fnames, double* lambdas, int nlambda, Real lambda_ref_ = 1);
   void Transmission(complexFormat* data, Real* maps, int npix, Real thickness);

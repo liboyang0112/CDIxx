@@ -104,6 +104,7 @@ void ccdRecord(Real* data, complexFormat* wave, int noiseLevel, void *state, Rea
 void ccdRecord(complexFormat* data, complexFormat* wave, int noiseLevel, void *state, Real exposure = 1);
 void fillRedundantR2C(complexFormat* data, complexFormat* dataout, Real factor);
 void applyMod(complexFormat* source, Real* target, Real *bs = 0, int noiseLevel = 0, Real norm = 1);
+void applyMod(complexFormat* source, Real* source_mod2, Real* target, Real *bs = 0, int noiseLevel = 0, Real norm = 1);
 void applyModAccurate(complexFormat* source, Real* target, Real *bs = 0, Real norm = 1);
 void applyModAccurate(complexFormat* source, Real* source_mod2, Real* target, Real *bs = 0, Real norm = 1);
 void applyModAbs(complexFormat* source, Real* target, void *state = 0);

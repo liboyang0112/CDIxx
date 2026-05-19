@@ -374,7 +374,6 @@ cuFuncc(applyModAccurate,
     }
     Real srcmod2 = rx*rx + ry*ry;
     if (srcmod2 == 0.0f) {
-        source[index] = make_cuComplex(0, 0.0f);
         return;
     }
     Real maximum = vars.scale * 0.95f;
@@ -385,6 +384,54 @@ cuFuncc(applyModAccurate,
         }
     }
     Real scale = sqrtf(mod2 / srcmod2); // Clamp val to avoid NaN
+    source[index] = make_cuComplex(scale * rx, scale * ry);
+})
+
+cuFuncc(applyMod,
+    (complexFormat* source, Real* source_mod2, Real* target, Real *bs, int noiseLevel, Real bsnorm),
+    (cuComplex* source, Real* source_mod2, Real* target, Real *bs, int noiseLevel, Real bsnorm),
+    ((cuComplex*)source, source_mod2, target, bs, noiseLevel, bsnorm),
+{
+    cuda1Idx();
+
+    // Load data early
+    cuComplex sourcedata = source[index];
+    Real mod2 = fmaxf(0.0f, target[index]);
+
+    // Early return if blocked by bs flag (common case?)
+    if (bs && bs[index] > 0.5f) {
+        // Only write back scaled value if bsnorm was applied
+        if (bsnorm != 1.0f) {
+            sourcedata.x *= bsnorm;
+            sourcedata.y *= bsnorm;
+            source[index] = sourcedata;
+        }
+        return;
+    }
+    Real rx = sourcedata.x;
+    Real ry = sourcedata.y;
+    if (bsnorm != 1.0f) {
+        rx *= bsnorm;
+        ry *= bsnorm;
+    }
+    Real srcmod2 = source_mod2[index];
+    Real maximum = vars.scale * 0.95f;
+    if (mod2 >= maximum) {
+        mod2 = fmaxf(mod2, srcmod2);
+    }
+    //Real tolerance = (1.0f + sqrtf((Real)noiseLevel)) * vars.scale / vars.rcolor;
+    Real tolerance = sqrtf(noiseLevel+mod2*vars.rcolor/vars.scale) * vars.scale / vars.rcolor;
+    Real diff = mod2 - srcmod2;
+    Real val = mod2;
+    if (diff > tolerance) {
+        val -= tolerance;
+    } else if (diff < -tolerance) {
+        val += tolerance;
+    }
+    if (srcmod2 == 0.0f) {
+        return;
+    }
+    Real scale = sqrtf(fmaxf(val, 0.0f) / srcmod2); // Clamp val to avoid NaN
     source[index] = make_cuComplex(scale * rx, scale * ry);
 })
 
