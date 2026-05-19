@@ -3,6 +3,7 @@
 #include <stddef.h>
 #define myDMalloc(fmt, var, size) fmt* var = (fmt*)ccmemMngr.borrowCache((size)*sizeof(fmt))
 #define myMalloc(fmt, var, size) var = (fmt*)ccmemMngr.borrowCache((size)*sizeof(fmt))
+#define myMallocClean(fmt, var, size) var = (fmt*)ccmemMngr.borrowCleanCache((size)*sizeof(fmt));
 #define myFree(ptr) ccmemMngr.returnCache(ptr); ptr = 0
 
 class memManager{

@@ -65,6 +65,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
     Real *d_shifts = 0;
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
     Real *beamstop = 0;
+    complexFormat *padded = 0; //used for zooming
     int* widths = 0;
     complexFormat *esw;
     complexFormat** esws;
@@ -306,7 +307,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
       complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
-      myCuDMalloc(complexFormat, padded, row*column*lambdas[nlambda-1]*lambdas[nlambda-1]);
+      myCuMalloc(complexFormat, padded, row*column*lambdas[nlambda-1]*lambdas[nlambda-1]);
       loop(i, nscan){
         Real posx = scanposx[i] + shiftx[i];
         Real posy = scanposy[i] + shifty[i];
@@ -467,6 +468,11 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       resize_cuda_image(row,column);
       Real probeStepSize = 0.20;
       Real objStepSize = 0.40;
+      bool doprl = 0;
+      void **prlplan;
+      if(doprl){
+        myMallocClean(void*, prlplan, nlambda);
+      }
       myCuDMalloc(Real, d_norm, 2);
       findSum(tmp, row*column, d_norm);
       myDMalloc(Real, h_norm, 2);
@@ -684,6 +690,35 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         if(iter >= update_probe_iter){
           complexFormat middle = 0;
           resize_cuda_image(row, column);
+          if(doprl){
+            int midlambda = nlambda>>1;
+            propagate_pupil.pixelsize = resolution*lambdas[midlambda];
+            propagate_pupil.lambda = lambdas[midlambda]*lambda_ref;
+            propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[midlambda], pupilpatternWaves[midlambda]);
+            loop(il, nlambda){
+              if(il == midlambda) continue;
+              thisrow = row*lambdas[il] / midlambda;
+              thiscol = column*lambdas[il] / midlambda;
+              if(!prlplan[il]) createPlan(prlplan + il, thisrow, thiscol);
+              resize_cuda_image(thisrow, thiscol);
+              if(il > midlambda){
+                pad(pupilpatternWaves[midlambda], padded, row, column);
+                myFFTM(prlplan[il], padded, padded);
+                resize_cuda_image(row, column);
+                cropinner(padded, pupilpatternWaves[il], thisrow, thiscol, 1./(row * column));
+              }else{
+                crop(pupilpatternWaves[midlambda], padded, row, column);
+                myFFTM(prlplan[il], padded, padded);
+                resize_cuda_image(row, column);
+                padinner(padded, pupilpatternWaves[il], thisrow, thiscol, 1./(row * column));
+              }
+              myIFFT(pupilpatternWaves[il], pupilpatternWaves[il]);
+              propagate_pupil.pixelsize = resolution*lambdas[il];
+              propagate_pupil.lambda = lambdas[il]*lambda_ref;
+              propagate_pupil.angularSpectrumPropagate(pupilpatternWaves[il], pupilpatternWaves[il]);
+            }
+
+          }else
           loop(il, nlambda){
             propagate_pupil.pixelsize = resolution*lambdas[il];
             propagate_pupil.lambda = lambdas[il]*lambda;
