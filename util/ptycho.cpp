@@ -385,7 +385,6 @@ class ptycho : public readConfig{
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
       resize_cuda_image(row,column);
       Real probeStepSize = 0.20;
-      Real objStepSize = 0.40;
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
       int vidhandle_pupil = 0;
@@ -406,7 +405,7 @@ class ptycho : public readConfig{
         iterOrder[i] = i;
       }
       createCircleMask(tmp, row>>1, column>>1 , pupilSize/2);
-      Real* masksum = (Real*)objStep;
+      myCuDMalloc(Real, masksum, row_O*column_O);
       for (int i = 0 ; i < nscan; i++) {
         addWindow(masksum, scanposx[i], scanposy[i], row_O, column_O, tmp, 1);
       }
@@ -418,7 +417,6 @@ class ptycho : public readConfig{
       Real redundancy = findSum(masksum, row_O*column_O);
       redundancy = (nscan*M_PI*pupilSize*pupilSize)/(4*redundancy);
       fmt::println("Max overlap = {}, Redundancy = {}", maxOverlap, redundancy - 1);
-      clearCuMem(masksum, row_O*column_O);
       Real tk = 0.5+sqrt(1.25);
       Real tkp1;
       for(int iter = 0; iter < nIter; iter++){
@@ -484,38 +482,25 @@ class ptycho : public readConfig{
           //add(esw, Fn, -norm);
           if(isFresnel) propagate_esw.removeFresnelPhase(esw);
           if(iter < update_probe_iter) {
-            if(mPIE){
-              updateObjectStep(objCache, pupilpatternWave, esw, probeMax);
-            }else{
-              updateObject(objCache, pupilpatternWave, esw, probeMax);
-            }
-          }
-          else {
-            //updateObjectAndProbe(objCache, pupilpatternWave, esw,probeMax, objMax);
-            if(mPIE){
-              updateObjectStepAndProbeStep(objCache, pupilpatternWave, probeStep, esw,probeMax, objMax, probeStepSize);
-            }else{
-              updateObjectAndProbeStep(objCache, pupilpatternWave, probeStep, esw,probeMax, objMax, probeStepSize);
-            }
+            updateObject(objCache, pupilpatternWave, esw, probeMax);
+          }else {
+            updateObjectAndProbeStep(objCache, pupilpatternWave, probeStep, esw,probeMax, objMax, probeStepSize);
           }
           if(shiftpix){
             shiftWave(objCache, -shiftxpix, -shiftypix);
           }
-          if(mPIE){
-            addWindow(objStep, round(posx), round(posy), row_O, column_O, objCache, objStepSize);
-          }else
-            updateWindow(objectWave, round(posx), round(posy), row_O, column_O, objCache);
+          updateWindow(objectWave, round(posx), round(posy), row_O, column_O, objCache);
         }
         if(mPIE){
           resize_cuda_image(row_O, column_O);
-          add(objectWave, objStep, 4./maxOverlap); //x_k
+          multiply(objStep, objectWave, masksum);
+          complexFormat sum = findSum(objStep);
+          multiplyConj(objectWave, objectWave, sum / cabs(sum));
           add(objectWave_prev, objectWave, objectWave_prev, -1);
           tkp1 = 0.5+sqrt(0.25+tk*tk);
           add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
           tk = tkp1;
-          complexFormat* tmp;
-          tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
-          applyNorm(objStep, 0);
+          complexFormat* tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
         }
         resize_cuda_image(row, column);
         if(iter >= update_probe_iter) {
