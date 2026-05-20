@@ -297,7 +297,7 @@ class ptycho : public readConfig{
       resize_cuda_image(row_O,column_O);
       random(objectWave, devstates);
       resize_cuda_image(row,column);
-      pupilFunc(pupilpatternWave, row>>2);
+      pupilFunc(pupilpatternWave, row>>2, pupilSize);
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
     }
     void updatePosition(int scanidx, complexFormat* obj, complexFormat* probe, Real* pattern, complexFormat* Fn){

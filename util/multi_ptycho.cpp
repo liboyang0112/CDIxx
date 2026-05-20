@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <random>
 #include <chrono>
+#include <string>
 #include <vector>
 #include <cstdlib>
 #include "imgio.hpp"
@@ -67,6 +68,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
     Real *beamstop = 0;
     complexFormat *padded = 0; //used for zooming
     int* widths = 0;
+    void* objFFT = 0;
     complexFormat *esw;
     complexFormat** esws;
     complexFormat* objectWave = 0; // stores reconstructed, higher resolution for short wave, C, H, W
@@ -209,21 +211,22 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       jump = 22;
       fmt::println("imgsize = {}x{}", row, column);
 
-      int lambdarange = 2;
-      int nlambdai = row*(lambdarange-1)/2;
-      double* lambdasi = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambdai);
-      double* spectrai = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambdai);
-      for(int i = 0; i < nlambdai; i++){
-        lambdasi[i] = 1 + 2.*i/row;
-        spectrai[i] = exp(-pow(2*(i*2./nlambdai-1),2))/nlambdai; //gaussian, -1,1 with sigma=1
-      }
-      broadBand_constRatio::init(row, column, lambdasi, spectrai, nlambdai, true);
-      writeSpectra("spectrum.txt");
+      //int lambdarange = 2;
+      //int nlambdai = row*(lambdarange-1)/2;
+      //double* lambdasi = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambdai);
+      //double* spectrai = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambdai);
+      //for(int i = 0; i < nlambdai; i++){
+      //  lambdasi[i] = 1 + 2.*i/row;
+      //  spectrai[i] = exp(-pow(2*(i*2./nlambdai-1),2))/nlambdai; //gaussian, -1,1 with sigma=1
+      //}
+      //broadBand_constRatio::init(row, column, lambdasi, spectrai, nlambdai, true);
+      broadBand_constRatio::init_flatspectrum(row, column, 2, true);
       //spectra[0] = spectra[1] = spectra[2] = spectra[3] = 0.24;
       loop(i, nlambda){
         //spectra[i] = 1./(nlambda*lambdas[i]);
         spectra[i] = 1./(nlambda);
       }
+      writeSpectra("spectrum.txt");
       //Real sum = 0;
       //loop(i, nlambda){
       //  sum += spectra[i];
@@ -321,6 +324,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           }
           multiply(esw, pupilpatternWave_t + row*column*il, window);
 
+          if(i % 10 == 0)
           verbose(5, plt.plotComplexColor(esw, 0, 1./spectra[i], ("ptycho_esw"+to_string(i) + "_" + to_string(il)).c_str()));
           if(isFresnel) {
             propagate_esw.lambda = lambdas[il]*lambda;
@@ -345,8 +349,10 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           applyNorm(patterns[i], exposure);
         }
         cudaConvertFO(patterns[i]);
-        verbose(2, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)).c_str()));
-        verbose(4, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
+        if(i % 10 == 0){
+          verbose(5, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)).c_str()));
+          verbose(4, plt.plotFloat(patterns[i], MOD, 0, 1, (common.Pattern+to_string(i)+"log").c_str(),1, 0, 1));
+        }
         plt.saveFloat(patterns[i], (common.Pattern+to_string(i)).c_str());
         if(i == 0) {
           extendToComplex(patterns[0],esw);
@@ -361,11 +367,12 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
     void initObject(){
       resize_cuda_image(row_O,column_O);
       loop(i, nlambda){
+        fmt::println("lambdas = {}", lambdas[i]);
         random(objectWaves[i], devstates);
       }
       resize_cuda_image(row,column);
       loop(i, nlambda){
-        pupilFunc(pupilpatternWaves[i], Real(row>>2)/lambdas[i]);
+        pupilFunc(pupilpatternWaves[i], Real(row>>2)/lambdas[i], pupilSize/lambdas[i]);
         propagate_pupil.pixelsize = resolution*lambdas[i];
         propagate_pupil.lambda = lambdas[i]*lambda;
         propagate_pupil.angularSpectrumPropagate(pupilpatternWaves[i], pupilpatternWaves[i]);
@@ -431,6 +438,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       myCuFree(G);
     }
     void iterate(){
+      createPlan(&objFFT, row_O, column_O); 
       resetPosition();
       resize_cuda_image(row,column);
       myDMalloc(Real, objMax, nlambda);
@@ -451,8 +459,6 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 4;
       int positionUpdateIter = 50000;
-      void* objFFT;
-      createPlan(&objFFT, row_O, column_O); 
       myCuDMalloc(complexFormat, zernikeCrop, pupilSize*pupilSize);
       void** zernike = zernike_init_group(widths, 25, nlambda);
       myCuDMalloc(Real, pupilSupport, row*column*nlambda);
@@ -562,25 +568,33 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
               shiftWave(objCaches[il], shiftxpix, shiftypix);
             }
             multiply(esws[il], pupilpatternWaves[il], objCaches[il]);
+            //myMemcpyD2D(esws[il], pupilpatternWaves[il], row*column*sizeof(complexFormat));
+            if(iter == 0 && ic < 2) plt.plotComplexColor(pupilpatternWaves[il], 0, 1, ("debug" + to_string(il) + "_" + to_string(ic)).c_str());
             if(isFresnel) {
               propagate_esw.lambda = lambdas[il]*lambda;
               propagate_esw.multiplyFresnelPhase(esws[il]);
             }
             myFFT(esws[il],Fns[il]);
+            //if(iter == 0 && ic < 2)
+            //  plt.plotComplex(Fns[il], MOD2, 1, sqrt(exposure/(row*column)), ("ptycho_recon_pattern" + to_string(il)+ "_" + to_string(ic)).c_str(), 1, 0, 1);
           }
           // ------------- sum patterns and compare to detector data ----------------
           getMod2(patternSum, Fns[0]);
           for(int il = 1; il < nlambda; il++){
             addMod2(patternSum, Fns[il]);
           }
-          if(iter == nIter - 1){
-            verbose(4,plt.plotFloat(patternSum, MOD, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
+          //if((iter == nIter - 1 || iter == 0) && i % 10 == 0){
+          if((iter == nIter - 1) && i % 10 == 0){
+            verbose(1,plt.plotFloat(patternSum, MOD, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
           }
           applyNorm(patternSum, norm*norm);
           addRemoveOE( tmp, patternSum, patterns[i], -1);
           getMod2(tmp, tmp);
+          //if((iter == nIter - 1 || iter == 0) && i % 10 == 0)
+          //  plt.plotFloat(tmp, MOD, 1, 1, ("residual" + to_string(i)).c_str(), 1, 0, 1);
           residual += findSum(tmp) / (row*column);
           //sqrtdivide(patternSum, patternSum, patterns[i]);
+          //if(iter == 1) exit(0);
 
           loop(il , nlambda){
             Real posx = posx0 / lambdas[il];
@@ -666,10 +680,6 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           linearConst(d_shifts, d_shifts, 1, -h_norm[0]);
           linearConst(d_shifts+nscan, d_shifts+nscan, 1, -h_norm[1]);
           resize_cuda_image(row_O, column_O);
-          loop(il, nlambda){
-            shiftWave(objFFT,objectWaves[il], -h_norm[0], -h_norm[1]);
-            shiftWave(objFFT,objectWave_prevs[il], -h_norm[0], -h_norm[1]);
-          }
           myMemcpyD2H(shifts, d_shifts, nscan*sizeof(Real)*2);
           //for (int iscan = 0; iscan < nscan; iscan++) {
           //  fmt::println("{},{}", shiftx[iscan], shifty[iscan]);
@@ -809,6 +819,8 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
     }
     void readPattern(){
       Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
+      jump = 22;
+      broadBand_constRatio::init_flatspectrum(row, column, 2, true);
       plt.init(row,column, outputDir);
       init_fft(row,column);
       sz = row*column*sizeof(Real);
@@ -828,10 +840,10 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         ccmemMngr.returnCache(pattern);
         cudaConvertFO(patterns[i]);
         applyNorm(patterns[i], 1./exposure);
-        verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
+        if(i % 10 == 0)
+        verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str(), 1,0,1));
       }
       fmt::println("Created pattern data");
-      broadBand_constRatio::init_flatspectrum(row, column, 2, true);
     }
 };
 Real multi_ptycho::computeErrorSim(){

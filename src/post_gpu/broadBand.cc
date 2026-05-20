@@ -74,11 +74,11 @@ void broadBand_constRatio::init_flatspectrum(int nrow, int ncol, double maxlambd
   column = ncol;
   thisrow = row+2*jump;
   thiscol = column+2*jump;
-  Real skiplambda = 2./row*skip;
   Real factor = Real(thisrow)/row;
   nlambda = log(maxlambda)/log(factor)+1;
   myMalloc(double, spectra, nlambda);
   myMalloc(double, lambdas, nlambda);
+  lambdas[0] = 1;
   for(int i = 0; i < nlambda-1; i++){
     lambdas[i+1] = lambdas[i]*factor;
     spectra[i] = 1./nlambda;

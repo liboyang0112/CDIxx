@@ -127,11 +127,12 @@ cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandSt
 static __device__ Real gaussian(float x, float y, float sigma){
   return exp(-(x*x+y*y)/2/(sigma*sigma));
 }
-cuFuncc(pupilFunc,(complexFormat* object, Real r),(cuComplex* object, Real r),((cuComplex*)object, r),{
+cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* object, Real r, Real pupilsize),((cuComplex*)object, r, pupilsize),{
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
-  object[index].x = 3*gaussian(shiftx,shifty,r);
+  if(shiftx*shiftx + shifty*shifty > (pupilsize*pupilsize)/4) object[index].x = 0;
+  else object[index].x = 3*gaussian(shiftx,shifty,r);
   object[index].y = 0;
 })
 
