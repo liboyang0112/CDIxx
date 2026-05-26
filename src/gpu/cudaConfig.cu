@@ -167,7 +167,7 @@ void createPlan1d(void** handle, int n){
   cufftPlan1d((cufftHandle*)handle, n, FFTformat, 1);
 }
 void destroyPlan(void* handle){
-  cufftDestroy(*(cufftHandle*)handle);
+  cufftDestroy(*(cufftHandle*)&handle);
 }
 void myFFTM(void* handle, void* in, void* out){
   myCufftExec((cufftHandle)((long)handle), (cuComplex*)in, (cuComplex*)out, CUFFT_FORWARD);
@@ -409,7 +409,7 @@ cuFuncc(applyThreshold,(complexFormat* input, complexFormat *output, Real thresh
     })
 
 
-cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq),(input,output,sigma,isFreq),{
+cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq, Real x0 = 0, Real y0 = 0),(input,output,sigma,isFreq,x0,y0),{
     cudaIdx()
     Real xrel, yrel;
     if(isFreq){
@@ -418,8 +418,8 @@ cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq),(inpu
     if(y>=cuda_column/2) yrel=y-cuda_column;
     else yrel=y;
     }else{
-    xrel = x - cuda_row/2;
-    yrel = y - cuda_column/2;
+    xrel = x - cuda_row/2-x0;
+    yrel = y - cuda_column/2-y0;
     }
     Real factor = exp(-(xrel*xrel+yrel*yrel)/(2*sigma*sigma));
     output[index]=factor*input[index];

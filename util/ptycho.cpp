@@ -134,8 +134,9 @@ class ptycho : public readConfig{
       int scanx = 3;//(row_O-row)/stepSize+1;
       int scany = 3;//(column_O-column)/(stepSize*sqrtf(3)/2)+1;
       nscan = scanx*scany-1;
-      int offsetx = -row*0.27;
-      int offsety = -column*0.23;
+      Real yspacing = sqrtf(3)/2;
+      Real offsety = (row_O - row - stepSize*(scany-1)*yspacing)/2;
+      Real offsetx = (column_O - column - stepSize*(scanx-1))/2;
       fmt::println("scanning {} x {} steps", scanx, scany);
       allocScan();
       fmt::ostream scanFile(fmt::output_file(std::string(outputDir) + "scan.txt"));
@@ -145,7 +146,7 @@ class ptycho : public readConfig{
         for(int j = 0; j < scany; j++){
           if(i == 2 && j == 1) continue;
           Real xstep = (i+(j%2 == 0? 0:0.5));
-          Real ystep = j*sqrtf(3)/2;
+          Real ystep = j*yspacing;
           scanFile.print("{} {} {}\n", iscan ,ystep,xstep);
           scanposy[iscan] = xstep*stepSize + offsetx;
           scanposx[iscan] = ystep*stepSize + offsety;
@@ -379,7 +380,7 @@ class ptycho : public readConfig{
       createPlan(&objFFT, row_O, column_O); 
       int pupildiameter = pupilSize;
       myCuDMalloc(complexFormat, zernikeCrop, pupildiameter*pupildiameter);
-      void* zernike = zernike_init(pupildiameter, 25, 0); //40 is already high enough for modelling complex beams
+      void* zernike = zernike_init(pupildiameter, 40, 0); //40 is already high enough for modelling complex beams
       myCuDMalloc(Real, pupilSupport, pupildiameter*pupildiameter);
       resize_cuda_image(pupildiameter, pupildiameter);
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
@@ -405,7 +406,7 @@ class ptycho : public readConfig{
         iterOrder[i] = i;
       }
       createCircleMask(tmp, row>>1, column>>1 , pupilSize/2);
-      myCuDMalloc(Real, masksum, row_O*column_O);
+      myCuDMallocClean(Real, masksum, row_O*column_O);
       for (int i = 0 ; i < nscan; i++) {
         addWindow(masksum, scanposx[i], scanposy[i], row_O, column_O, tmp, 1);
       }
@@ -419,7 +420,9 @@ class ptycho : public readConfig{
       fmt::println("Max overlap = {}, Redundancy = {}", maxOverlap, redundancy - 1);
       Real tk = 0.5+sqrt(1.25);
       Real tkp1;
+      bool dozernike = 0;
       for(int iter = 0; iter < nIter; iter++){
+        dozernike = iter < zernikeIter && iter%3==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
@@ -495,7 +498,9 @@ class ptycho : public readConfig{
           resize_cuda_image(row_O, column_O);
           multiply(objStep, objectWave, masksum);
           complexFormat sum = findSum(objStep);
-          multiplyConj(objectWave, objectWave, sum / cabs(sum));
+          sum /= cabs(sum);
+          multiplyConj(objectWave, objectWave, sum);
+          multiplyConj(objectWave_prev, objectWave_prev, sum);
           add(objectWave_prev, objectWave, objectWave_prev, -1);
           tkp1 = 0.5+sqrt(0.25+tk*tk);
           add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
@@ -504,7 +509,7 @@ class ptycho : public readConfig{
         }
         resize_cuda_image(row, column);
         if(iter >= update_probe_iter) {
-          add(pupilpatternWave, probeStep);
+          add(pupilpatternWave, probeStep, dozernike?3:1);
           applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
         }
         if(doUpdatePosition){
@@ -551,15 +556,15 @@ class ptycho : public readConfig{
           propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
             plt.toVideo = vidhandle_pupil;
-            plt.plotComplexColor(pupilpatternWave, 0, 1, ("recon_pupil"+to_string(iter)).c_str(), 0, isFlip);
+            plt.plotComplexColor(pupilpatternWave, 0, 0.5, ("recon_pupil"+to_string(iter)).c_str(), 0, isFlip);
             plt.toVideo = -1;
           }
           if(iter == zernikeIter - 1) {
-            plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_b4_proj");
+            plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil_b4_proj");
           }
           resize_cuda_image(pupildiameter, pupildiameter);
           crop((complexFormat*)pupilpatternWave, zernikeCrop, row, column);
-          if(iter < zernikeIter){
+          if(dozernike){
             zernike_compute(zernike, zernikeCrop, Real(pupildiameter-1)/2, Real(pupildiameter-1)/2, Real(pupildiameter)/2);
             zernike_reconstruct(zernike, zernikeCrop, Real(pupildiameter)/2);
           }else{
@@ -569,7 +574,7 @@ class ptycho : public readConfig{
           resize_cuda_image(row, column);
           pad(zernikeCrop, pupilpatternWave, pupildiameter, pupildiameter);
           if(iter == zernikeIter - 1) {
-            plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil_proj");
+            plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil_proj");
           }
           propagate_pupil.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
           myFFT(pupilpatternWave, esw); //just reuse esw, instread of allocating new memory
@@ -596,7 +601,7 @@ class ptycho : public readConfig{
       }
       plt.plotComplexColor(pupilpatternWave, 0, 1, "ptycho_probe_afterIter", 1);
       propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
-      plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_pupil");
+      plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil");
       if(verbose>=3){
         for(int i = 0 ; i < nscan; i++){
           fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);

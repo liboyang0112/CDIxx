@@ -67,9 +67,9 @@ __forceinline__ __device__ void rPIE_step(cuComplex &target, cuComplex source, c
   target.y =-(source.x*diff.y - source.y*diff.x)*denom;
 }
 
-cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
+cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real stepsize = 1),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real stepsize = 1),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe, stepsize),{
   cuda1Idx()
-  rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
+  rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA, stepsize);
   //ePIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
@@ -92,17 +92,17 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
   object[index] = objectdat;
 })
 
-cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real stepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, stepsize),{
+cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, probeStepsize, objectStepsize),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
   cuComplex diff= U[index];
   //ePIE(object[index], probe[index], diff, mod2maxProbe, ALPHA);
   //ePIE(probe[index], objectdat, diff, mod2maxObj, BETA);
-  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA, 0.5);
+  rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA, objectStepsize);
   rPIE_step(probedat, objectdat, diff, mod2maxObj, BETA);
-  probeStep[index].x = probeStep[index].x + probedat.x*stepsize;
-  probeStep[index].y = probeStep[index].y + probedat.y*stepsize;
+  probeStep[index].x = probeStep[index].x + probedat.x*probeStepsize;
+  probeStep[index].y = probeStep[index].y + probedat.y*probeStepsize;
   object[index] = objectdat;
 })
 

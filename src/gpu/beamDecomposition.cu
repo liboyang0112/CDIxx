@@ -6,6 +6,103 @@
 #include <complex.h>
 #include <fmt/core.h>
 
+typedef struct { float x, y; } Point;
+typedef struct { float area, cx, cy; } PixelRes;
+__forceinline__ __device__ PixelRes compute_pixel(float px, float py, float r) {
+  float r2 = r*r;
+  float d2 = px*px + py*py;
+  float sqrt2 = sqrtf(2);
+  if(d2 > (r+sqrt2)*(r+sqrt2)) return (PixelRes){0.0f, px, py};
+  if(d2 < (r-sqrt2)*(r-sqrt2)) return (PixelRes){1.0f, px, py};
+  float x0=px-0.5f, x1=px+0.5f, y0=py-0.5f, y1=py+0.5f;
+  int c[4] = {(x0*x0+y0*y0<r2), (x1*x1+y0*y0<r2), (x1*x1+y1*y1<r2), (x0*x0+y1*y1<r2)};
+  int n_in = c[0]+c[1]+c[2]+c[3];
+  if(n_in==4) return (PixelRes){1.0f, px, py};
+  if(n_in==0) return (PixelRes){0.0f, px, py};
+  Point ints[8]; int n_int=0;
+  float eps = 1e-5f;
+  for(int i=0; i<2; i++) {
+    float x = (i==0) ? x0 : x1;
+    float val = (r - x) * (r + x);
+    if(val >= -eps) {
+      val = (val < 0) ? 0 : val;
+      float y = sqrtf(val);
+      if(y >= y0-eps && y <= y1+eps) {
+        bool dup = false;
+        for(int k=0; k<n_int; k++) if(fabsf(ints[k].x-x)<eps && fabsf(ints[k].y-y)<eps) dup=true;
+        if(!dup) { ints[n_int].x=x; ints[n_int].y=y; n_int++; }
+      }
+      if(n_int < 8 && y > eps && -y >= y0-eps && -y <= y1+eps) {
+        bool dup = false;
+        for(int k=0; k<n_int; k++) if(fabsf(ints[k].x-x)<eps && fabsf(ints[k].y+y)<eps) dup=true;
+        if(!dup) { ints[n_int].x=x; ints[n_int].y=-y; n_int++; }
+      }
+    }
+  }
+  for(int i=0; i<2; i++) {
+    float y = (i==0) ? y0 : y1;
+    float val = (r - y) * (r + y);
+    if(val >= -eps) {
+      val = (val < 0) ? 0 : val;
+      float x = sqrtf(val);
+      if(x >= x0-eps && x <= x1+eps) {
+        bool dup = false;
+        for(int k=0; k<n_int; k++) if(fabsf(ints[k].x-x)<eps && fabsf(ints[k].y-y)<eps) dup=true;
+        if(!dup) { ints[n_int].x=x; ints[n_int].y=y; n_int++; }
+      }
+      if(n_int < 8 && x > eps && -x >= x0-eps && -x <= x1+eps) {
+        bool dup = false;
+        for(int k=0; k<n_int; k++) if(fabsf(ints[k].x+x)<eps && fabsf(ints[k].y-y)<eps) dup=true;
+        if(!dup) { ints[n_int].x=-x; ints[n_int].y=y; n_int++; }
+      }
+    }
+  }
+  Point verts[12]; int nc=0;
+  float vx[4]={x0,x1,x1,x0}, vy[4]={y0,y0,y1,y1};
+  for(int i=0; i<4; i++) if(c[i]) { verts[nc].x=vx[i]; verts[nc].y=vy[i]; nc++; }
+  for(int i=0; i<n_int; i++) { verts[nc].x=ints[i].x; verts[nc].y=ints[i].y; nc++; }
+  if(nc < 3) return (PixelRes){(n_in>0?1.0f:0.0f), px, py};
+  int idx[12]; for(int i=0; i<nc; i++) idx[i]=i;
+  for(int i=0; i<nc-1; i++) for(int j=i+1; j<nc; j++) {
+    float a1=atan2f(verts[idx[i]].y-py, verts[idx[i]].x-px);
+    float a2=atan2f(verts[idx[j]].y-py, verts[idx[j]].x-px);
+    if(a1>a2) { int t=idx[i]; idx[i]=idx[j]; idx[j]=t; }
+  }
+  float A=0.0f, Mx=0.0f, My=0.0f;
+  for(int i=0; i<nc; i++) {
+    Point p1=verts[idx[i]], p2=verts[idx[(i+1)%nc]];
+    double cross = double(p1.x) * p2.y - double(p2.x) * p1.y;
+    A += cross; Mx += (p1.x + p2.x) * cross; My += (p1.y + p2.y) * cross;
+  }
+  A *= 0.5f; Mx /= 6.0f; My /= 6.0f;
+  if(A < 0.0f) { A=-A; Mx=-Mx; My=-My; }
+  if(n_int == 2) {
+    float mx = (ints[0].x+ints[1].x)*0.5f, my = (ints[0].y+ints[1].y)*0.5f;
+    float dx_c = ints[0].x-ints[1].x, dy_c = ints[0].y-ints[1].y;
+    float L = sqrtf(dx_c*dx_c + dy_c*dy_c);
+    float h = sqrtf(mx*mx + my*my);
+    float theta = 2.0f * atan2f(0.5f*L, h);
+    float theta_minus_sin, sin_half_cubed;
+    if(theta < 1e-4f) {
+      float t2 = theta*theta, t3 = t2*theta, t5 = t3*t2;
+      theta_minus_sin = t3/6.0f - t5/120.0f;
+      float sh = 0.5f*theta; sin_half_cubed = sh*sh*sh;
+    } else {
+      theta_minus_sin = theta - sinf(theta);
+      sin_half_cubed = powf(sinf(0.5f*theta), 3.0f);
+    }
+    float A_s = 0.5f * r2 * theta_minus_sin;
+    float d_s = (theta_minus_sin > 1e-10f) ? (4.0f * r * sin_half_cubed) / (3.0f * theta_minus_sin) : r;
+    float norm = h > 1e-9f ? h : 1.0f;
+    float ux = mx/norm, uy = my/norm;
+    float Mx_s = A_s * d_s * ux, My_s = A_s * d_s * uy;
+    A += A_s; Mx += Mx_s; My += My_s;
+  }
+  float Cx = (A > 1e-9f) ? Mx/A : px;
+  float Cy = (A > 1e-9f) ? My/A : py;
+  return (PixelRes){A, Cx, Cy};
+}
+
 __forceinline__ __device__ void pixel_circle_coverage_approx(
     Real dx, Real dy,  // rectangle center relative to circle (which is at origin)
     Real r,
@@ -13,83 +110,10 @@ __forceinline__ __device__ void pixel_circle_coverage_approx(
     Real& cent_x,      // centroid x, relative to circle (origin)
     Real& cent_y       // centroid y, relative to circle (origin)
 ) {
-    Real d_sq = dx * dx + dy * dy;
-    cent_x = dx;
-    cent_y = dy;
-    if (d_sq < 1.0e-12f) {
-        area = 1.0f;
-        return;
-    }
-    Real d_inv = rsqrtf(d_sq);
-    Real d_norm = d_sq * d_inv;  // |vec| = sqrt(d_sq)
-    if (d_norm >= r+0.7071067811865475 || fabs(dx) >= r+0.5 || fabs(dy) >= r+0.5){
-        area = 0.f;
-        return;
-    }
-    if (d_norm <= r-0.7071067811865475){
-        area = 1.f;
-        return;
-    }
-    Real nx = -dx * d_inv;
-    Real ny = -dy * d_inv;
-    Real c_line = -r - (nx * dx + ny * dy);
-    Real corners_x[4] = {-0.5f, 0.5f, 0.5f, -0.5f};
-    Real corners_y[4] = {-0.5f, -0.5f, 0.5f, 0.5f};
-    int num_in = 0;
-    for (int i = 0; i < 4; ++i) {
-        Real val = nx * corners_x[i] + ny * corners_y[i];
-        num_in += (val >= c_line);  // bool → int: efficient!
-    }
-    if (num_in == 0) {
-        area = 0.0f;
-        return;
-    }
-    if (num_in == 4) {
-        area = 1.0f;
-        return;
-    }
-    Real px[6], py[6];
-    int n_out = 0;
-    for (int i = 0; i < 4; ++i) {
-        int j = (i + 3) % 4;
-        Real x1 = corners_x[j], y1 = corners_y[j];
-        Real x2 = corners_x[i], y2 = corners_y[i];
-        Real d1 = nx * x1 + ny * y1 - c_line;
-        Real d2 = nx * x2 + ny * y2 - c_line;
-        bool in1 = (d1 >= 0.0f);
-        bool in2 = (d2 >= 0.0f);
-        if (in1 != in2) {
-            Real t = d1 / (d1 - d2);
-            t = fmaxf(0.0f, fminf(1.0f, t));
-            px[n_out] = x1 + t * (x2 - x1);
-            py[n_out] = y1 + t * (y2 - y1);
-            ++n_out;
-        }
-        if (in2) {
-            px[n_out] = x2;
-            py[n_out] = y2;
-            ++n_out;
-        }
-    }
-    if (n_out < 3) {
-        area = 0.0f;
-        return;
-    }
-    Real A = 0.0f;
-    Real Cx = 0.0f;
-    Real Cy = 0.0f;
-    for (int i = 0; i < n_out; ++i) {
-        int j = (i + 1) % n_out;
-        Real cross = px[i] * py[j] - px[j] * py[i];
-        A += cross;
-        Cx += (px[i] + px[j]) * cross;
-        Cy += (py[i] + py[j]) * cross;
-    }
-    area = fabsf(A*0.5);
-    if (area > 1.0e-10f) {
-      cent_x += Cx / (6.0f * A);
-      cent_y += Cy / (6.0f * A);
-    }
+    PixelRes res = compute_pixel(dx, dy, r);
+    area = res.area;
+    cent_x = res.cx;
+    cent_y = res.cy;
 }
 __forceinline__ __device__ Real Hermit(Real x,int n) {
     if (n < 0) return 0;
@@ -440,16 +464,17 @@ __global__ void reduce_coefficients(
     int nblocks,
     int nmodes,
     cuComplex* final_coeff,
-    Real norm = 1
+    double norm = 1
     ) {
   int mode = blockIdx.x * blockDim.x + threadIdx.x;
   if (mode >= nmodes) return;
-  cuComplex sum = make_cuComplex(0.0f, 0.0f);
+  double sumx = 0, sumy = 0;
   for (int b = 0; b < nblocks; b++) {
-    sum = cuCaddf(sum, block_coeff_mode[b * nmodes + mode]);
+    sumx += block_coeff_mode[b * nmodes + mode].x;
+    sumy += block_coeff_mode[b * nmodes + mode].y;
   }
-  final_coeff[mode].x = sum.x*norm;
-  final_coeff[mode].y = sum.y*norm;
+  final_coeff[mode].x = sumx*norm;
+  final_coeff[mode].y = sumy*norm;
 }
 
 __global__ void regularize_zernike_coefficients(
@@ -479,7 +504,7 @@ __global__ void regularize_zernike_coefficients(
     }
   }
   Real factor = 0;
-  if(p>=10) factor = regl*p*p + regm*m*m;
+  factor = regl*p*p + regm*m*m;
   Real tmp = final_coeff[mode].x;
   final_coeff[mode].x = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
   tmp = final_coeff[mode].y;
@@ -557,7 +582,7 @@ complexFormat* zernike_compute(
       handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff, 1./(M_PI*radius*radius)
       );
   regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->nmodes, 1e-7, 1e-7, handle->final_coeff
+      handle->nmodes, 5e-5, 5e-8, handle->final_coeff
       );
 
   return (complexFormat*)handle->final_coeff;  // return device pointer

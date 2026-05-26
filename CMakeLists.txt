@@ -169,7 +169,7 @@ if(USE_HIP)
       include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
       link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
       #set(CMAKE_CUDA_FLAGS "-Wno-unknown-cuda-version") #clang
-      set(CMAKE_CUDA_FLAGS "-Wstrict-aliasing -ccbin=gcc-15")
+      set(CMAKE_CUDA_FLAGS "-ccbin=gcc-15")
       #set(CMAKE_CUDA_FLAGS "-allow-unsupported-compiler -ccbin=clang++") #nvcc
       enable_language(CUDA)
 

@@ -34,7 +34,7 @@ void updatePreview(void* ptr, void* buffer){  //buffer is rgb
   struct PreviewContext* p = (struct PreviewContext*)ptr;
   if(!p->active) return;
   SDL_PollEvent(&p->e);
-  if (p->e.type == SDL_QUIT || p->e.type == SDL_KEYDOWN) {
+  if (p->e.type == SDL_QUIT || (p->e.type == SDL_KEYDOWN && p->e.key.keysym.sym == SDLK_q )) {
     SDL_Quit();
   }
   void* pixels;

@@ -51,7 +51,7 @@ void myFFTR2C(void* in, void* out);
 void myFFTC2R(void* in, void* out);
 void createPlan(void** handle, int row, int col);
 void createPlan1d(void** handle, int n);
-void destroyPlan(int handle);
+void destroyPlan(void* handle);
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
 void add(Real* a, Real* b, Real c = 1);
@@ -82,7 +82,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void applyGaussMult(complexFormat* input, complexFormat* output, Real sigma, bool isFreq);
-void applyGaussMult(Real* input, Real* output, Real sigma, bool isFreq);
+void applyGaussMult(Real* input, Real* output, Real sigma, bool isFreq, Real x0, Real y0);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void getMod(Real* mod, complexFormat* amp);
 void getMod(Real* mod, Real* amp);
