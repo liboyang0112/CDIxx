@@ -55,14 +55,14 @@ __forceinline__ __device__ void ePIE(cuComplex &target, cuComplex source, cuComp
 __forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param, Real stepsize = 1){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = stepsize/((1-param)*denom+param*maxi);
+  denom = stepsize/((1-param)*denom+param*maxi+1e-5);
   target.x -= (source.x*diff.x + source.y*diff.y)*denom;
   target.y -= (source.x*diff.y - source.y*diff.x)*denom;
 }
 __forceinline__ __device__ void rPIE_step(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = 1./((1-param)*denom+param*maxi);
+  denom = 1./((1-param)*denom+param*maxi+1e-5);
   target.x =-(source.x*diff.x + source.y*diff.y)*denom;
   target.y =-(source.x*diff.y - source.y*diff.x)*denom;
 }

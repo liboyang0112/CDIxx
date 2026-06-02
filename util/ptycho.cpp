@@ -46,7 +46,6 @@ class ptycho : public readConfig{
     int sz = 0;
     int doPhaseModulationPupil = 0;
     complexFormat* registerCache = 0;
-    void* registerFFTHandle = 0;
     int nscan = 0;
     propagator propagate_pupil;
     propagator propagate_esw;
@@ -63,6 +62,7 @@ class ptycho : public readConfig{
     Real **patterns; //patterns[i*scany+j] points to the address on device to store pattern;
     Real *beamstop = 0;
     complexFormat *esw;
+    complexFormat **esws_t;
     complexFormat* objectWave = 0;
     complexFormat* objectWave_t = 0;
     complexFormat* pupilpatternWave_t = 0;
@@ -75,7 +75,6 @@ class ptycho : public readConfig{
       propagate_esw.pixelsize = pixelsize;
       propagate_pupil.distance = dpupil;
     }
-    Real computeErrorSim();
     int readScan(){
       std::ifstream file(std::string(outputDir) + distFile);
       if (!file.is_open()) {
@@ -256,7 +255,9 @@ class ptycho : public readConfig{
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
       complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
+      myMalloc(complexFormat*, esws_t, nscan);
       for(int i = 0; i < nscan; i++){
+        myCuMalloc(complexFormat, esws_t[i], row*column);
         Real posx = scanposx[i] + shiftx[i];
         Real posy = scanposy[i] + shifty[i];
         int shiftxpix = posx-round(posx);
@@ -265,12 +266,15 @@ class ptycho : public readConfig{
         if(fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3){
           shiftWave(window, shiftxpix, shiftypix);
         }
-        multiply(esw, pupilpatternWave_t, window);
-        verbose(5, plt.plotComplex(esw, MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
+        multiply(esws_t[i], pupilpatternWave_t, window);
+        verbose(5, plt.plotComplex(esws_t[i], MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
         if(isFresnel) {
+          myMemcpyD2D(esw, esws_t[i], row*column*sizeof(complexFormat));
           propagate_esw.multiplyFresnelPhase(esw);
+          myFFT(esw,esw);
+        }else{
+          myFFT(esws_t[i],esw);
         }
-        myFFT(esw,esw);
         if(!patterns[i]) patterns[i] = (Real*)memMngr.borrowCache(sz);
         getMod2(patterns[i], esw, 1./(row*column));
         if(useBS) applySupport(patterns[i], beamstop);
@@ -598,11 +602,14 @@ class ptycho : public readConfig{
           plt_O.plotComplex(objectWave, PHASE, 0, 1, "ptycho_b4positionphase", 0);
           resize_cuda_image(row,column);
         }
+        if(computeErrorEveryIter && iter % computeErrorEveryIter == 0 && runSim){
+          fmt::println("residual = {}", computeErrorSim());
+        }
       }
       plt.plotComplexColor(pupilpatternWave, 0, 1, "ptycho_probe_afterIter", 1);
       propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
       plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil");
-      if(verbose>=3){
+      if(verbose>=3 && positionUncertainty>1e-3){
         for(int i = 0 ; i < nscan; i++){
           fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
         }
@@ -662,27 +669,37 @@ class ptycho : public readConfig{
       }
       fmt::println("Created pattern data");
     }
+    Real computeErrorSim(){  //compute error of esw instead of probe and object, this is easier since brightness scaling, phase shift cancels out.
+      if(!runSim) return 0;
+      size_t n = row*column;
+      complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sz*2);
+      Real* diff2 = (Real*)memMngr.borrowCache(sz);
+      Real err = 0;
+      for(int i = 0; i < nscan; i++){
+        Real posx = scanposx[i] + shiftx[i];
+        Real posy = scanposy[i] + shifty[i];
+        int shiftxpix = posx - round(posx);
+        int shiftypix = posy - round(posy);
+        getWindow(objectWave, round(posx), round(posy), row_O, column_O, tmp);
+        if(fabs(shiftxpix)>1e-3 || fabs(shiftypix)>1e-3){
+          shiftWave(tmp, shiftxpix, shiftypix);
+        }
+        multiply(esw, pupilpatternWave, tmp);
+        // cancel constant phase shift: inner product esw * conj(esws_t[i]), normalize by magnitude
+        multiplyConj(tmp, esw, esws_t[i]);
+        complexFormat phase = findSum(tmp, n);
+        phase /= hypot(crealf(phase), cimagf(phase));
+        multiplyConj(esw, esw, phase);
+        // compute |esw - esws_t[i]|^2
+        add(esw, esw, esws_t[i], -1);
+        getMod2(diff2, esw);
+        err += findSum(diff2, n)/n;
+      }
+      memMngr.returnCache(tmp);
+      memMngr.returnCache(diff2);
+      return err / nscan;
+    }
 };
-Real ptycho::computeErrorSim(){
-  int upsampling = 3;
-  if(!registerFFTHandle){
-    createPlan(&registerFFTHandle, row*upsampling, column*upsampling);
-    myCuMalloc(complexFormat, registerCache, upsampling*upsampling*row*column);
-  } 
-  myCuDMalloc(complexFormat, convoluted, row*column);
-  convolute(convoluted, pupilpatternWave_t, pupilpatternWave, registerCache, upsampling, registerFFTHandle);
-  getMod2((Real*)registerCache, convoluted);
-  int index = findMaxIdx((Real*)registerCache, row*column);
-  Real x = index/column;
-  Real y = index%column;
-  x = (x-row/2)/upsampling+row/2;
-  y = (y-column/2)/upsampling+column/2;
-  shiftWave(pupilpatternWave, -x, -y);
-  shiftWave(objectWave, -x, -y);
-  //getPhaseDiff(registerCache, pupilpatternWave_t, pupilpatternWave);
-  //myFFT
-  return 0;
-}
 int main(int argc, char** argv )
 {
   ptycho setups(argv[1]);
@@ -697,11 +714,13 @@ int main(int argc, char** argv )
   }
   fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
   fmt::println("Resolution = {:4.2f}um", setups.resolution);
-
-  fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
+  fmt::println("pupil - sample distance = {:4.2f}cm", setups.dpupil*1e-4);
+  fmt::println("FOV = {:4.2f}mm (include ambiant area)", setups.resolution*setups.row_O*1e-3);
+  fmt::println("Object image dimension ({},{})", setups.row_O, setups.column_O);
+  fmt::println("Pupil image dimension ({},{})", setups.row, setups.column);
   setups.initObject();
-  setups.iterate();
-
+  if(setups.doIteration)
+    setups.iterate();
   return 0;
 }
 
