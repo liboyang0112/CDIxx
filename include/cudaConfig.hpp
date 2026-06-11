@@ -61,6 +61,7 @@ void addPhase(complexFormat* a, complexFormat* b, Real phi0 = 0);
 void add(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1);
 void normAdd(complexFormat* store, complexFormat* a, complexFormat* b, Real c = 1, Real d = 1);
 void drawCircle(complexFormat* img, Real cx, Real cy, Real r, Real w, complexFormat data);
+void drawCircle(Real* img, Real cx, Real cy, Real r, Real w, Real data);
 void addRemoveOE(Real* src, Real* sub, Real mult);
 void addRemoveOE(Real* store, Real* src, Real* sub, Real mult);
 void bitMap(Real* store, Real* data, Real threshold = 0);

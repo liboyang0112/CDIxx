@@ -1,3 +1,4 @@
+#include <cmath>
 #include <complex.h>
 #include <fmt/base.h>
 #include <fmt/os.h>
@@ -133,9 +134,11 @@ class ptycho : public readConfig{
       int scanx = 3;//(row_O-row)/stepSize+1;
       int scany = 3;//(column_O-column)/(stepSize*sqrtf(3)/2)+1;
       nscan = scanx*scany-1;
-      Real yspacing = sqrtf(3)/2;
-      Real offsety = (row_O - row - stepSize*(scany-1)*yspacing)/2;
-      Real offsetx = (column_O - column - stepSize*(scanx-1))/2;
+      Real yspacing = 1;
+      int maxposx = 0;
+      int maxposy = 0;
+      int minposx = row_O;
+      int minposy = row_O;
       fmt::println("scanning {} x {} steps", scanx, scany);
       allocScan();
       fmt::ostream scanFile(fmt::output_file(std::string(outputDir) + "scan.txt"));
@@ -146,12 +149,21 @@ class ptycho : public readConfig{
           if(i == 2 && j == 1) continue;
           Real xstep = (i+(j%2 == 0? 0:0.5));
           Real ystep = j*yspacing;
+          if(j == 1) xstep = xstep*2-1;
           scanFile.print("{} {} {}\n", iscan ,ystep,xstep);
-          scanposy[iscan] = xstep*stepSize + offsetx;
-          scanposx[iscan] = ystep*stepSize + offsety;
-          fmt::println("scan position: ({}, {}) ", scanposx[iscan], scanposy[iscan]);
+          scanposy[iscan] = xstep*stepSize;
+          scanposx[iscan] = ystep*stepSize;
+          if(scanposx[iscan] > maxposx) maxposx = scanposx[iscan];
+          if(scanposy[iscan] > maxposy) maxposy = scanposy[iscan];
+          if(scanposx[iscan] < minposx) minposx = scanposx[iscan];
+          if(scanposy[iscan] < minposy) minposy = scanposy[iscan];
           iscan++;
         }
+      }
+      loop(i, nscan){
+        scanposx[i] -= (minposx+maxposx - row_O + row)>>1;
+        scanposy[i] -= (minposy+maxposy - column_O + column)>>1;
+        fmt::println("scan position: ({}, {}) ", scanposx[i], scanposy[i]);
       }
     }
     void initScan(){
@@ -171,6 +183,41 @@ class ptycho : public readConfig{
         scanposx[i] = xstep * stepSize + offsetx;
         scanposy[i] = ystep * stepSize + offsety;
         fmt::println("scan position: ({}, {}) ", scanposx[i], scanposy[i]);
+      }
+    }
+    void initScan_fermat(int nPoints){
+      Real phi = (1.0 + sqrtf(5.0)) / 2.0; // golden ratio ~1.618
+      Real goldenAngle = 2.0 * M_PI / (phi * phi); // ~137.508°
+      // c is tuned so that the spiral covers the FOV
+      // max radius ~ c*sqrt(nPoints) should span half the object size
+      Real maxR = sqrtf((Real(row_O - row) / 2) * (Real(column_O - column) / 2));
+      Real c = maxR / sqrtf(nPoints);
+      nscan = nPoints;
+      allocScan();
+      int maxposx = 0;
+      int maxposy = 0;
+      int minposx = row_O;
+      int minposy = row_O;
+      fmt::println("Fermat spiral: {} points, c={:.2f}", nPoints, c);
+      fmt::ostream scanFile(fmt::output_file(std::string(outputDir) + "scan.txt"));
+      scanFile.print("{}\n", stepSize * resolution);
+      for (int n = 0; n < nPoints; n++) {
+        Real r = c * sqrtf(n); // n+1 so point 0 is at origin
+        Real theta = n * goldenAngle;
+        Real xstep = r * cos(theta);
+        Real ystep = r * sin(theta);
+        scanFile.print("{} {} {}\n", n, xstep, ystep);
+        scanposx[n] = xstep * stepSize;
+        scanposy[n] = ystep * stepSize;
+        if(scanposx[n] > maxposx) maxposx = scanposx[n];
+        if(scanposy[n] > maxposy) maxposy = scanposy[n];
+        if(scanposx[n] < minposx) minposx = scanposx[n];
+        if(scanposy[n] < minposy) minposy = scanposy[n];
+      }
+      loop(i, nscan){
+        scanposx[i] -= (minposx + maxposx - row_O + row) >> 1;
+        scanposy[i] -= (minposy + maxposy - column_O + column) >> 1;
+        verbose(3, fmt::println("scan position {}: ({}, {})", i, scanposx[i], scanposy[i]));
       }
     }
     void allocateMem(){
@@ -202,6 +249,7 @@ class ptycho : public readConfig{
       sz = row*column*sizeof(Real);
       resolution = lambda*d/pixelsize/row;
       initScan_triangle();
+      //initScan_fermat(8);
       allocateMem();
       createWaveFront(d_object_intensity, d_object_phase, objectWave_t, 1);
       //createWaveFront(d_object_intensity, 0, objectWave_t, 1);
@@ -425,6 +473,9 @@ class ptycho : public readConfig{
       Real tk = 0.5+sqrt(1.25);
       Real tkp1;
       bool dozernike = 0;
+      fmt::ostream *residual_file = 0;
+      if(computeErrorEveryIter)
+      residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
         dozernike = iter < zernikeIter && iter%3==0;
         getMod2(maxCache, pupilpatternWave);
@@ -549,7 +600,7 @@ class ptycho : public readConfig{
         }
         if(iter >= update_probe_iter){
           complexFormat middle = 0;
-          if(iter < 10000){
+          if(iter > 10000){
             getMod2(tmp, (complexFormat*)pupilpatternWave);
             middle = findMiddle(tmp);
           }
@@ -585,14 +636,10 @@ class ptycho : public readConfig{
           cudaConvertFO(esw);
           getMod2(tmp, esw);
           middle = findMiddle(tmp);
-          if(iter == nIter-1) plt.plotComplexColor(esw, 0, 1./(row), "debug0");
           multiplyShift(pupilpatternWave, crealf(middle)*row-0.5, cimagf(middle)*column-0.5); //freq middle is n/2+1, not n/2+0.5
-          if(iter == nIter-1) plt.plotComplexColor(pupilpatternWave, 0, 1, "debug1");
           resize_cuda_image(row_O, column_O);
           //plt.init(row_O, column_O, outputDir);
-          //plt.plotComplexColor(objectWave, 0, 1, "debug2");
           //multiplyShift(objectWave, -crealf(middle)*row_O, -cimagf(middle)*column_O);
-          //plt.plotComplexColor(objectWave, 0, 1, "debug3");
           resize_cuda_image(row, column);
           //plt.init(row, column, outputDir);
         }
@@ -603,10 +650,16 @@ class ptycho : public readConfig{
           resize_cuda_image(row,column);
         }
         if(computeErrorEveryIter && iter % computeErrorEveryIter == 0 && runSim){
-          fmt::println("residual = {}", computeErrorSim());
+          residual_file->print("{} {}\n", iter, computeErrorSim());
         }
+      } // end of iteration
+      if(runSim){
+        if(computeErrorEveryIter) residual_file->close();
+        else fmt::println("Residual = {}", computeErrorSim());
       }
+      delete residual_file;
       plt.plotComplexColor(pupilpatternWave, 0, 1, "ptycho_probe_afterIter", 1);
+      plt.plotComplex(pupilpatternWave, MOD2, 0, 0.5, "recon_probe");
       propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
       plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil");
       if(verbose>=3 && positionUncertainty>1e-3){
@@ -628,22 +681,20 @@ class ptycho : public readConfig{
       int colc = column_O*crop_ratio;
       resize_cuda_image(rowc, colc);
       plt.init(rowc, colc, outputDir);
-      complexFormat* cropped = (complexFormat*)memMngr.borrowCache(rowc*colc*sizeof(complexFormat));
       myCuDMalloc(Real, angle, rowc*colc);
-      for (int i = 0; i < nscan ; i++) {
-        drawCircle(objectWave, scanposx[i]+row/2, scanposy[i]+column/2, pupilSize/2-1, 3, 0);
-      }
-      crop(objectWave, cropped, row_O, column_O);
-      getArg(angle, cropped);
+      //for (int i = 0; i < nscan ; i++) {
+      //  drawCircle(objectWave, scanposx[i]+row/2, scanposy[i]+column/2, pupilSize/2-1, 3, 0);
+      //}
+      getArg(angle, objectWave);
       applyNorm(angle, 1./(2*M_PI));
-      plt.plotComplex(cropped, MOD2, 0, 0.7, "ptycho_afterIter");
-      //plt.plotPhase(cropped, PHASERAD, 0, 1, "ptycho_afterIterphase");
+      plt.plotComplex(objectWave, MOD2, 0, 0.7, "ptycho_afterIter");
+      //plt.plotPhase(objectWave, PHASERAD, 0, 1, "ptycho_afterIterphase");
       //phaseUnwrapping(angle, angle, rowc, colc);
       plt.plotFloat(angle, REAL, 0, 1, "ptycho_afterIterphase");
-      complexFormat sum = findSum(cropped);
+      complexFormat sum = findSum(objectWave);
       sum /= hypot(crealf(sum), cimagf(sum));
-      multiplyConj(cropped, cropped, sum);
-      plt.plotComplexColor(cropped, 0, 1, "ptycho_afterIterwave");
+      multiplyConj(objectWave, objectWave, sum);
+      plt.plotComplexColor(objectWave, 0, 1, "ptycho_afterIterwave");
     }
     void readPattern(){
       Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
@@ -673,6 +724,7 @@ class ptycho : public readConfig{
       if(!runSim) return 0;
       size_t n = row*column;
       complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sz*2);
+      complexFormat* cc = (complexFormat*)memMngr.borrowCache(sz*2);
       Real* diff2 = (Real*)memMngr.borrowCache(sz);
       Real err = 0;
       for(int i = 0; i < nscan; i++){
@@ -690,12 +742,29 @@ class ptycho : public readConfig{
         complexFormat phase = findSum(tmp, n);
         phase /= hypot(crealf(phase), cimagf(phase));
         multiplyConj(esw, esw, phase);
-        // compute |esw - esws_t[i]|^2
+        // compensate spatial shift via cross-correlation
+        // cross_corr = IFFT(FFT(esw) * conj(FFT(esws_t[i])))
+        myFFT(esw, tmp);
+        myFFT(esws_t[i], cc);
+        multiplyConj(tmp, tmp, cc);
+        myIFFT(tmp, tmp);
+        // find peak position on GPU
+        getMod2((Real*)tmp,tmp);
+        int ccidx = findMaxIdx((Real*)tmp, n);
+        // wrap-around index
+        int ccx = ccidx / column;
+        int ccy = ccidx % column;
+        if(ccx > row/2) ccx -= row;
+        if(ccy > column/2) ccy -= column;
+        if(fabs(ccx) > 0.5 || fabs(ccy) > 0.5) {
+          shiftWave(esw, -ccx, -ccy);
+        }
         add(esw, esw, esws_t[i], -1);
         getMod2(diff2, esw);
         err += findSum(diff2, n)/n;
       }
       memMngr.returnCache(tmp);
+      memMngr.returnCache(cc);
       memMngr.returnCache(diff2);
       return err / nscan;
     }
