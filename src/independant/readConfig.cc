@@ -50,7 +50,7 @@ readConfig::readConfig(const char* configfile){
   // Output a list of all vdWFluids in the inventory.
 #define getValbool(x,y) if(config_setting_lookup_bool(Job, #x, &tmp)) x = tmp;
 #define getValint(x,y) config_setting_lookup_int(Job, #x, &x);
-#define getValfloat(x,y) config_setting_lookup_float(Job, #x, &x);
+#define getValfloat(x,y) if (config_setting_lookup_float(Job, #x, &x)) {} else if (config_setting_lookup_int(Job, #x, &tmp)) { x = (double)tmp; }
 #define getValstring(x,y) config_setting_lookup_string(Job, #x, &x);
     config_setting_t *Job = config_lookup(cfg,"Job");
     int tmp;
