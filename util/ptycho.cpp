@@ -419,6 +419,7 @@ class ptycho : public readConfig{
       Real probeMax;
       complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
       myCuDMallocClean(complexFormat, probeStep, row*column);
+      myCuDMallocClean(complexFormat, probe_prev, row*column);
       complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
       myCuDMallocClean(complexFormat, objStep, row_O*column_O);
       myCuDMallocClean(complexFormat, objectWave_prev, row_O*column_O);
@@ -437,7 +438,7 @@ class ptycho : public readConfig{
       resize_cuda_image(pupildiameter, pupildiameter);
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
       resize_cuda_image(row,column);
-      Real probeStepSize = 0.20;
+      Real probeStepSize = 0.05;
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
       int vidhandle_pupil = 0;
@@ -475,9 +476,9 @@ class ptycho : public readConfig{
       bool dozernike = 0;
       fmt::ostream *residual_file = 0;
       if(computeErrorEveryIter)
-      residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
+        residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
-        dozernike = iter < zernikeIter && iter%3==0;
+        dozernike = iter < zernikeIter && iter%1==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
@@ -499,10 +500,9 @@ class ptycho : public readConfig{
           Real sf = pow(probeMax/objMax, 0.25);
           applyNorm(objectWave, sf);
           applyNorm(objectWave_prev, sf);
-          //applyNorm(objStep, sf);
           resize_cuda_image(row,column);
           applyNorm(pupilpatternWave, 1./sf);
-          applyNorm(probeStep, 1./sf);
+          applyNorm(probe_prev, 1./sf);
           objMax = probeMax = sqrt(objMax*probeMax);
         }
         //complexFormat* coeff = NULL, *projection = NULL;
@@ -549,22 +549,9 @@ class ptycho : public readConfig{
           }
           updateWindow(objectWave, round(posx), round(posy), row_O, column_O, objCache);
         }
-        if(mPIE){
-          resize_cuda_image(row_O, column_O);
-          multiply(objStep, objectWave, masksum);
-          complexFormat sum = findSum(objStep);
-          sum /= cabs(sum);
-          multiplyConj(objectWave, objectWave, sum);
-          multiplyConj(objectWave_prev, objectWave_prev, sum);
-          add(objectWave_prev, objectWave, objectWave_prev, -1);
-          tkp1 = 0.5+sqrt(0.25+tk*tk);
-          add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
-          tk = tkp1;
-          complexFormat* tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
-        }
         resize_cuda_image(row, column);
         if(iter >= update_probe_iter) {
-          add(pupilpatternWave, probeStep, dozernike?3:1);
+          add(pupilpatternWave, probeStep);
           applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
         }
         if(doUpdatePosition){
@@ -623,7 +610,6 @@ class ptycho : public readConfig{
             zernike_compute(zernike, zernikeCrop, Real(pupildiameter-1)/2, Real(pupildiameter-1)/2, Real(pupildiameter)/2);
             zernike_reconstruct(zernike, zernikeCrop, Real(pupildiameter)/2);
           }else{
-            //FISTA(zernikeCrop, zernikeCrop, 1e-3, 1, NULL);
             applyMask(zernikeCrop, pupilSupport);
           }
           resize_cuda_image(row, column);
@@ -651,6 +637,26 @@ class ptycho : public readConfig{
         }
         if(computeErrorEveryIter && iter % computeErrorEveryIter == 0 && runSim){
           residual_file->print("{} {}\n", iter, computeErrorSim());
+        }
+        if(mPIE && iter <2300){ //momentum update
+          resize_cuda_image(row_O, column_O);
+          if(iter < 100) FISTA(objectWave, objectWave, 3e-3, 1, NULL);
+          multiply(objStep, objectWave, masksum);
+          complexFormat sum = findSum(objStep);
+          sum /= cabs(sum);
+          multiplyConj(objectWave, objectWave, sum);
+          multiplyConj(objectWave_prev, objectWave_prev, sum);
+          add(objectWave_prev, objectWave, objectWave_prev, -1);
+          tkp1 = 0.5+sqrt(0.25+tk*tk);
+          add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
+          complexFormat* tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
+          resize_cuda_image(row, column);
+          if(dozernike){
+            add(probe_prev, pupilpatternWave, probe_prev, -1);
+            add(probe_prev, pupilpatternWave, probe_prev, (tk-1)/tkp1);
+            tmp = pupilpatternWave; pupilpatternWave = probe_prev; probe_prev = tmp;
+          }
+          tk = tkp1;
         }
       } // end of iteration
       if(runSim){
