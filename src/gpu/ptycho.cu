@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-#define ALPHA 0.1
+#define ALPHA 0.05
 #define BETA 0.5
 #define DELTA 1e-3
 

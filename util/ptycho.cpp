@@ -438,7 +438,7 @@ class ptycho : public readConfig{
       resize_cuda_image(pupildiameter, pupildiameter);
       createCircleMask(pupilSupport, Real(pupildiameter+1)/2, Real(pupildiameter+1)/2, Real(pupildiameter)/2);
       resize_cuda_image(row,column);
-      Real probeStepSize = 0.05;
+      Real probeStepSize = 1./nscan;
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
       int vidhandle_pupil = 0;
@@ -478,7 +478,7 @@ class ptycho : public readConfig{
       if(computeErrorEveryIter)
         residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
-        dozernike = iter < zernikeIter && iter%1==0;
+        dozernike = iter < zernikeIter && iter%3==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
@@ -638,7 +638,7 @@ class ptycho : public readConfig{
         if(computeErrorEveryIter && iter % computeErrorEveryIter == 0 && runSim){
           residual_file->print("{} {}\n", iter, computeErrorSim());
         }
-        if(mPIE && iter <2300){ //momentum update
+        if(mPIE){ //momentum update
           resize_cuda_image(row_O, column_O);
           if(iter < 100) FISTA(objectWave, objectWave, 3e-3, 1, NULL);
           multiply(objStep, objectWave, masksum);
@@ -653,7 +653,7 @@ class ptycho : public readConfig{
           resize_cuda_image(row, column);
           if(dozernike){
             add(probe_prev, pupilpatternWave, probe_prev, -1);
-            add(probe_prev, pupilpatternWave, probe_prev, (tk-1)/tkp1);
+            add(probe_prev, pupilpatternWave, probe_prev, (tk-1)/tkp1*0.5);
             tmp = pupilpatternWave; pupilpatternWave = probe_prev; probe_prev = tmp;
           }
           tk = tkp1;

@@ -95,9 +95,13 @@ int main() {
   init_cuda_image();
   resize_cuda_image(rows, cols);
   myCuDMalloc(Real, image, rows*cols);
+  createCircleMask(image, (rows>>1) , (rows>>1) , 255);
+  applyGaussMult(image, image, 180, 0, 0, 0);
+  //applyGaussMult(image, image, 100, 0, 70, 70);
   //myCuDMalloc(Real, image1, rows*cols);
-  createCircleMask(image, (rows>>1)+10 , (rows>>1)+10 , 255);
-  applyGaussMult(image, image, 180, 0, -0, -0);
+  //createCircleMask(image1, (rows>>1) , (rows>>1) , 255);
+  //applyGaussMult(image1, image1, 100, 0, -70, -70);
+  //add(image, image, image1);
   //multiplyHermit(image, image, 100, 3,3);
   //rotate(image, image1, M_PI/4);
   //applyNorm(image1,4);
