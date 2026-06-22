@@ -1,5 +1,5 @@
 #include "readCXI.hpp" 
-#include "fmt/core.h"
+#include "fmt/format.h"
 #include <hdf5.h>
 #include "cudaConfig.hpp"
 #include "cuPlotter.hpp"

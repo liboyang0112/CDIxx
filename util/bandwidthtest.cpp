@@ -1,5 +1,6 @@
 #include "fmt/core.h"
 #include <ctime>
+#include <memory>
 #include "cudaConfig.hpp"
 #include "fmt/core.h"
 float bandwidthtest(int GB){
