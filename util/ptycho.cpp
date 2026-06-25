@@ -465,7 +465,7 @@ class ptycho : public readConfig{
       }
       Real maxOverlap = findMax(masksum, row_O*column_O);
       resize_cuda_image(row_O,column_O);
-      plt_O.plotFloat(masksum, MOD, 0, 1./maxOverlap, "masksum", 0, 0, 1);
+      plt_O.plotFloat(masksum, MOD, 0, 1./(maxOverlap>10?maxOverlap:6), "masksum", 0, 0, 1);
       bitMap(masksum, masksum, 0.5);
       resize_cuda_image(row,column);
       Real redundancy = findSum(masksum, row_O*column_O);
@@ -478,7 +478,7 @@ class ptycho : public readConfig{
       if(computeErrorEveryIter)
         residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
-        dozernike = iter < zernikeIter && iter%3==0;
+        dozernike = iter < zernikeIter && iter%5==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
@@ -640,7 +640,7 @@ class ptycho : public readConfig{
         }
         if(mPIE){ //momentum update
           resize_cuda_image(row_O, column_O);
-          if(iter < 100) FISTA(objectWave, objectWave, 3e-3, 1, NULL);
+          if(iter < 1000) FISTA(objectWave, objectWave, 3e-3, 1, NULL);
           multiply(objStep, objectWave, masksum);
           complexFormat sum = findSum(objStep);
           sum /= cabs(sum);
