@@ -505,10 +505,11 @@ __global__ void regularize_zernike_coefficients(
   }
   Real factor = 0;
   factor = regl*p*p + regm*m*m;
-  Real tmp = final_coeff[mode].x;
-  final_coeff[mode].x = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
-  tmp = final_coeff[mode].y;
-  final_coeff[mode].y = copysignf(fmaxf(fabs(tmp)-factor, 0),tmp);
+  cuComplex c = final_coeff[mode];
+  Real mag = cuCabsf(c);
+  Real scale = (mag > 1e-9f) ? fmaxf(0.0f, 1.0f - factor / mag) : 0.0f;
+  final_coeff[mode].x = c.x * scale;
+  final_coeff[mode].y = c.y * scale;
 }
 
 __global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, Real cx, Real cy, Real radius, int maxN, const cuComplex* coeff, int nmodes) {
