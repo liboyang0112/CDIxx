@@ -125,15 +125,12 @@ __device__ __forceinline__ T1 multiply_dev(T1 val, T2 norm){
   return val*norm;
 }
 
-__device__ __forceinline__ cuComplex add(cuComplex val1, cuComplex val2){
-  val1.x += val2.x;
-  val1.y += val2.x;
-  return val1;
-}
-
 template<typename T1, typename T2>
 __device__ __forceinline__ T1 add(T1 val1, T2 val2){
   return val1+val2;
+}
+__device__ __forceinline__ cuComplex add(cuComplex a, cuComplex b){
+  return make_float2(a.x + b.x, a.y + b.y);
 }
 
 
@@ -612,13 +609,12 @@ cuFunc(forcePositive,(Real* a),(a),{
 
 template<typename T1, typename T2>
 __forceinline__ __device__ auto sub(T1 a, T2 b) { return a - b; }
-
-template<typename T1, typename T2>
-__forceinline__ __device__ auto mul(T1 a, T2 b) { return a * b; }
 __forceinline__ __device__ float2 sub(float2 a, float2 b) {
     return make_float2(a.x - b.x, a.y - b.y);
 }
 
+template<typename T1, typename T2>
+__forceinline__ __device__ auto mul(T1 a, T2 b) { return a * b; }
 __forceinline__ __device__ float2 mul(float2 a, float s) {
     return make_float2(a.x * s, a.y * s);
 }
@@ -1129,7 +1125,7 @@ cuFuncc(partialx, (complexFormat* b, complexFormat* p), (cuComplex* b, cuComplex
     cuda1Idx()
     int x = index/cuda_column;
     cuComplex target;
-    if(x == cuda_row-1) target = sub(b[index],b[index%cuda_column]);
+    if(x == cuda_row-1) target = cuComplex();//sub(b[index],b[index%cuda_column]);
     else target = sub(b[index],b[index+cuda_column]);
     //if(fabs(target) > 3e-2) target = 0;
     p[index] = target;
@@ -1147,7 +1143,7 @@ cuFuncc(partialy, (complexFormat* b, complexFormat* p), (cuComplex* b, cuComplex
     cuda1Idx()
     int y = index%cuda_column;
     cuComplex target;
-    if(y == cuda_column-1) target = sub(b[index],b[index-cuda_column+1]);
+    if(y == cuda_column-1) target = cuComplex(); //sub(b[index],b[index-cuda_column+1]);
     else target = sub(b[index],b[index+1]);
     //if(fabs(target) > 3e-2) target = 0;
     p[index] = target;
@@ -1186,9 +1182,9 @@ cuFuncc(calcLpq, (complexFormat* out, complexFormat* p, complexFormat* q), (cuCo
     cudaIdx()
     cuComplex tmp = add(p[index],q[index]);
     if(x >= 1) tmp = sub(tmp,p[index-cuda_column]);
-    else tmp=sub(tmp,p[index+(cuda_row-1)*cuda_column]);
+    //else tmp=sub(tmp,p[index+(cuda_row-1)*cuda_column]);
     if(y >= 1) tmp = sub(tmp,q[index-1]);
-    else tmp=sub(tmp,q[index+cuda_column-1]);
+    //else tmp=sub(tmp,q[index+cuda_column-1]);
     out[index] = tmp;
     })
 //-------FISTA.cc-------end

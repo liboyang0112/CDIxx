@@ -640,7 +640,7 @@ class ptycho : public readConfig{
         }
         if(mPIE){ //momentum update
           resize_cuda_image(row_O, column_O);
-          if(iter < 1000) FISTA(objectWave, objectWave, 3e-3, 1, NULL);
+          FISTA(objectWave, objectWave, 1e-2, 1, NULL);
           multiply(objStep, objectWave, masksum);
           complexFormat sum = findSum(objStep);
           sum /= cabs(sum);
