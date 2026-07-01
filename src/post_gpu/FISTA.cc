@@ -105,3 +105,31 @@ void FISTA(complexFormat* b, complexFormat* output, Real lambda, int niter, void
     memMngr.returnCache(output);
   }
 };
+
+void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*)){
+  size_t sz = memMngr.getSize(b);
+  complexFormat* lpq = (complexFormat*)memMngr.borrowCache(sz);
+  complexFormat* pij = (complexFormat*)memMngr.borrowCache(sz);
+  complexFormat* qij = (complexFormat*)memMngr.borrowCache(sz);
+  bool replaceout = 0;
+  if(output == b) {
+    replaceout = 1;
+    output = (complexFormat*)memMngr.borrowCache(sz);
+  }
+  if(applyC) applyC(b, output);
+  else myMemcpyD2D(output, b, sz);
+  applyNorm( output, 0.125/lambda);
+  partialx( output, pij);
+  partialy( output, qij);
+  diffMax( pij, qij);
+  calcLpq( lpq, pij, qij);
+  add( output, b, lpq, -lambda);
+  if(applyC) applyC(output, output);
+  memMngr.returnCache(pij);
+  memMngr.returnCache(qij);
+  memMngr.returnCache(lpq);
+  if(replaceout){
+    myMemcpyD2D(b, output, sz);
+    memMngr.returnCache(output);
+  }
+};

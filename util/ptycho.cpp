@@ -258,6 +258,10 @@ class ptycho : public readConfig{
       verbose(2,
           plt.init(row_O,column_O, outputDir);
           plt.plotComplexColor(objectWave_t, 0, 1, "inputObject");
+          plt.plotComplex(objectWave_t, MOD2, 0, 1, "inputIntensity");
+      //plt.plotPhase(objectWave, PHASERAD, 0, 1, "ptycho_afterIterphase");
+      //phaseUnwrapping(angle, angle, rowc, colc);
+          plt.plotComplex(objectWave_t, PHASE, 0, 1, "inputPhase");
           //plt.plotPhase(objectWave_t, PHASERAD, 0, 1, "inputPhase");
           )
         Real* d_intensity = (Real*) memMngr.borrowCache(sz); //use the memory allocated;
@@ -421,13 +425,12 @@ class ptycho : public readConfig{
       myCuDMallocClean(complexFormat, probeStep, row*column);
       myCuDMallocClean(complexFormat, probe_prev, row*column);
       complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
-      myCuDMallocClean(complexFormat, objStep, row_O*column_O);
       myCuDMallocClean(complexFormat, objectWave_prev, row_O*column_O);
-      Real *maxCache = (Real*)memMngr.borrowCache(max(row_O*column_O/4, row*column)*sizeof(Real));
-      myCuDMalloc(complexFormat, cropObj, row_O*column_O/4);
+      Real *maxCache = (Real*)memMngr.borrowCache(row_O*column_O*sizeof(Real));
+      myCuDMalloc(complexFormat, objeff, row_O*column_O);
       myCuDMallocClean(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
-      int update_probe_iter = 4;
+      int update_probe_iter = 400;
       int positionUpdateIter = 500;
       void* objFFT;
       createPlan(&objFFT, row_O, column_O); 
@@ -478,18 +481,17 @@ class ptycho : public readConfig{
       if(computeErrorEveryIter)
         residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
-        dozernike = iter < zernikeIter && iter%5==0;
+        dozernike = iter < zernikeIter && iter%10==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         if(iter >= update_probe_iter) {
-          resize_cuda_image(row_O>>4,column_O>>4);
-          crop(objectWave, cropObj, row_O, column_O);
-          getMod2(maxCache, cropObj);
-          findMax(maxCache, row_O*column_O/256, d_norm+1);
+          resize_cuda_image(row_O,column_O);
+          getMod2(maxCache, objectWave);
+          multiply(maxCache, maxCache, masksum);
+          findMax(maxCache, row_O*column_O, d_norm+1);
           myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
           objMax = h_norm[1];
-          resize_cuda_image(row_O,column_O);
-          applyThreshold(objectWave, objectWave, objMax);
+          applyThreshold(objectWave, objectWave, sqrt(objMax));
           resize_cuda_image(row,column);
         }else{
           myMemcpyD2H(h_norm, d_norm, sizeof(Real));
@@ -531,8 +533,16 @@ class ptycho : public readConfig{
           if(doUpdatePosition) {
             applyNorm(Fn, norm);
             updatePosition(i, objCache, pupilpatternWave, patterns[i], Fn);
-            applyModAccurate(Fn, patterns[i],beamstop, 1);
-          }else applyModAccurate(Fn, patterns[i],beamstop, norm);
+            if(iter < 2000)
+              applyModAccurate(Fn, patterns[i],beamstop, 1);
+            else
+              applyMod(Fn, patterns[i],beamstop, noiseLevel, 1);
+          }else {
+            if(iter < 2000)
+              applyModAccurate(Fn, patterns[i],beamstop, norm);
+            else
+              applyMod(Fn, patterns[i],beamstop, noiseLevel, norm);
+          }
           myIFFT(Fn,Fn);
           applyNorm(Fn, norm);
           //if(doUpdatePosition) updatePosition(i, objCache, pupilpatternWave, Fn);
@@ -638,11 +648,15 @@ class ptycho : public readConfig{
         if(computeErrorEveryIter && iter % computeErrorEveryIter == 0 && runSim){
           residual_file->print("{} {}\n", iter, computeErrorSim());
         }
+        resize_cuda_image(row_O, column_O);
+        if(iter < zernikeIter){
+          FISTA_step(objectWave, objectWave, 1e-2, NULL);
+        }
+        resize_cuda_image(row, column);
         if(mPIE){ //momentum update
           resize_cuda_image(row_O, column_O);
-          FISTA(objectWave, objectWave, 1e-2, 1, NULL);
-          multiply(objStep, objectWave, masksum);
-          complexFormat sum = findSum(objStep);
+          multiply(objeff, objectWave, masksum);
+          complexFormat sum = findSum(objeff);
           sum /= cabs(sum);
           multiplyConj(objectWave, objectWave, sum);
           multiplyConj(objectWave_prev, objectWave_prev, sum);
@@ -653,7 +667,7 @@ class ptycho : public readConfig{
           resize_cuda_image(row, column);
           if(dozernike){
             add(probe_prev, pupilpatternWave, probe_prev, -1);
-            add(probe_prev, pupilpatternWave, probe_prev, (tk-1)/tkp1*0.5);
+            add(probe_prev, pupilpatternWave, probe_prev, (tk-1)/tkp1*0.8);
             tmp = pupilpatternWave; pupilpatternWave = probe_prev; probe_prev = tmp;
           }
           tk = tkp1;
@@ -668,7 +682,7 @@ class ptycho : public readConfig{
       plt.plotComplex(pupilpatternWave, MOD2, 0, 0.5, "recon_probe");
       propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
       plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil");
-      if(verbose>=3 && positionUncertainty>1e-3){
+      if(positionUncertainty>1e-3){
         for(int i = 0 ; i < nscan; i++){
           fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
         }

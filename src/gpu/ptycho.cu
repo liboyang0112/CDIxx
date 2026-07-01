@@ -124,7 +124,7 @@ cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* ob
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
   if(shiftx*shiftx + shifty*shifty > (pupilsize*pupilsize)/4) object[index].x = 0;
-  else object[index].x = 3*gaussian(shiftx,shifty,r);
+  else object[index].x = 1;//3*gaussian(shiftx,shifty,r);
   object[index].y = 0;
 })
 

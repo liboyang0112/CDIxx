@@ -1125,7 +1125,7 @@ cuFuncc(partialx, (complexFormat* b, complexFormat* p), (cuComplex* b, cuComplex
     cuda1Idx()
     int x = index/cuda_column;
     cuComplex target;
-    if(x == cuda_row-1) target = cuComplex();//sub(b[index],b[index%cuda_column]);
+    if(x == cuda_row-1) target = b[index];//sub(b[index],b[index%cuda_column]);
     else target = sub(b[index],b[index+cuda_column]);
     //if(fabs(target) > 3e-2) target = 0;
     p[index] = target;
@@ -1143,7 +1143,7 @@ cuFuncc(partialy, (complexFormat* b, complexFormat* p), (cuComplex* b, cuComplex
     cuda1Idx()
     int y = index%cuda_column;
     cuComplex target;
-    if(y == cuda_column-1) target = cuComplex(); //sub(b[index],b[index-cuda_column+1]);
+    if(y == cuda_column-1) target = b[index]; //sub(b[index],b[index-cuda_column+1]);
     else target = sub(b[index],b[index+1]);
     //if(fabs(target) > 3e-2) target = 0;
     p[index] = target;
@@ -1157,8 +1157,7 @@ cuFunc(diffMax, (Real* p, Real* q), (p,q),{
     })
 cuFuncc(diffMax, (complexFormat* p, complexFormat* q), (cuComplex* p, cuComplex* q), ((cuComplex*)p,(cuComplex*)q),{
     cuda1Idx()
-    Real mod;
-    mod = hypot(p[index].x,q[index].x);
+    Real mod = hypot(p[index].x,q[index].x);
     if(mod > 1) {
     p[index].x /= mod;
     q[index].x /= mod;
