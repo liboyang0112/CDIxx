@@ -251,27 +251,15 @@ uint16_t* readRawPNG(const char* name, int *row, int *col){
   png_infop info_ptr = ((struct pngdata*)pngfile)->info_ptr;
   *row = fdata.rows;
   *col = fdata.cols;
-  void* rowbuf = png_malloc(png_ptr, png_get_rowbytes(png_ptr, info_ptr));
+
   uint16_t* ret = (uint16_t*)malloc(fdata.rows * fdata.cols * sizeof(uint16_t));
-  for(int i = 0; i < fdata.rows; i++){
-    png_read_row(png_ptr, rowbuf, NULL);
-    for(int j = 0; j < fdata.cols; j++){
-      uint16_t val = 0;
-      if(fdata.nchann == 1) {
-        if(fdata.typesize == 8) val = ((unsigned char*)rowbuf)[j] * 257;
-        else val = ((uint16_t*)rowbuf)[j];
-      } else if(fdata.nchann == 3) {
-        Real sum = 0;
-        for(int ic = 0; ic < 3; ic++){
-          Real v = (fdata.typesize == 8) ? (Real)((unsigned char*)rowbuf)[3*j+ic] : (Real)((uint16_t*)rowbuf)[3*j+ic];
-          sum += v * rgb2gray[ic];
-        }
-        val = (uint16_t)sum;
-      }
-      ret[j * fdata.rows + i] = val;
-    }
+  png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * fdata.rows);
+  for(int i = 0; i < fdata.rows; i++) {
+    row_pointers[i] = (png_bytep)&ret[i * fdata.cols];
   }
-  png_free(png_ptr, rowbuf);
+  png_read_image(png_ptr, row_pointers);
+  free(row_pointers);
+
   png_destroy_info_struct(png_ptr, &info_ptr);
   png_destroy_read_struct(&png_ptr, NULL, NULL);
   free(pngfile);
