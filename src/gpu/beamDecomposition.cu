@@ -480,7 +480,6 @@ __global__ void reduce_coefficients(
 __global__ void regularize_zernike_coefficients(
     int max_l,
     Real regl,
-    Real regm,
     cuComplex* final_coeff
     ) {
   int mode = blockIdx.x * blockDim.x + threadIdx.x;
@@ -504,7 +503,7 @@ __global__ void regularize_zernike_coefficients(
     }
   }
   Real factor = 0;
-  factor = regl*p*p + regm*m*m;
+  factor = regl*p*p;
   cuComplex c = final_coeff[mode];
   Real mag = cuCabsf(c);
   Real scale = (mag > 1e-9f) ? fmaxf(0.0f, 1.0f - factor / mag) : 0.0f;
@@ -568,7 +567,7 @@ __global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, Real c
 complexFormat* zernike_compute(
     void* handle_ptr,
     complexFormat* phi,
-    Real cx, Real cy, Real radius
+    Real cx, Real cy, Real radius, Real reg_strength
     ) {
   if (!handle_ptr) return nullptr;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
@@ -583,7 +582,7 @@ complexFormat* zernike_compute(
       handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff, 1./(M_PI*radius*radius)
       );
   regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->nmodes, 5e-5, 5e-8, handle->final_coeff
+      handle->nmodes, reg_strength, handle->final_coeff
       //handle->nmodes, 1e-7, 0, handle->final_coeff
       );
 

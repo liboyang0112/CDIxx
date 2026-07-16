@@ -90,13 +90,13 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
   resize_cuda_image(outrow, outrow);
   crop(d_sig, tmp, row, col, midx/row, midy/col);
   extendToComplex(tmp, tmp1);
-  init_fft(outrow, outrow);
+  //init_fft(outrow, outrow);
 
-  if (mode_str[0] == '1') {
-    shiftMiddle(tmp1);
-  } else {
-    //shiftWave(tmp1, shiftx, shifty);
-  }
+  //if (mode_str[0] == '1') {
+  //  shiftMiddle(tmp1);
+  //} else {
+  //  //shiftWave(tmp1, shiftx, shifty);
+  //}
 
   getReal(tmp, tmp1);
   memMngr.returnCache(tmp1);
@@ -131,9 +131,9 @@ int main(int argc, char** argv) {
   std::string input_dir   = argv[1];
   std::string out_dir   = argv[2];
   int nmerge            = atoi(argv[3]);
-  const char* mode_str  = argc >= 6 ? argv[4] : "0";
-  float shift_y         = argc >= 7 ? std::stof(argv[5]) : 0.0f;
-  float shift_x         = argc >= 8 ? std::stof(argv[6]) : 0.0f;
+  const char* mode_str  = argc >= 5 ? argv[4] : "0";
+  float shift_y         = argc >= 6 ? std::stof(argv[5]) : 0.0f;
+  float shift_x         = argc >= 7 ? std::stof(argv[6]) : 0.0f;
 
 
   int row, col;
