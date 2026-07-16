@@ -70,23 +70,29 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     fdata->type = REALIDX;
     tdata_t buf = _TIFFmalloc(TIFFScanlineSize(tif));
     ret = (Real*) cmalloc(fdata->rows*fdata->cols*sizeof(Real));
-    for(int i = 0; i < fdata->cols; i++){
+    Real inv_scale = (typesize == 8) ? (1.0f / 255.0f) : (1.0f / 65535.0f);
+    for(int i = 0; i < fdata->rows; i++){
       TIFFReadScanline(tif, buf, i, 0);
-      int idx = i*fdata->rows;
-      for(int j = 0; j < fdata->rows; j++){
-        if(nchann == 1) {
-          Real val;
-          if(typesize==8) val = (Real)(((unsigned char*)buf)[j])/255;
-          else val = (Real)(((uint16_t*)buf)[j])/65535;
-          ret[idx+j] = val;
-        }else if(nchann == 3) {
-          Real val;
-          ret[idx+j] = 0;
-          for(int ic = 0; ic < 3; ic++){
-            if(typesize==8) val = (Real)(((unsigned char*)buf)[3*j+ic])/255;
-            else val = (Real)(((uint16_t*)buf)[3*j+ic])/65535;
-            ret[idx+j] += val*rgb2gray[ic];
+      int idx = i * fdata->cols;
+      if(nchann == 1) {
+        if(typesize == 8) {
+          unsigned char* src = (unsigned char*)buf;
+          for(int j = 0; j < fdata->cols; j++) ret[idx+j] = (Real)src[j] * inv_scale;
+        } else {
+          uint16_t* src = (uint16_t*)buf;
+          for(int j = 0; j < fdata->cols; j++) ret[idx+j] = (Real)src[j] * inv_scale;
+        }
+      } else if(nchann == 3) {
+        for(int j = 0; j < fdata->cols; j++) {
+          Real sum = 0;
+          if(typesize == 8) {
+            unsigned char* src = (unsigned char*)buf;
+            for(int ic = 0; ic < 3; ic++) sum += (Real)src[3*j+ic] * inv_scale * rgb2gray[ic];
+          } else {
+            uint16_t* src = (uint16_t*)buf;
+            for(int ic = 0; ic < 3; ic++) sum += (Real)src[3*j+ic] * inv_scale * rgb2gray[ic];
           }
+          ret[idx+j] = sum;
         }
       }
     }
@@ -97,23 +103,29 @@ Real* readImage_c(const char* name, struct imageFile *fdata, void* funcptr){
     png_infop info_ptr = pngfile->info_ptr;
     void* rowbuf = png_malloc(pngfile->png_ptr, png_get_rowbytes(pngfile->png_ptr, pngfile->info_ptr));
     ret = (Real*) cmalloc(fdata->rows*fdata->cols*sizeof(Real));
-    for(int i = 0; i < fdata->cols; i++){
-      png_read_row(((struct pngdata*)pngfile)->png_ptr, rowbuf, NULL);
-      int idx = i*fdata->rows;
-      for(int j = 0; j < fdata->cols; j++){
-        if(fdata->nchann == 1) {
-          Real val;
-          if(fdata->typesize==8) val = (Real)(((unsigned char*)rowbuf)[j])/255;
-          else val = (Real)(((uint16_t*)rowbuf)[j])/65535;
-          ret[idx+j] = val;
-        }else if(fdata->nchann == 3) {
-          Real val;
-          ret[idx+j] = 0;
-          for(int ic = 0; ic < 3; ic++){
-            if(fdata->typesize==8) val = (Real)(((unsigned char*)rowbuf)[3*j+ic])/255;
-            else val = (Real)(((uint16_t*)rowbuf)[3*j+ic])/65535;
-            ret[idx+j] += val*rgb2gray[ic];
+    Real inv_scale = (fdata->typesize == 8) ? (1.0f / 255.0f) : (1.0f / 65535.0f);
+    for(int i = 0; i < fdata->rows; i++){
+      png_read_row(png_ptr, rowbuf, NULL);
+      int idx = i * fdata->cols;
+      if(fdata->nchann == 1) {
+        if(fdata->typesize == 8) {
+          unsigned char* src = (unsigned char*)rowbuf;
+          for(int j = 0; j < fdata->cols; j++) ret[idx+j] = (Real)src[j] * inv_scale;
+        } else {
+          uint16_t* src = (uint16_t*)rowbuf;
+          for(int j = 0; j < fdata->cols; j++) ret[idx+j] = (Real)src[j] * inv_scale;
+        }
+      } else if(fdata->nchann == 3) {
+        for(int j = 0; j < fdata->cols; j++) {
+          Real sum = 0;
+          if(fdata->typesize == 8) {
+            unsigned char* src = (unsigned char*)rowbuf;
+            for(int ic = 0; ic < 3; ic++) sum += (Real)src[3*j+ic] * inv_scale * rgb2gray[ic];
+          } else {
+            uint16_t* src = (uint16_t*)rowbuf;
+            for(int ic = 0; ic < 3; ic++) sum += (Real)src[3*j+ic] * inv_scale * rgb2gray[ic];
           }
+          ret[idx+j] = sum;
         }
       }
     }
@@ -145,26 +157,38 @@ Real* readImage3_c(const char* name, struct imageFile *fdata, void* funcptr){
     Real* r = ret;
     Real* g = ret + row * col;
     Real* b = ret + 2 * row * col;
-    for(int i = 0; i < col; i++){
-      png_read_row(((struct pngdata*)pngfile)->png_ptr, rowbuf, NULL);
-      int idx = i * row;
-      for(int j = 0; j < row; j++){
-        int pixelIdx = idx + j;
-        if(fdata->nchann == 1){
-          Real gray;
-          if(fdata->typesize == 8) gray = (Real)(((unsigned char*)rowbuf)[j]) / 255;
-          else gray = (Real)(((uint16_t*)rowbuf)[j]) / 65535;
-          r[pixelIdx] = gray;
-          g[pixelIdx] = gray;
-          b[pixelIdx] = gray;
-        } else if(fdata->nchann == 3){
-          for(int ic = 0; ic < 3; ic++){
-            Real val;
-            if(fdata->typesize == 8) val = (Real)(((unsigned char*)rowbuf)[3*j+ic]) / 255;
-            else val = (Real)(((uint16_t*)rowbuf)[3*j+ic]) / 65535;
-            if(ic == 0) r[pixelIdx] = val;
-            else if(ic == 1) g[pixelIdx] = val;
-            else b[pixelIdx] = val;
+    Real inv_scale = (fdata->typesize == 8) ? (1.0f / 255.0f) : (1.0f / 65535.0f);
+    for(int i = 0; i < row; i++){
+      png_read_row(png_ptr, rowbuf, NULL);
+      int idx = i * col;
+      if(fdata->nchann == 1){
+        if(fdata->typesize == 8) {
+          unsigned char* src = (unsigned char*)rowbuf;
+          for(int j = 0; j < col; j++) {
+            Real gray = (Real)src[j] * inv_scale;
+            r[idx+j] = g[idx+j] = b[idx+j] = gray;
+          }
+        } else {
+          uint16_t* src = (uint16_t*)rowbuf;
+          for(int j = 0; j < col; j++) {
+            Real gray = (Real)src[j] * inv_scale;
+            r[idx+j] = g[idx+j] = b[idx+j] = gray;
+          }
+        }
+      } else if(fdata->nchann == 3){
+        if(fdata->typesize == 8) {
+          unsigned char* src = (unsigned char*)rowbuf;
+          for(int j = 0; j < col; j++) {
+            r[idx+j] = (Real)src[3*j] * inv_scale;
+            g[idx+j] = (Real)src[3*j+1] * inv_scale;
+            b[idx+j] = (Real)src[3*j+2] * inv_scale;
+          }
+        } else {
+          uint16_t* src = (uint16_t*)rowbuf;
+          for(int j = 0; j < col; j++) {
+            r[idx+j] = (Real)src[3*j] * inv_scale;
+            g[idx+j] = (Real)src[3*j+1] * inv_scale;
+            b[idx+j] = (Real)src[3*j+2] * inv_scale;
           }
         }
       }
@@ -179,7 +203,7 @@ Real* readImage3_c(const char* name, struct imageFile *fdata, void* funcptr){
   return ret;
 }
 void* readpng(const char* fname, struct imageFile* fdata){
-  struct pngdata* data = (struct pngdata*) malloc(sizeof(void*)*2);
+  struct pngdata* data = (struct pngdata*) malloc(sizeof(struct pngdata));
   FILE *f = fopen(fname, "rb");
   if (f == NULL){
     fprintf(stderr, "pngpixel: %s: could not open file\n", fname);
@@ -218,6 +242,40 @@ void* readpng(const char* fname, struct imageFile* fdata){
     abort();
   }
   return data;
+}
+
+uint16_t* readRawPNG(const char* name, int *row, int *col){
+  struct imageFile fdata;
+  void* pngfile = readpng(name, &fdata);
+  png_structp png_ptr = ((struct pngdata*)pngfile)->png_ptr;
+  png_infop info_ptr = ((struct pngdata*)pngfile)->info_ptr;
+  *row = fdata.rows;
+  *col = fdata.cols;
+  void* rowbuf = png_malloc(png_ptr, png_get_rowbytes(png_ptr, info_ptr));
+  uint16_t* ret = (uint16_t*)malloc(fdata.rows * fdata.cols * sizeof(uint16_t));
+  for(int i = 0; i < fdata.rows; i++){
+    png_read_row(png_ptr, rowbuf, NULL);
+    for(int j = 0; j < fdata.cols; j++){
+      uint16_t val = 0;
+      if(fdata.nchann == 1) {
+        if(fdata.typesize == 8) val = ((unsigned char*)rowbuf)[j] * 257;
+        else val = ((uint16_t*)rowbuf)[j];
+      } else if(fdata.nchann == 3) {
+        Real sum = 0;
+        for(int ic = 0; ic < 3; ic++){
+          Real v = (fdata.typesize == 8) ? (Real)((unsigned char*)rowbuf)[3*j+ic] : (Real)((uint16_t*)rowbuf)[3*j+ic];
+          sum += v * rgb2gray[ic];
+        }
+        val = (uint16_t)sum;
+      }
+      ret[j * fdata.rows + i] = val;
+    }
+  }
+  png_free(png_ptr, rowbuf);
+  png_destroy_info_struct(png_ptr, &info_ptr);
+  png_destroy_read_struct(&png_ptr, NULL, NULL);
+  free(pngfile);
+  return ret;
 }
 
 void writeComplexImage(const char* name, void* data, int row, int column){

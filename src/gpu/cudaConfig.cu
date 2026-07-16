@@ -341,6 +341,7 @@ void assignVal(T1* out, T2* input){
 template void assignVal<Real,Real>(Real*, Real*);
 template void assignVal<Real,double>(Real*, double*);
 template void assignVal<Real,int>(Real*, int*);
+template void assignVal<Real,uint16_t>(Real*, uint16_t*);
 template<> void assignVal<complexFormat, complexFormat>(complexFormat* out, complexFormat* input){
   assignValWrap<<<numBlocks,threadsPerBlock>>>(cuda_imgsz.x, cuda_imgsz.y, cuda_imgsz.z, (cuComplex*)out,(cuComplex*)input);
 }

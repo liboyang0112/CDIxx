@@ -113,7 +113,7 @@ cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* prob
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
-  sincosf(curand_uniform(&state[index])*2*M_PI, &object[index].y, &object[index].x);
+  sincosf(curand_uniform(&state[index])*0*M_PI, &object[index].y, &object[index].x);
 })
 
 static __device__ Real gaussian(float x, float y, float sigma){

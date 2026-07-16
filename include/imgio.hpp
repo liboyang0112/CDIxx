@@ -1,5 +1,6 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
+#include <stdint.h>
 #include "format.hpp"
 #include <stddef.h>
 #include "imageFile.hpp"
@@ -12,6 +13,7 @@ extern "C" {
 void* allocpngrow(void* pngfile);
 void readpngrow(void* pngfile, void* buffer);
 void* readpng(const char* fname, struct imageFile* fdata);
+uint16_t* readRawPNG(const char* name, int *row, int *col);
 void writeComplexImage(const char* name, void* data, int row, int column);
 void writeFloatImage(const char* name, void* data, int row, int col);
 Real *readImage_c(const char* name, struct imageFile *fdata, void* funcptr);

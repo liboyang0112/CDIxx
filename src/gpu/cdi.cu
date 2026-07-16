@@ -788,3 +788,10 @@ cuFuncc(applyAutoCorrelationMod,(complexFormat* source,complexFormat* target, Re
   source[index].x = retval;
 })
 
+cuFunc(assignVal, (uint16_t* src, Real* dst),
+    (src, dst), {
+    cuda1Idx();
+    dst[index] = (Real)src[index] / 65535.0f;
+})
+
+

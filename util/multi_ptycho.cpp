@@ -21,6 +21,7 @@
 #include "beamDecomposition.hpp"
 #include "broadBand.hpp"
 #include "material.hpp"
+#include "tvFilter.hpp"
 
 #define verbose(i,a) if(verbose>=i){a;}
 #define m_verbose(m,i,a) if(m.verbose>=i){a;}
@@ -642,7 +643,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           fmt::println("residual = {}", residual/nscan);
         if(mPIE){
           resize_cuda_image(row_O*column_O*nlambda, 1);
-          add(objectWave_prev, objectWave, objectWave_prev, -1);
+          FISTA_step(objectWave, objectWave, 1e-3, NULL);
           tkp1 = 0.5+sqrt(0.25+tk*tk);
           add(objectWave_prev, objectWave, objectWave_prev, 0.99*(tk-1)/tkp1);
           tk = tkp1;
@@ -737,7 +738,6 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
               resize_cuda_image(row, column);
               pad(zernikeCrop, pupilpatternWaves[il], widths[il], widths[il]);
             }else{
-              //FISTA(zernikeCrop, zernikeCrop, 1e-3, 1, NULL);
               applyMask(pupilpatternWaves[il], pupilSupport + il*row*column);
             }
             if(iter == zernikeIter - 1 || (iter <zernikeIter && iter == nIter-1)) {

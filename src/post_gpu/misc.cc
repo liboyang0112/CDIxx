@@ -283,3 +283,23 @@ void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, dou
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 }
+
+Real* readPNG(const char* name, int &row, int &col) {
+    uint16_t* raw = readRawPNG(name, &row, &col);
+    if (!raw) return nullptr;
+
+    size_t sz_raw = row * col * sizeof(uint16_t);
+    size_t sz_real = row * col * sizeof(Real);
+
+    uint16_t* d_raw = (uint16_t*)memMngr.borrowCache(sz_raw);
+    myMemcpyH2D(d_raw, raw, sz_raw);
+
+    Real* d_real = (Real*)memMngr.borrowCache(sz_real);
+    assignVal(d_real, d_raw);
+    applyNorm(d_real, 1.0f / 65535.0f);
+
+    memMngr.returnCache(d_raw);
+    free(raw);
+
+    return d_real;
+}
