@@ -289,49 +289,63 @@ void writeFloatImage(const char* name, void* data, int row, int column){
 }
 int writePng(const char* png_file_name, void* data , int height, int width, int bit_depth, char colored)
 {
+  static png_bytepp cached_rows = NULL;
+  static int cached_height = 0;
+
   unsigned char* pixels = (unsigned char*) data;
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-  png_set_compression_level(png_ptr,1);
-  if(png_ptr == NULL)
-  {
-    printf("ERROR:png_create_write_struct/n");
+  if(!png_ptr) {
+    printf("ERROR:png_create_write_struct\n");
     return 0;
   }
+  png_set_compression_level(png_ptr,1);
+
   png_infop info_ptr = png_create_info_struct(png_ptr);
-  if(info_ptr == NULL)
-  {
-    printf("ERROR:png_create_info_struct/n");
+  if(!info_ptr) {
+    printf("ERROR:png_create_info_struct\n");
     png_destroy_write_struct(&png_ptr, NULL);
     return 0;
   }
+
   FILE *png_file = fopen(png_file_name, "wb");
-  if (!png_file)
-  {
+  if (!png_file) {
+    png_destroy_write_struct(&png_ptr, &info_ptr);
     return -1;
   }
+
   png_init_io(png_ptr, png_file);
   png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, colored?PNG_COLOR_TYPE_RGB:PNG_COLOR_TYPE_GRAY,
       PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
   if(colored){
     palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH * sizeof(png_color));
     png_set_PLTE(png_ptr, info_ptr, palette, PNG_MAX_PALETTE_LENGTH);
   }
+
   png_write_info(png_ptr, info_ptr);
   if (bit_depth == 16)
     png_set_swap(png_ptr);
   png_set_packing(png_ptr);
-  png_bytepp rows = (png_bytepp)png_malloc(png_ptr, height*sizeof(png_bytep));
-  for (int i = 0; i < height; ++i)
-  {
-    rows[i] = (png_bytep)(pixels + i * png_get_rowbytes(png_ptr, info_ptr));
+
+  // Optimize: reuse row pointer array if height is the same
+  if(cached_rows == NULL || cached_height != height) {
+    if(cached_rows) free(cached_rows);
+    cached_rows = (png_bytep*)malloc(height * sizeof(png_bytep));
+    cached_height = height;
   }
 
-  png_write_image(png_ptr, rows);
-  free(rows);
-  png_write_end(png_ptr, info_ptr);
+  int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
+  for (int i = 0; i < height; ++i) {
+    cached_rows[i] = (png_bytep)(pixels + i * rowbytes);
+  }
+
+  png_write_image(png_ptr, cached_rows);
+
   if(colored){
     png_free(png_ptr, palette);
   }
+
+  png_write_end(png_ptr, info_ptr);
   png_destroy_write_struct(&png_ptr, &info_ptr);
   fclose(png_file);
   return 0;
