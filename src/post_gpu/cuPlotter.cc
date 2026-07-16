@@ -214,7 +214,7 @@ void cuPlotter::saveComplex(void* cudaData, const char* label){
     cv_complex_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real)*2);
   }
   myMemcpyD2H(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat));
-  writeComplexImage((std::string(label)+".bin").c_str(), cv_complex_data, rows, cols);
+  writeComplexImage((prefix + std::string(label)+".bin").c_str(), cv_complex_data, rows, cols);
 }
 void cuPlotter::saveFloat(void* cudaData, const char* label){
   if(!cv_float_data){
