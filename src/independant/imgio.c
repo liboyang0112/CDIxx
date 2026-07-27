@@ -287,11 +287,10 @@ void writeFloatImage(const char* name, void* data, int row, int column){
   fwrite(data, row*column*sizeof(Real), 1, fout);
   fclose(fout);
 }
+static png_bytepp cached_rows = NULL;
+static int cached_height = 0;
 int writePng(const char* png_file_name, void* data , int height, int width, int bit_depth, char colored)
 {
-  static png_bytepp cached_rows = NULL;
-  static int cached_height = 0;
-
   unsigned char* pixels = (unsigned char*) data;
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
   if(!png_ptr) {

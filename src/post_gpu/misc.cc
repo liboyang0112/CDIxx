@@ -295,6 +295,7 @@ Real* readPNG(const char* name, int &row, int &col) {
     myMemcpyH2D(d_raw, raw, sz_raw);
 
     Real* d_real = (Real*)memMngr.borrowCache(sz_real);
+    resize_cuda_image(row, col);
     assignVal(d_real, d_raw);
     applyNorm(d_real, 1.0f / 65535.0f);
 

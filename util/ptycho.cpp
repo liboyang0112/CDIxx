@@ -708,7 +708,7 @@ class ptycho : public readConfig{
             L2_step(objectWave, objectWave, 0.1*I2, NULL);
         }
         resize_cuda_image(row, column);
-        if(mPIE){ //momentum update
+        if(mPIE > iter){ //momentum update
           resize_cuda_image(row_O, column_O);
           multiply(objeff, objectWave, masksum);
           complexFormat sum = findSum(objeff);

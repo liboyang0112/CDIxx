@@ -140,13 +140,8 @@ int main(int argc, char** argv) {
   fs::create_directories(fs::path(out_dir));
 
   init_cuda_image();
-  Real* host_img = readImage((input_dir+"/bkg.png").c_str(), row, col);
-  resize_cuda_image(row, col);
-  int sz = row * col * sizeof(Real);
-  myCuDMalloc(Real, d_bkg, sz);
-  myMemcpyH2D(d_bkg, host_img, sz);
+  Real* d_bkg = readPNG((input_dir+"/bkg.png").c_str(), row, col);
   // === Step 2: Process each signal image using fixed alignment after first ===
-  myCuDMalloc(Real, d_sig, sz);
 
   bool firstSig = false;
   for (const auto& ent : fs::directory_iterator(input_dir)) {
@@ -157,10 +152,7 @@ int main(int argc, char** argv) {
     if(base_name == "bkg") continue;
     std::string out_path = (fs::path(out_dir) / base_name).string();
 
-    Real* sig = readImage(sig_path.c_str(), row, col);
-    myMemcpyH2D(d_sig, sig, sz);
-    ccmemMngr.returnCache(sig);
-
+    Real* d_sig = readPNG(sig_path.c_str(), row, col);
     // Pass whether we should use fixed (cached) alignment params
     process_pair(d_bkg, d_sig, row, col,
         out_path.c_str(),
