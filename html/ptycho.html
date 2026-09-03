@@ -118,6 +118,26 @@
               </div>
             </div>
 
+            <!-- Experiment Note Section -->
+            <div class="section-title">Experiment Notes</div >
+            <div class="layui-form-item layui-form-text">
+              <div class="layui-input-block">
+                <textarea id="note" placeholder="After selecting working folder, you can edit file here" class="layui-textarea" rows="6"></textarea>
+              </div >
+            </div >
+            <div style="display: flex; gap: 10px; margin: 10px 0;">
+              <button class="layui-btn" id="savenote">
+                <i class="layui-icon layui-icon-save"></i> Save Note
+              </button>
+              <button class="layui-btn layui-btn-primary" id="savenote_def">
+                <i class="layui-icon layui-icon-template-1"></i> Save As Default
+              </button>
+            </div >
+            <div class="warning">
+              <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
+              Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.
+            </div >
+
             <!-- Dataset Upload Section -->
             <div class="section-title">Dataset Upload</div>
             <div class="upload-section">
@@ -374,7 +394,8 @@
         setCookie('ptychoworkpath', workpath);  // Use helper, not raw document.cookie
 
         setPath(pathValue, {
-          'ptycho.cfg': 'ptychoConfig'
+          'ptycho.cfg': 'ptychoConfig',
+          'ExperimentLog.txt': 'note'
         });
 
         showNotification('Working folder confirmed: ' + workpath, 'success');
@@ -745,8 +766,10 @@
       }
 
       // ==================== Save Configuration ====================
+      saveTextToWorkingDir("savenote", "ExperimentLog.txt", "note");
       saveTextToWorkingDir("savePtychoConfig", "ptycho.cfg", "ptychoConfig");
       saveTextToFile("savePtychoConfigDef", "default/ptycho.cfg", "ptychoConfig");
+      saveTextToFile("savenote_def", "default/ExperimentLog.txt", "note");
 
       // ==================== Load Images ====================
       function loadImage(){
@@ -815,7 +838,7 @@
           if (pathInput) pathInput.value = workpath;
           if (pathDisplay) pathDisplay.textContent = workpath;
           if (typeof setPath === 'function') {
-            setPath(workpath, { 'ptycho.cfg': 'ptychoConfig' });
+            setPath(workpath, { 'ptycho.cfg': 'ptychoConfig', 'ExperimentLog.txt': 'note' });
           }
           if (typeof listFiles === 'function' && typeof repo !== 'undefined') {
             listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")

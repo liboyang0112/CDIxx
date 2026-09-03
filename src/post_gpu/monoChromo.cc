@@ -55,12 +55,7 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   myCuDMalloc(complexFormat, fftb, sz);
   init_fft(row,column);
   resize_cuda_image(row, column);
-  Real lr = 1.4;
-  Real k = 0.8;
-  Real beta1 = 1;//0.1;
-  //Real beta1 = 0;//0.1;
-  Real beta2 = 0.;//5;//0.99;
-  Real adamepsilon = 1e-4;
+  bool doFISTA = true;//0.1;
   if(restart) {
     //myMemcpyD2D(d_output, d_input, sz);
     //zeroEdge( d_output, 150);
@@ -68,12 +63,8 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   }
   myCuDMalloc(complexFormat, deltab, sz);
   complexFormat *momentum = 0;
-  Real *adamv = 0;
-  if(beta1) {
+  if(doFISTA) {
   myCuMallocClean(complexFormat, momentum, sz);
-  }
-  if(beta2) {
-  myCuMallocClean(Real, adamv, sz);
   }
   complexFormat *padded = padding_cache;
   myCuDMalloc(complexFormat, patternstep, sz);
@@ -194,7 +185,7 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
     }
     if(updateX){
       //overExposureZeroGrad( deltab, d_input, noiseLevel);
-      if(i > 20 && noiseLevel){
+      if(noiseLevel){
         getReal( (Real*)fbi,deltab);
         FISTA((Real*)fbi, (Real*)fbi, 1e-5*sqrt(noiseLevel), 20, &applyC);
         extendToComplex( (Real*)fbi, deltab);
@@ -214,16 +205,10 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
         myFFT(fbi, fbi);
         add(patternstep, fbi, spectra[j]);
       }
-      if(beta1){
+      if(doFISTA){
         //updateMomentum( patternstep, momentum, 2*beta1);
-        add( momentum, patternstep, 2*beta1);
-        applyNorm(momentum, k);
-        if(beta2) {
-          adamUpdateV( adamv, patternstep, beta2);
-          adamUpdate( d_output, momentum, adamv, lr, adamepsilon);
-        }else add(d_output, momentum, 1);
       }else{
-        add( d_output, patternstep, lr);
+        add( d_output, patternstep, 1.4);
       }
       forcePositive(d_output);
       /* //FISTA update, not quite effective
@@ -257,7 +242,6 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   myCuFree(patternstep);
   myCuFree(multiplied);
   myCuFree(momentum);
-  myCuFree(adamv);
   myCuFree(padded);
   myCuFree(fbi);
   myCuFree(fftb);
@@ -285,21 +269,13 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   size_t sz = row*column*sizeof(complexFormat);
   init_fft(row,column);
   resize_cuda_image(row, column);
-  Real lr = 1.4;
-  Real k = 0.9;
-  Real beta1 = 1;//0.1;
-  Real beta2 = 0.;//5;//0.99;
-  Real adamepsilon = 1e-4;
+  bool doFISTA = true;//0.1;
   if(!restart)
     clearCuMem(d_output,  sz);
   complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
   complexFormat *momentum = 0;
-  Real *adamv = 0;
-  if(beta1) {
+  if(doFISTA) {
     momentum = (complexFormat*)memMngr.borrowCleanCache(sz);
-  }
-  if(beta2) {
-    adamv = (Real*)memMngr.borrowCleanCache(sz/2);
   }
   complexFormat *patternstep = (complexFormat*)memMngr.borrowCache(sz);
   Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
@@ -333,6 +309,11 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   bool calcDeltab = 0;
   double* matrix = (double*) ccmemMngr.borrowCleanCache(nlambda*nlambda*sizeof(double));
   double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
+
+  int vidhandle_probe = plt.initVideo("recon_mono.mp4",24);
+  plt.toVideo = -1;
+  Real tk = 0.5+sqrt(1.25);
+  Real tkp1;
   for(int iter = 0; iter < nIter; iter++){
     if(updateX){
       add(deltab, d_input, d_output, -spectra[0]);
@@ -411,7 +392,7 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
     }
     if(updateX){
       //overExposureZeroGrad( deltab, d_input, noiseLevel);
-      if(iter > 20 && noiseLevel){
+      if(noiseLevel){
         getReal( (Real*)fbi,deltab);
         FISTA((Real*)fbi, (Real*)fbi, 1e-5*sqrt(noiseLevel), 20, &applyC);
         extendToComplex( (Real*)fbi, deltab);
@@ -423,19 +404,30 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
         nextPattern(fbi, fbi, deltab, 1);
         add(patternstep, fbi, spectra[j]);
       }
-      if(beta1){
-        updateMomentum( patternstep, momentum, 2*beta1);
-        applyNorm(momentum, k);
-        if(beta2) {
-          adamUpdateV( adamv, patternstep, beta2);
-          adamUpdate( d_output, momentum, adamv, lr, adamepsilon);
-        }else add(d_output, momentum, 1);
+      if(doFISTA){
+        add(d_output, patternstep,2);
+        if(noiseLevel){
+          getReal( (Real*)fbi,d_output);
+          FISTA((Real*)fbi, (Real*)fbi, 1e-7*sqrt(noiseLevel), 1, &applyC);
+          extendToComplex( (Real*)fbi, d_output);
+        }
+        forcePositive(d_output);
+        tkp1 = 0.5+sqrt(0.25+tk*tk);
+        add(momentum, d_output, momentum, -1);
+        add(momentum, d_output, momentum, (tk-1)/tkp1);
+        complexFormat* tmp = d_output; d_output = momentum; momentum = tmp;
+        tk = tkp1;
       }else{
-        add( d_output, patternstep, lr);
+        add( d_output, patternstep, 1.4);
+        forcePositive(d_output);
       }
-      forcePositive(d_output);
+      //plt.toVideo = vidhandle_probe;
+      //plt.plotComplexColor(d_output, 0, 1, ("recon_mono"+to_string(iter)).c_str(), 1);
+      plt.plotComplex(d_output, MOD, 0, 1, ("recon_mono"+to_string(iter)).c_str(), 1, 0, 1);
+      plt.toVideo = -1;
     }
   }
+  plt.saveVideo(vidhandle_probe);
   //myFFT(d_output, d_output);
   //cudaConvertFO(d_output);
   //zeroEdge( d_output, 30);
@@ -454,7 +446,6 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   myCuFree(patternstep);
   myCuFree(multiplied);
   myCuFree(momentum);
-  myCuFree(adamv);
   if(!updateA) myCuFree(fbi);
   myCuFree(deltab);
 

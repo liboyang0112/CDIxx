@@ -13,3 +13,6 @@ compile_commands.json
 html/selectGPU.sh
 python/.ipynb_checkpoints
 layui
+# Ignoring all HERMES cache files
+.hermes/
+hermes.log

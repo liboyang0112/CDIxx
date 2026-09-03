@@ -384,7 +384,7 @@ complexFormat* CDI::phaseRetrieve(){
     myFFT( cuda_gkp1, patternWave);
     if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
       plt.toVideo = vidhandle;
-      plt.plotComplex(cuda_gkp1, MOD2, 0, row*column, ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip, 1);
+      plt.plotComplexColor(cuda_gkp1, 0, sqrt(row*column), ("recon_intensity"+to_string(iter)).c_str(), 0, isFlip);
       plt.toVideo = -1;
     }
     if(saveIter){

@@ -283,8 +283,8 @@ class ptycho : public readConfig{
       Real* pupil_intensity = readImage(pupil.Intensity, row, column);
       sz = row*column*sizeof(Real);
       resolution = lambda*d/pixelsize/row;
-      //initScan_triangle();
-      initScan_rect();
+      initScan_triangle();
+      //initScan_rect();
       //initScan_fermat(8);
       allocateMem();
       createWaveFront(d_object_intensity, d_object_phase, objectWave_t, 1);

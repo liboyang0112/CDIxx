@@ -1189,19 +1189,6 @@ cuFuncc(calcLpq, (complexFormat* out, complexFormat* p, complexFormat* q), (cuCo
     })
 //-------FISTA.cc-------end
 //-------monoChromo.cc-------begin
-cuFuncc(updateMomentum,(complexFormat* force, complexFormat* mom, Real dx),(cuComplex* force, cuComplex* mom, Real dx),((cuComplex*)force, (cuComplex*)mom , dx),{
-    cuda1Idx()
-    Real m = mom[index].x;
-    Real f = force[index].x;
-    // interpolate with walls
-    //if(m * f < 0) m = f*(1-dx);
-    //else m = m*dx + f*(1-dx);
-    //m = m*dx + f*(1-dx);
-    if(m * f < 0) m = f*dx;
-    else m = m + f*dx;
-    mom[index].x = m;
-    })
-
 
 cuFuncc(assignRef_d, (complexFormat* wavefront, uint32_t* mmap, complexFormat* rf, int n), (cuComplex* wavefront, uint32_t* mmap, cuComplex* rf, int n),((cuComplex*)wavefront, mmap, (cuComplex*)rf, n), {
     cuda1Idx()
