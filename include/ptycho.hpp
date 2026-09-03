@@ -11,6 +11,7 @@ void updateObjectAndProbe(complexFormat* object, complexFormat* probe, complexFo
 void updateObjectAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize = 0.5);
 void updateObjectStepAndProbeStep(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real norm = 1);
 void random(complexFormat* object, void *state);
+void randommul(complexFormat* object, void *state, Real phase);
 void pupilFunc(complexFormat* object, Real r, Real pupilsize);
 void multiplyx(complexFormat* object, complexFormat* out);
 void multiplyy(complexFormat* object, complexFormat* out);

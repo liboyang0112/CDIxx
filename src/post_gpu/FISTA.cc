@@ -106,8 +106,8 @@ void FISTA(complexFormat* b, complexFormat* output, Real lambda, int niter, void
   }
 };
 
-void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*)){
-  size_t sz = memMngr.getSize(b);
+void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*), size_t sz){
+  if(sz == 0) sz = memMngr.getSize(b);
   complexFormat* lpq = (complexFormat*)memMngr.borrowCache(sz);
   complexFormat* pij = (complexFormat*)memMngr.borrowCache(sz);
   complexFormat* qij = (complexFormat*)memMngr.borrowCache(sz);

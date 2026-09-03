@@ -78,7 +78,7 @@ endif(Python_FOUND)
 include_directories("/usr/include/ffmpeg") #libav* is in this directory on Fedora
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG") 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") 
 

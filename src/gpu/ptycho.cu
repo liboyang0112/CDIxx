@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-#define ALPHA 0.3
+#define ALPHA 0.8
 #define BETA 0.5
 #define DELTA 1e-3
 
@@ -113,12 +113,16 @@ cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* prob
 
 cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
   cuda1Idx()
-  sincosf(curand_uniform(&state[index])*0*M_PI, &object[index].y, &object[index].x);
+  sincosf(curand_uniform(&state[index])*2*M_PI, &object[index].y, &object[index].x);
 })
 
-static __device__ Real gaussian(float x, float y, float sigma){
-  return exp(-(x*x+y*y)/2/(sigma*sigma));
-}
+cuFuncc(randommul,(complexFormat* object, void *state, Real phase),(cuComplex* object, curandStateMRG32k3a *state, Real phase),((cuComplex*)object, (curandStateMRG32k3a*)state, phase),{
+  cuda1Idx()
+  cuComplex tmp;
+  sincosf(curand_normal(&state[index])*phase, &tmp.y, &tmp.x);
+  object[index] = cuCmulf(tmp, object[index]);
+})
+
 cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* object, Real r, Real pupilsize),((cuComplex*)object, r, pupilsize),{
   cudaIdx()
   int shiftx = x - cuda_row/2;

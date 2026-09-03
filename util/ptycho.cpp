@@ -137,8 +137,6 @@ class ptycho : public readConfig{
       d_shift = (Real*)memMngr.borrowCache(scansz*2);
     }
     void initScan_rect(){
-      int scanx = 2;//(row_O-row)/stepSize+1;
-      int scany = 2;//(column_O-column)/(stepSize*sqrtf(3)/2)+1;
       nscan = scanx*scany;
       int maxposx = 0;
       int maxposy = 0;
@@ -529,24 +527,24 @@ class ptycho : public readConfig{
         dozernike = iter < zernikeIter && iter%10==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
-          resize_cuda_image(row_O,column_O);
-          getMod2(maxCache, objectWave);
-          multiply(maxCache, maxCache, masksum);
-          findMax(maxCache, row_O*column_O, d_norm+1);
-          myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
-          objMax = h_norm[1];
-          applyThreshold(objectWave, objectWave, sqrt(objMax));
-          resize_cuda_image(row,column);
-          myMemcpyD2H(h_norm, d_norm, sizeof(Real));
+        resize_cuda_image(row_O,column_O);
+        getMod2(maxCache, objectWave);
+        multiply(maxCache, maxCache, masksum);
+        findMax(maxCache, row_O*column_O, d_norm+1);
+        myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
+        objMax = h_norm[1];
+        applyThreshold(objectWave, objectWave, sqrt(objMax));
+        resize_cuda_image(row,column);
+        myMemcpyD2H(h_norm, d_norm, sizeof(Real));
         probeMax = h_norm[0];
-          resize_cuda_image(row_O,column_O);
-          Real sf = pow(probeMax/objMax, 0.25);
-          applyNorm(objectWave, sf);
-          applyNorm(objectWave_prev, sf);
-          resize_cuda_image(row,column);
-          applyNorm(pupilpatternWave, 1./sf);
-          applyNorm(probe_prev, 1./sf);
-          objMax = probeMax = sqrt(objMax*probeMax);
+        resize_cuda_image(row_O,column_O);
+        Real sf = pow(probeMax/objMax, 0.25);
+        applyNorm(objectWave, sf);
+        applyNorm(objectWave_prev, sf);
+        resize_cuda_image(row,column);
+        applyNorm(pupilpatternWave, 1./sf);
+        applyNorm(probe_prev, 1./sf);
+        objMax = probeMax = sqrt(objMax*probeMax);
         //complexFormat* coeff = NULL, *projection = NULL;
         bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
 
@@ -700,14 +698,13 @@ class ptycho : public readConfig{
         if(iter < zernikeIter){
           if(L1Norm){
             //if(iter < nIter-1000)
-              FISTA_step(objectWave, objectWave, 0.1*sqrt(I2), NULL);
+            FISTA_step(objectWave, objectWave, 0.1*sqrt(I2), NULL);
             //else
-              //FISTA_step(objectWave, objectWave, 0.025*sqrt(I2), NULL);
-            }
+            //FISTA_step(objectWave, objectWave, 0.025*sqrt(I2), NULL);
+          }
           else
             L2_step(objectWave, objectWave, 0.1*I2, NULL);
         }
-        resize_cuda_image(row, column);
         if(mPIE > iter){ //momentum update
           resize_cuda_image(row_O, column_O);
           multiply(objeff, objectWave, masksum);
@@ -765,7 +762,7 @@ class ptycho : public readConfig{
       //}
       getArg(angle, objectWave);
       applyNorm(angle, 1./(2*M_PI));
-      plt.plotComplex(objectWave, MOD2, 0, 0.7, "ptycho_afterIter");
+      plt.plotComplex(objectWave, MOD2, 0, 0.7, "ptycho_afterIter", 0, 0, 1);
       //plt.plotPhase(objectWave, PHASERAD, 0, 1, "ptycho_afterIterphase");
       //phaseUnwrapping(angle, angle, rowc, colc);
       plt.plotFloat(angle, REAL, 0, 1, "ptycho_afterIterphase");

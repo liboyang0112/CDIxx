@@ -1,7 +1,8 @@
 #include "format.hpp"
+#include <cstddef>
 void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*,Real*));
 void FISTA(complexFormat* b, complexFormat* output, Real lambda, int niter, void (applyC)(complexFormat*,complexFormat*));
-void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*));
+void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*), size_t sz = 0);
 void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*));
 void partialx (Real* b, Real* p);
 void partialy (Real* b, Real* p);

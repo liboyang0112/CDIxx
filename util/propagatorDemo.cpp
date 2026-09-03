@@ -16,8 +16,8 @@ int main(int argc, char** argv )
   }
   init_cuda_image();  //always needed
 
-  Real s_over_lambda2 = (1./5.42)*1e-6;
-  Real dz_over_lambda = 10;
+  Real s_over_lambda2 = pow((633/(2.37*1024*1000)),2);
+  Real dz_over_lambda = 2*M_PI*0.1e6/633;
 
   int row, col;
   complexFormat* wave = (complexFormat*)readImage(argv[1], row, col);  //read the image to memory
@@ -36,21 +36,23 @@ int main(int argc, char** argv )
   plt.plotComplex(d_wave, MOD2, 0, 0.1, "bftest", 0, 0, 1);  //save the mod square to a png file
   plt.plotComplex(d_wave, PHASE, 0, 1, "bftest_phase", 0, 0, 0);  //save the mod square to a png file
   myFFT(d_wave, d_wave);  //execute FFT
+  cudaConvertFO(d_wave);
   applyNorm(d_wave, 1./(row*col));
-  int rowi = row/5;
-  int coli = col/5;
+  int rowi = row;
+  int coli = col;
   myCuDMalloc(complexFormat, d_crop, rowi*coli); //allocate GPU memory
   plt.init(rowi, coli);
-  int handle = plt.initVideo("propagator.hevc", 10);
+  int handle = plt.initVideo("propagator.mp4", 4, 0, 0);
   multiplyPropagatePhase(d_wave, -100*dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
-  for(int i = 0; i < 150; i++){
+  for(int i = 0; i < 100; i++){
     resize_cuda_image(row, col);  //tell cuda to process the image of this size
     multiplyPropagatePhase(d_wave, dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
-    myIFFT(d_wave, d_propagatedwave);  //execute FFT
+    cudaConvertFO(d_wave, d_propagatedwave);
+    myIFFT(d_propagatedwave, d_propagatedwave);  //execute FFT
     resize_cuda_image(rowi, coli);  //tell cuda to process the image of this size
     crop(d_propagatedwave, d_crop, row, col,mid.real(),mid.imag());
     //crop(d_propagatedwave, d_crop, row, col);
-    plt.plotComplex(d_crop, MOD2, 0, 0.3, "test", 0, 0, 1, ("i="+to_string(i)).c_str());
+    plt.plotComplexColor(d_crop, 0, 0.3, ("test_" + to_string(i)).c_str(), 0, 0);
   }
   plt.saveVideo(handle);
 }
