@@ -524,7 +524,7 @@ class ptycho : public readConfig{
       if(computeErrorEveryIter)
         residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
       for(int iter = 0; iter < nIter; iter++){
-        dozernike = iter < zernikeIter && iter%10==0;
+        dozernike = iter < zernikeIter && iter%1==0;
         getMod2(maxCache, pupilpatternWave);
         findMax(maxCache, row*column ,d_norm);
         resize_cuda_image(row_O,column_O);
@@ -699,11 +699,12 @@ class ptycho : public readConfig{
           if(L1Norm){
             //if(iter < nIter-1000)
             FISTA_step(objectWave, objectWave, 0.1*sqrt(I2), NULL);
+            //L2_step(objectWave, objectWave, 0.3*I2, NULL);
             //else
             //FISTA_step(objectWave, objectWave, 0.025*sqrt(I2), NULL);
           }
           else
-            L2_step(objectWave, objectWave, 0.1*I2, NULL);
+            L2_step(objectWave, objectWave, 0.01*I2, NULL);
         }
         if(mPIE > iter){ //momentum update
           resize_cuda_image(row_O, column_O);

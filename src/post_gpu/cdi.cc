@@ -17,6 +17,7 @@
 #include "misc.hpp"
 #include "cdi.hpp"
 #include <complex.h>
+#include <string>
 
 #define verbose(i,a) if(verbose>=i){a;}
 #define m_verbose(m,i,a) if(m.verbose>=i){a;}
@@ -344,7 +345,7 @@ complexFormat* CDI::phaseRetrieve(){
       continue;
     }else if(ialgo == TV){
       getMod2(cuda_diff, cuda_gkp1);
-      FISTA(cuda_diff, cuda_diff, 0.1, 1, 0);
+      FISTA(cuda_diff, cuda_diff, 2e-7, 20, NULL);
       applyModAbs(cuda_gkp1,cuda_diff);
       myFFT( cuda_gkp1, patternWave);
       continue;
@@ -394,17 +395,18 @@ complexFormat* CDI::phaseRetrieve(){
         plt.plotComplex(cuda_gkp1, PHASE, 0, row*column, ("recon_phase"+iterstr).c_str(), 0, isFlip);
         plt.plotComplex(patternWave, MOD2, 1, exposure, ("recon_pattern"+iterstr).c_str(), 0);
       }
-      if(0 && iter > 1){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
-        takeMod2Diff(patternWave,patternData, cuda_diff, useBS? beamstop:NULL);
-        cudaConvertFO(cuda_diff);
-        FISTA(cuda_diff, cuda_diff, 0.01, 80, 0);
-        //plt.plotFloat(cuda_diff, MOD, 0, exposure, ("smootheddiff"+iterstr).c_str(), 1);
-        cudaConvertFO(cuda_diff);
-        //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("diff"+iterstr).c_str(), 1);
-        takeMod2Sum(patternWave, cuda_diff);
-        //plt.plotFloat(cuda_diff, MOD, 1, exposure, ("smoothed"+iterstr).c_str(), 1);
-      }
     }
+      if(0 && iter >= 0){  //Do Total variation denoising during the reconstruction, disabled because not quite effective.
+        takeMod2Diff(patternWave,patternData, cuda_diff, useBS? beamstop:NULL);
+        auto iterstr = to_string(iter);
+        cudaConvertFO(cuda_diff);
+        plt.plotFloat(cuda_diff, REAL, 0, exposure, ("diff"+iterstr).c_str(), 0,0,1);
+        FISTA(cuda_diff, cuda_diff, 0.01, 10, 0);
+        plt.plotFloat(cuda_diff, MOD, 0, exposure, ("smootheddiff"+iterstr).c_str(), 1);
+        cudaConvertFO(cuda_diff);
+        takeMod2Sum(patternWave, cuda_diff);
+        plt.plotFloat(cuda_diff, MOD, 1, exposure, ("smoothed"+iterstr).c_str(), 1);
+      }
   }
   applyNorm(cuda_gkp1, sqrt(row*column));
   if(saveVideoEveryIter) plt.saveVideo(vidhandle);

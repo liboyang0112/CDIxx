@@ -145,7 +145,6 @@ void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)
   }
   if(applyC) applyC(b, output);
   else myMemcpyD2D(output, b, sz);
-  applyNorm( output, 0.125/lambda);
   partialx( output, pij);
   partialy( output, qij);
   calcLpq( lpq, pij, qij);
