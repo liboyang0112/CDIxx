@@ -298,14 +298,13 @@ void CDI::saveState(){
 complexFormat* CDI::phaseRetrieve(){
   int vidhandle = 0;
   if(saveVideoEveryIter){
-    vidhandle = plt.initVideo("recon_intensity.mp4",24);
+    vidhandle = plt.initVideo("recon_intensity.mp4",24, 1, online);
   }
 
   complexFormat *cuda_gkp1 = objectWave;
 
   size_t sz = row*column;
   myCuDMalloc(complexFormat, cuda_gkprime, sz);
-  myCuDMallocClean(complexFormat, cuda_prev, sz);
   myCuDMallocClean(complexFormat, prtf_map, sz);
   myCuDMalloc(complexFormat, gamma0, sz);
   myCuDMalloc(complexFormat, cache, sz);
@@ -321,8 +320,6 @@ complexFormat* CDI::phaseRetrieve(){
   myDMalloc(Real, prtf, row>>1);
   myDMalloc(Real, weights, row>>1);
   int iter = 0;
-  Real tk = 0.5+sqrt(1.25);
-  Real tkp1;
   for(; ; iter++){
     int ialgo = algo.next();
     if(ialgo<0) break;

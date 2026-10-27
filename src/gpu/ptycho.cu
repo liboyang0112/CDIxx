@@ -3,6 +3,7 @@
 #include <curand_kernel.h>
 
 #define ALPHA 0.1
+#define SIGMA 1e-5
 #define BETA 0.5
 #define DELTA 1e-3
 
@@ -55,14 +56,14 @@ __forceinline__ __device__ void ePIE(cuComplex &target, cuComplex source, cuComp
 __forceinline__ __device__ void rPIE(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param, Real stepsize = 1){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = stepsize/((1-param)*denom+param*max(maxi,1e-5));
+  denom = stepsize/max(denom, param*max(maxi,SIGMA));
   target.x -= (source.x*diff.x + source.y*diff.y)*denom;
   target.y -= (source.x*diff.y - source.y*diff.x)*denom;
 }
 __forceinline__ __device__ void rPIE_step(cuComplex &target, cuComplex source, cuComplex &diff, Real maxi, Real param){
   Real denom = source.x*source.x+source.y*source.y;
 //  if(denom < 8e-4*maxi) return;
-  denom = 1./((1-param)*denom+param*max(maxi,1e-5));
+  denom = 1./max(denom,param*max(maxi,SIGMA));
   target.x =-(source.x*diff.x + source.y*diff.y)*denom;
   target.y =-(source.x*diff.y - source.y*diff.x)*denom;
 }
@@ -77,13 +78,13 @@ cuFuncc(updateObjectStep,(complexFormat* object, complexFormat* probe, complexFo
   rPIE_step(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
-cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real mod2maxObj),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe,mod2maxObj),{
+cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probestepsize),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real probestepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe,mod2maxObj, probestepsize),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
   cuComplex diff= U[index];
   rPIE(objectdat, probedat, diff, mod2maxProbe, ALPHA, 0.5);
-  rPIE(probedat, objectdat, diff, mod2maxObj, BETA,0.5);
+  rPIE(probedat, objectdat, diff, mod2maxObj, BETA, probestepsize);
   probe[index] = probedat;
   object[index] = objectdat;
 })
@@ -121,6 +122,15 @@ cuFuncc(randommul,(complexFormat* object, void *state, Real phase),(cuComplex* o
   cuComplex tmp;
   sincosf(curand_normal(&state[index])*phase, &tmp.y, &tmp.x);
   object[index] = cuCmulf(tmp, object[index]);
+})
+
+cuFuncc(pupilFuncSS,(complexFormat* object, Real r, Real pupilsize, int period),(cuComplex* object, Real r, Real pupilsize, int period),((cuComplex*)object, r, pupilsize, period),{
+  cudaIdx()
+  int shiftx = x - cuda_row/2;
+  int shifty = y - cuda_column/2;
+  if(shiftx*shiftx + shifty*shifty > (pupilsize*pupilsize)/4 || x % period != 0  || y % period != 0 ) object[index].x = 0;
+  else object[index].x = 1;//3*gaussian(shiftx,shifty,r);
+  object[index].y = 0;
 })
 
 cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* object, Real r, Real pupilsize),((cuComplex*)object, r, pupilsize),{

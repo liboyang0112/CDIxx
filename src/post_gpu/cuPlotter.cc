@@ -161,7 +161,7 @@ void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequen
   myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
   return cv_data;
 };
-void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip, bool phaseOnly){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
@@ -169,7 +169,7 @@ void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real deca
   if(!cuCache_data) {
     cuCache_data = (col_rgb*) memMngr.borrowCache(rows*cols*sizeof(col_rgb));
   }
-  process_rgb(cudaData, (col_rgb*)cuCache_data, isFrequency, decay, islog, isFlip);
+  process_rgb(cudaData, (col_rgb*)cuCache_data, isFrequency, decay, islog, isFlip, phaseOnly);
   myMemcpyD2H(cv_cache, cuCache_data,rows*cols*sizeof(col_rgb));
   return cv_cache;
 };
@@ -178,20 +178,23 @@ void* flushVideo_thread(void* args){
   flushVideo(_plt->videoWriterVec[_plt->writeVideo], _plt->cv_cache);
   return nullptr;
 }
-void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip){
+void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool phaseOnly){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
   }
-  processComplexColor(cudaData,isFrequency,decay,islog,isFlip);
+  processComplexColor(cudaData,isFrequency,decay,islog,isFlip, phaseOnly);
   char color[3] = {-1,0,0};
   if(label) putText(label, 0, rows-1, rows, cols, cv_cache, 1, color);
   if(toVideo>=0) {
     writeVideo = toVideo;
     pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
     if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
-  }else
-    writePng((prefix + std::string(label)+".png").c_str(), cv_cache, rows, cols, 8, 1);
+  }else{
+    auto fname = (prefix + std::string(label)+".png");
+    writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
+    fmt::println("written to file {}", fname.c_str());
+  }
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   if(vid_thread) {
@@ -214,14 +217,18 @@ void cuPlotter::saveComplex(void* cudaData, const char* label){
     cv_complex_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real)*2);
   }
   myMemcpyD2H(cv_complex_data, cudaData, rows*cols*sizeof(complexFormat));
-  writeComplexImage((prefix + std::string(label)+".bin").c_str(), cv_complex_data, rows, cols);
+  auto fname = (prefix + std::string(label)+".bin");
+  fmt::println("written to file {}", fname.c_str());
+  writeComplexImage(fname.c_str(), cv_complex_data, rows, cols);
 }
 void cuPlotter::saveFloat(void* cudaData, const char* label){
   if(!cv_float_data){
     cv_float_data = ccmemMngr.borrowCache(rows*cols*sizeof(Real));
   }
   myMemcpyD2H(cv_float_data, cudaData, rows*cols*sizeof(Real));
-  writeFloatImage((prefix + std::string(label)+".bin").c_str(), cv_float_data, rows, cols);
+  auto fname = (prefix + std::string(label)+".bin");
+  fmt::println("written to file {}", fname.c_str());
+  writeFloatImage(fname.c_str(), cv_float_data, rows, cols);
 }
 void cuPlotter::videoFrame(void* cudaData){
   if(!cv_float_data){

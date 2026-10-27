@@ -13,6 +13,7 @@ void updateObjectStepAndProbeStep(complexFormat* object, complexFormat* probe, c
 void random(complexFormat* object, void *state);
 void randommul(complexFormat* object, void *state, Real phase);
 void pupilFunc(complexFormat* object, Real r, Real pupilsize);
+void pupilFuncSS(complexFormat* object, Real r, Real pupilsize, int period);
 void multiplyx(complexFormat* object, complexFormat* out);
 void multiplyy(complexFormat* object, complexFormat* out);
 void calcPartial(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop);

@@ -50,7 +50,9 @@ class ptycho : public readConfig{
     int nscan = 0;
     propagator propagate_pupil;
     propagator propagate_esw;
+    propagator propagate_complete;
     Real resolution = 0;
+    Real resolution_pupil = 0;
     Real *scanpos = 0;
     Real *scanposx = 0;
     Real *scanposy = 0;
@@ -72,7 +74,8 @@ class ptycho : public readConfig{
     void *devstates = 0;
 
     ptycho(const char* configfile):readConfig(configfile){
-      propagate_esw.lambda = propagate_pupil.lambda = lambda;
+      propagate_complete.lambda = propagate_esw.lambda = propagate_pupil.lambda = lambda;
+      propagate_complete.distance = d+dpupil;
       propagate_esw.distance = d;
       propagate_esw.pixelsize = pixelsize;
       propagate_pupil.distance = dpupil;
@@ -264,9 +267,10 @@ class ptycho : public readConfig{
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
       pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(sz*2);
       esw = (complexFormat*) memMngr.borrowCache(sz*2);
-      propagate_esw.row = propagate_pupil.row = row;
-      propagate_esw.column = propagate_pupil.column = column;
+      propagate_complete.row = propagate_esw.row = propagate_pupil.row = row;
+      propagate_complete.column = propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = resolution;
+      propagate_complete.pixelsize = lambda*(d+dpupil)/(row*resolution);
       fmt::println("initializing cuda image");
       resize_cuda_image(row_O,column_O);
       init_cuda_image(rcolor, 1./exposure);
@@ -317,6 +321,9 @@ class ptycho : public readConfig{
       memMngr.returnCache(d_intensity);
       if(d_phase) memMngr.returnCache(d_phase);
       plt.init(row,column, outputDir);
+      if(cancelFresnel){
+        propagate_complete.removeFresnelPhase(pupilpatternWave_t);
+      }
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "pupilWave", 0);
       init_fft(row,column);
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave_t, pupilpatternWave_t);
@@ -345,6 +352,9 @@ class ptycho : public readConfig{
       complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
       myMalloc(complexFormat*, esws_t, nscan);
       I2 = 0;
+      if(isFresnel || cancelFresnel) {
+        propagate_esw.multiplyFresnelPhase(pupilpatternWave_t);
+      }
       for(int i = 0; i < nscan; i++){
         myCuMalloc(complexFormat, esws_t[i], row*column);
         Real posx = scanposx[i] + shiftx[i];
@@ -357,13 +367,7 @@ class ptycho : public readConfig{
         }
         multiply(esws_t[i], pupilpatternWave_t, window);
         verbose(5, plt.plotComplex(esws_t[i], MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
-        if(isFresnel) {
-          myMemcpyD2D(esw, esws_t[i], row*column*sizeof(complexFormat));
-          propagate_esw.multiplyFresnelPhase(esw);
-          myFFT(esw,esw);
-        }else{
-          myFFT(esws_t[i],esw);
-        }
+        myFFT(esws_t[i],esw);
         if(!patterns[i]) patterns[i] = (Real*)memMngr.borrowCache(sz);
         getMod2(patterns[i], esw, 1./(row*column));
         if(useBS) applySupport(patterns[i], beamstop);
@@ -385,6 +389,9 @@ class ptycho : public readConfig{
         cudaConvertFO(patterns[i]);
         applyNorm(patterns[i], 1./exposure);
         I2 += findSum(patterns[i]);
+      }
+      if(isFresnel || cancelFresnel) {
+        propagate_esw.removeFresnelPhase(pupilpatternWave_t);
       }
       I2 /= nscan;
       I2 /=row*column;
@@ -549,6 +556,9 @@ class ptycho : public readConfig{
         bool doUpdatePosition = iter % 20 == 0 && iter >= positionUpdateIter;
 
         shuffle_array(iterOrder, nscan);
+        if(isFresnel || cancelFresnel) {
+          propagate_esw.multiplyFresnelPhase(pupilpatternWave);
+        }
         for(int ic = 0; ic < nscan; ic++){
           int i = iterOrder[ic];
           Real posx = scanposx[i] + shiftx[i];
@@ -561,9 +571,6 @@ class ptycho : public readConfig{
             shiftWave(objCache, shiftxpix, shiftypix);
           }
           multiply(esw, pupilpatternWave, objCache);
-          if(isFresnel) {
-            propagate_esw.multiplyFresnelPhase(esw);
-          }
           myFFT(esw,Fn);
           if(iter == nIter - 1){
             verbose(4,plt.plotComplex(Fn, MOD2, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
@@ -586,7 +593,6 @@ class ptycho : public readConfig{
           //if(doUpdatePosition) updatePosition(i, objCache, pupilpatternWave, Fn);
           add(esw, Fn, -1);
           //add(esw, Fn, -norm);
-          if(isFresnel) propagate_esw.removeFresnelPhase(esw);
           if(iter < update_probe_iter) {
             updateObject(objCache, pupilpatternWave, esw, probeMax);
           }else {
@@ -601,6 +607,9 @@ class ptycho : public readConfig{
         if(iter >= update_probe_iter) {
           add(pupilpatternWave, probeStep);
           applyNorm(probeStep, 0);//(iter-update_probe_iter)/(iter-update_probe_iter+3));
+        }
+        if(isFresnel||cancelFresnel) {
+          propagate_esw.removeFresnelPhase(pupilpatternWave);
         }
         if(doUpdatePosition){
           resize_cuda_image(nscan*2, 1);
@@ -644,6 +653,9 @@ class ptycho : public readConfig{
           //shiftWave(pupilpatternWave, -biasx*row, -biasy*column);
           //shiftWave(probeStep, -biasx*row, -biasy*column);
           propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWave, pupilpatternWave);
+          if(cancelFresnel) {
+            propagate_complete.multiplyFresnelPhase(pupilpatternWave);
+          }
           if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
             plt.toVideo = vidhandle_pupil;
             plt.plotComplexColor(pupilpatternWave, 0, 0.5, ("recon_pupil"+to_string(iter)).c_str(), 0, isFlip);
@@ -664,6 +676,9 @@ class ptycho : public readConfig{
           pad(zernikeCrop, pupilpatternWave, pupildiameter, pupildiameter);
           if(iter == zernikeIter - 1) {
             plt.plotComplexColor(pupilpatternWave, 0, 0.5, "recon_pupil_proj");
+          }
+          if(cancelFresnel) {
+            propagate_complete.removeFresnelPhase(pupilpatternWave);
           }
           propagate_pupil.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
           myFFT(pupilpatternWave, esw); //just reuse esw, instread of allocating new memory
@@ -768,7 +783,7 @@ class ptycho : public readConfig{
       //phaseUnwrapping(angle, angle, rowc, colc);
       plt.plotFloat(angle, REAL, 0, 1, "ptycho_afterIterphase");
       complexFormat sum = findSum(objectWave);
-      sum /= hypot(crealf(sum), cimagf(sum));
+      sum /= cabs(sum);
       multiplyConj(objectWave, objectWave, sum);
       plt.plotComplexColor(objectWave, 0, 1, "ptycho_afterIterwave");
       plt.saveComplex(objectWave, "ptycho_afterIterwave");
@@ -822,7 +837,7 @@ class ptycho : public readConfig{
         // cancel constant phase shift: inner product esw * conj(esws_t[i]), normalize by magnitude
         multiplyConj(tmp, esw, esws_t[i]);
         complexFormat phase = findSum(tmp, n);
-        phase /= hypot(crealf(phase), cimagf(phase));
+        phase /= cabs(phase);
         multiplyConj(esw, esw, phase);
         // compensate spatial shift via cross-correlation
         // cross_corr = IFFT(FFT(esw) * conj(FFT(esws_t[i])))

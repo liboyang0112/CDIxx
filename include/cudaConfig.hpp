@@ -54,6 +54,8 @@ void createPlan1d(void** handle, int n);
 void destroyPlan(void* handle);
 void forcePositive(complexFormat* a);
 void forcePositive(Real* a);
+void logorithm(Real* in, Real* out, Real k = 1, Real b = 0);
+void power(Real* in, Real* out, Real p, Real k = 1);
 void add(Real* a, Real* b, Real c = 1);
 void add(Real* store, Real* a, Real* b, Real c = 1);
 void add(complexFormat* a, complexFormat* b, Real c = 1);
@@ -69,6 +71,7 @@ void bitMap(Real* store, complexFormat* data, Real threshold = 0);
 void applyThreshold(Real* store, Real* input, Real threshold = 0.5);
 void extendToComplex(Real* a, complexFormat* b);
 void applyNorm(complexFormat* data, Real factor);
+void applyNorm(complexFormat* data, complexFormat factor);
 void ceiling(complexFormat* data, Real ceilval);
 void applyNorm(Real* data, Real factor);
 void invert(Real* data);
@@ -83,6 +86,7 @@ void createWaveFront(Real* d_intensity, Real* d_phase, complexFormat* objectWave
 void multiplyPropagatePhase(complexFormat* amp, Real a, Real b); // a=z/lambda, b = (s/lambda)^2, s is the image size
 void applyConvolution(size_t sz, Real *input, Real *output, Real* kernel, int kernelwidth, int kernelheight);
 void applyGaussMult(complexFormat* input, complexFormat* output, Real sigma, bool isFreq);
+void regularize(complexFormat* object, Real sigma);
 void applyGaussMult(Real* input, Real* output, Real sigma, bool isFreq, Real x0, Real y0);
 void multiplyShift(complexFormat* wave, Real shiftx, Real shifty);
 void getMod(Real* mod, complexFormat* amp);
@@ -93,6 +97,7 @@ void assignImag(Real* mod, complexFormat* amp);
 void getMod2(Real* mod2, complexFormat* amp, Real norm = 1);
 void getMod2(complexFormat* mod2, complexFormat* amp, Real norm = 1);
 void addMod2(Real* mod2, complexFormat* amp, Real norm = 1);
+void addMod2(complexFormat* in, complexFormat* out,Real* mod2, Real norm = 1);
 void addReal(Real* mod, complexFormat* amp, Real norm = 1);
 void getReal(Real* mod, complexFormat* amp, Real norm = 1);
 void getMod2(Real* mod2, Real* mod, Real norm = 1);
@@ -164,6 +169,8 @@ void applyThreshold(complexFormat* input, complexFormat *output, Real threshold)
 void cart2polar_kernel(Real* d_cart, Real* d_polar,int width, int height);
 void edgeReduce(Real* out, Real* in, int ny);
 
+void peakGaussSum(int* d_peaks, Real* d_energies, Real* d_total, Real sigma, int numPeaks);
+void peakGaussRatio(int* d_peaks, Real* d_energies, Real* d_total, Real* d_ratio, Real sigma, int numPeaks, int peakIdx);
 void phaseUnwrapping(Real* d_wrapped_phase);
 void solve_poisson_frequency_domain(complexFormat* d_fft_data);
 
@@ -241,5 +248,6 @@ class diamond{
 __device__ __host__
 #endif // CUDACC
  Real gaussian(Real x, Real y, Real sigma);
+void createPlaneWave(complexFormat* out, Real peakX, Real peakY, Real amp);
 
 #endif

@@ -1,5 +1,6 @@
 #include "format.hpp"
 #include <stdint.h>
+#include <vector>
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size = 0);
 complexFormat findMiddle(complexFormat* d_in, int num = 0);
 complexFormat findMiddle(Real* d_in, int num = 0);
@@ -14,3 +15,8 @@ void convolute(complexFormat* store, complexFormat* input1, complexFormat* input
 Real* createBeamStop(int row, int column, int beamStopSize);
 void getRealSpectrum(const char* ccd_response, int nlambda, double* lambdas, double* spectrum);
 void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &startLambda, Real &endLambda, int &nlambda, double *& outlambda, double *& outspectrum);
+std::vector<int> findPeaks(Real* image, int masksize);
+std::vector<Real> getPeakEnergies(Real* image, const std::vector<int>& peaks, int masksize);
+std::vector<Real*> createPeakGauss(const std::vector<int>& peaks, const std::vector<Real>& energies, Real epsilon);
+struct PeakPos { Real x, y; };
+std::vector<PeakPos> refinePeaks(Real* image, const std::vector<int>& peaks, Real sigma);

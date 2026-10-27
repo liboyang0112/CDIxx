@@ -378,6 +378,15 @@ cuFuncc(multiplyShift,(complexFormat* object, Real shiftx, Real shifty),(cuCompl
     object[index] = cuCmulf(object[index],tmp);
     })
 
+cuFuncc(regularize,(complexFormat* object, Real sigma),(cuComplex* object, Real sigma),((cuComplex*)object,sigma),{
+    cuda1Idx()
+    Real mod2 = cuCabsf(object[index]);
+    if(mod2 > sigma) mod2 = 1-sigma/mod2;
+    else mod2 = 0;
+    object[index].x *= mod2;
+    object[index].y *= mod2;
+    })
+
 cuFuncc(applyGaussMult,(complexFormat* input, complexFormat *output, Real sigma, bool isFreq),(cuComplex* input, cuComplex* output, Real sigma, bool isFreq),((cuComplex*)input,(cuComplex*)output, sigma,isFreq),{
     cudaIdx()
     Real xrel, yrel;
@@ -423,6 +432,10 @@ cuFunc(applyGaussMult,(Real* input, Real *output, Real sigma, bool isFreq, Real 
     output[index]=factor*input[index];
     })
 
+cuFuncc(applyNorm,(complexFormat* data, complexFormat factor),(cuComplex* data, cuComplex factor),((cuComplex*)data,*(cuComplex*)&factor),{
+    cuda1Idx()
+    data[index]=cuCmulf(data[index], factor);
+    })
 cuFuncc(applyNorm,(complexFormat* data, Real factor),(cuComplex* data, Real factor),((cuComplex*)data,factor),{
     cuda1Idx()
     data[index].x*=factor;
@@ -791,6 +804,16 @@ cuFuncc(addMod2,(Real* mod2, complexFormat* amp, Real norm),(Real* mod2, cuCompl
     cuComplex tmp = amp[index];
     mod2[index] += tmp.x*tmp.x*norm + tmp.y*tmp.y*norm;
     })
+cuFuncc(addMod2,(complexFormat* in, complexFormat* out, Real* mod2, Real norm),(cuComplex* in, cuComplex* out, Real* mod2, Real norm),((cuComplex*)in,(cuComplex*)out,mod2,norm),{
+    cuda1Idx()
+    cuComplex tmp = in[index];
+    Real omod2 = tmp.x*tmp.x+tmp.y*tmp.y;
+    Real factor = 0;
+    if(omod2 > -mod2[index]*norm) 
+      factor = sqrtf(1 + mod2[index]*norm/omod2);
+    out[index].x = factor*tmp.x;
+    out[index].y = factor*tmp.y;
+    })
 cuFunc(getMod2,(Real* mod2, Real* mod, Real norm),(mod2,mod,norm),{
     cuda1Idx()
     mod2[index] = sq(mod[index])*norm;
@@ -899,6 +922,16 @@ cuFuncc(normAdd,(complexFormat* store, complexFormat* a, complexFormat* b, Real 
 cuFunc(add,(Real* a, Real* b, Real c),(a,b,c),{
     cuda1Idx()
     a[index]+=b[index]*c;
+    })
+
+cuFunc(logorithm,(Real* in, Real* out, Real k, Real b),(in,out,k,b),{
+    cuda1Idx()
+    out[index]=k*log(in[index]) + b;
+    })
+
+cuFunc(power,(Real* in, Real* out, Real p, Real k),(in,out,p,k),{
+    cuda1Idx()
+    out[index]=k*powf(in[index], p);
     })
 
 cuFunc(add,(Real* store, Real* a, Real* b, Real c),(store, a,b,c),{
@@ -1423,3 +1456,40 @@ cuFunc(multiplyy,(Real* object, Real* out),(object,out),{
     Real y = index%cuda_column;
     out[index] = object[index] * ((y+0.5)/cuda_column-0.5);
     })
+
+cuFunc(peakGaussSum,(int* d_peaks, Real* d_energies, Real* d_total, Real sigma, int numPeaks),(d_peaks,d_energies,d_total,sigma,numPeaks),{
+    cuda1Idx()
+    Real x = index/cuda_column;
+    Real y = index%cuda_column;
+    d_total[index] = 0;
+    for(int i = 0; i < numPeaks; i++){
+      int idx = d_peaks[i];
+      int py = idx%cuda_column;
+      int px = idx/cuda_column;
+      Real dx = x-px, dy = y-py;
+      Real f2 = dx*dx + dy*dy;
+      Real g = d_energies[i]/(f2 + sigma*sigma);
+      d_total[index] += g;
+    }
+    })
+
+cuFunc(peakGaussRatio,(int* d_peaks, Real* d_energies, Real* d_total, Real* d_ratio, Real sigma, int numPeaks, int peakIdx),(d_peaks,d_energies,d_total,d_ratio,sigma,numPeaks,peakIdx),{
+    cuda1Idx()
+    Real x = index/cuda_column;
+    Real y = index%cuda_column;
+    int idx = d_peaks[peakIdx];
+    int py = idx%cuda_column;
+    int px = idx/cuda_column;
+    Real dx = x-px, dy = y-py;
+    Real f2 = dx*dx + dy*dy;
+    Real g = d_energies[peakIdx]/(f2 + sigma*sigma);
+    d_ratio[index] = (d_total[index] > 0) ? g/d_total[index] : 0;
+    })
+
+cuFuncc(createPlaneWave,(complexFormat* out, Real peakX, Real peakY, Real amp),(cuComplex* out, Real peakX, Real peakY, Real amp),((cuComplex*)out,peakX,peakY,amp),{
+    cudaIdx()
+    Real c, s;
+    Real phase = 2.0f * M_PI * (peakX * x / cuda_column + peakY * y / cuda_row);
+    sincosf(phase, &s, &c);
+    out[index] = make_cuComplex(amp * c, amp * s);
+})

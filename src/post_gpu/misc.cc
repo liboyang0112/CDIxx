@@ -4,9 +4,11 @@
 #include "cub_wrap.hpp"
 #include <fmt/base.h>
 #include <math.h>
+#include <complex.h>
 #include <vector>
 #include <fstream>
 #include <gsl/gsl_spline.h>
+#include "misc.hpp"
 complexFormat findMiddle(complexFormat* d_in, int num){
   if(num==0) num = memMngr.getSize(d_in)/sizeof(complexFormat);
   myCuDMalloc(Real, out, 3);
@@ -303,4 +305,124 @@ Real* readPNG(const char* name, int &row, int &col) {
     free(raw);
 
     return d_real;
+}
+std::vector<int> findPeaks(Real* image, int epsilon) {
+  std::vector<int> peaks;
+  if (epsilon <= 0) return peaks;
+  int cols = getCudaCols();
+  int rows = getCudaRows();
+  size_t sz = rows * cols * sizeof(Real);
+  myCuDMalloc(Real, tmp, rows * cols);
+  myMemcpyD2D(tmp, image, sz);
+  Real max = findMax(tmp);
+  if (max <= 0) { myCuFree(tmp); return peaks; }
+  Real threshold = max / 4;
+  myCuDMalloc(Real, mask, rows * cols);
+  myCuDMalloc(C_circle, cuda_spt, 1);
+  resize_cuda_image(rows, cols);
+  while (max > threshold) {
+    int idx = findMaxIdx(tmp);
+    peaks.push_back(idx);
+    int y = idx % cols;
+    int x = idx / cols;
+    C_circle cir;
+    cir.x0 = x;
+    cir.y0 = y;
+    cir.r  = epsilon;
+    Real h_peak = 0;
+    myMemcpyD2H(&h_peak, &tmp[idx], sizeof(Real));
+    fmt::println("peak {} idx={} ({},{}), max={:.6f}, val={:.6f}", peaks.size(), idx, x, y, max, h_peak);
+    myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
+    createMask<C_circle>(mask, cuda_spt, false);
+    applyMaskBar(tmp, mask, 0.5);
+    max = findMax(tmp);
+  }
+  myCuFree(tmp);
+  myCuFree(mask);
+  myCuFree(cuda_spt);
+  return peaks;
+}
+std::vector<Real> getPeakEnergies(Real* image, const std::vector<int>& peaks, int epsilon) {
+  std::vector<Real> energies;
+  if (epsilon <= 0 || peaks.empty()) return energies;
+  int cols = getCudaCols();
+  int rows = getCudaRows();
+  size_t sz = rows * cols * sizeof(Real);
+  myCuDMalloc(Real, tmp, rows * cols);
+  myMemcpyD2D(tmp, image, sz);
+  myCuDMalloc(Real, orig, rows * cols);
+  myMemcpyD2D(orig, image, sz);
+  myCuDMalloc(Real, mask, rows * cols);
+  myCuDMalloc(C_circle, cuda_spt, 1);
+  resize_cuda_image(rows, cols);
+  energies.reserve(peaks.size());
+  for (int peak_idx : peaks) {
+    myMemcpyD2D(tmp, orig, sz);
+    int y = peak_idx % cols;
+    int x = peak_idx / cols;
+    C_circle cir;
+    cir.x0 = x;
+    cir.y0 = y;
+    cir.r  = epsilon;
+    myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
+    createMask<C_circle>(mask, cuda_spt, false);
+    applyMask(tmp, mask, 0.5);
+    Real energy = findSum(tmp, rows * cols, nullptr);
+    energies.push_back(energy);
+  }
+  myCuFree(tmp);
+  myCuFree(orig);
+  myCuFree(mask);
+  myCuFree(cuda_spt);
+  return energies;
+}
+std::vector<PeakPos> refinePeaks(Real* image, const std::vector<int>& peaks, Real sigma){
+  std::vector<PeakPos> positions;
+  if(peaks.empty() || sigma <= 0) return positions;
+  int cols = getCudaCols();
+  int rows = getCudaRows();
+  int n = peaks.size();
+  positions.reserve(n);
+  // One GPU mask buffer reused for each peak
+  Real* mask = (Real*)memMngr.borrowCache(rows*cols*sizeof(Real));
+  for(int i = 0; i < n; i++){
+    int idx = peaks[i];
+    int y0 = idx % cols;
+    int x0 = idx / cols;
+    // Circular mask on GPU
+    createCircleMask(mask, (Real)x0, (Real)y0, sigma * 2, 0);
+    // Multiply image by mask, then findMiddle gives weighted centroid
+    Real* masked = (Real*)memMngr.borrowCache(rows*cols*sizeof(Real));
+    multiply(masked, image, mask);
+    complexFormat center = findMiddle(masked, rows*cols);
+    memMngr.returnCache(masked);
+    positions.push_back({(Real)creal(center), (Real)cimag(center)});
+  }
+  memMngr.returnCache(mask);
+  return positions;
+}
+
+std::vector<Real*> createPeakGauss(const std::vector<int>& peaks, const std::vector<Real>& energies, Real epsilon) {
+  std::vector<Real*> ratios;
+  if (epsilon <= 0 || peaks.empty() || peaks.size() != energies.size()) return ratios;
+  int cols = getCudaCols();
+  int rows = getCudaRows();
+  int numPeaks = peaks.size();
+  size_t sz = rows * cols * sizeof(Real);
+  myCuDMalloc(int, d_peaks, numPeaks);
+  myCuDMalloc(Real, d_energies, numPeaks);
+  myCuDMalloc(Real, d_total, rows * cols);
+  myMemcpyH2D(d_peaks, (void*)peaks.data(), numPeaks*sizeof(int));
+  myMemcpyH2D(d_energies, (void*)energies.data(), numPeaks*sizeof(Real));
+  resize_cuda_image(rows, cols);
+  peakGaussSum(d_peaks, d_energies, d_total, (Real)epsilon, numPeaks);
+  for (int i = 0; i < numPeaks; i++) {
+    Real* d_ratio = (Real*)memMngr.borrowCache(sz);
+    peakGaussRatio(d_peaks, d_energies, d_total, d_ratio, (Real)epsilon, numPeaks, i);
+    ratios.push_back(d_ratio);
+  }
+  myCuFree(d_peaks);
+  myCuFree(d_energies);
+  myCuFree(d_total);
+  return ratios;
 }

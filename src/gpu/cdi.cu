@@ -149,7 +149,7 @@ template<> void process<complexFormat>(void* cudaData, pixeltype* cache, mode m,
   processWrap<cuComplex><<<numBlocks, threadsPerBlock>>>(addVar(cudaData, cache, m, isFrequency, decay, islog, isFlip));
 }
 
-cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0),(cudaData, cache, isFrequency, decay, islog, isFlip),{
+cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real decay = 1, bool islog = 0, bool isFlip = 0, bool phaseOnly = 0),(cudaData, cache, isFrequency, decay, islog, isFlip, phaseOnly),{
   cudaIdx()
   int halfrow = cuda_row>>1;
   int halfcol = cuda_column>>1;
@@ -163,25 +163,30 @@ cuFunc(process_rgb,(void* cudaData, col_rgb* cache, bool isFrequency=0, Real dec
     targetx = cuda_row-x-1;
   }
   cuComplex data = ((cuComplex*)cudaData)[index];
-  Real mod = cuCabsf(data)*decay;
   char* col = (char*)(&(cache[targetx*cuda_column+targety]));
-  if(mod > 1) mod = 1;
-  if(islog){
-    if(mod!=0){
-      Real ab = fabs(mod);
-      Real logv = log2f(ab)/log2f(vars.rcolor)+1;
-      if(logv < 0) mod = 0;
-      else mod = mod*logv/(2*ab);
-    }
-  }
   Real phase = atan2(data.y,data.x)/2/M_PI+0.5; //0-1
   if(phase < 0) phase += 1;
   if(phase == 1) phase = 0;
   Real value = phase;
   value = 3*value + 0.5;
   value = fabs(value - round(value))/2 + 0.5;
-  value = (1-mod) + mod*value;
-  hsvToRGB(phase, mod, value, col);
+
+  if(!phaseOnly){
+    Real mod = cuCabsf(data)*decay;
+    if(mod > 1) mod = 1;
+    if(islog){
+      if(mod!=0){
+        Real ab = fabs(mod);
+        Real logv = log2f(ab)/log2f(vars.rcolor)+1;
+        if(logv < 0) mod = 0;
+        else mod = mod*logv/(2*ab);
+      }
+    }
+    value = (1-mod) + mod*value;
+    hsvToRGB(phase, mod, value, col);
+  }else{
+    hsvToRGB(phase, 1, value, col);
+  }
 })
 __forceinline__ __device__ void encode_float_to_rgb_interleaved(float x, col_rgb* out) {
     // Extract top 24 bits of IEEE 754 representation
