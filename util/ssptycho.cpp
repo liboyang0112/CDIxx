@@ -34,6 +34,7 @@ class ssptycho : public readConfig{
 
     propagator propagate_pupil;
     propagator propagate_esw;
+    propagator propagate_complete;
 
     Real resolution = 0;
     complexFormat* objectWave = 0;
@@ -56,7 +57,8 @@ class ssptycho : public readConfig{
 
     ssptycho(const char* configfile):readConfig(configfile){
       propagate_pupil.distance = dpupil;
-      propagate_esw.lambda = propagate_pupil.lambda = lambda;
+      propagate_complete.lambda = propagate_esw.lambda = propagate_pupil.lambda = lambda;
+      propagate_complete.distance = d+dpupil;
       propagate_esw.distance = d;
       propagate_esw.pixelsize = pixelsize;
       // pixelsize set in allocateMem() after resolution is computed
@@ -71,9 +73,10 @@ class ssptycho : public readConfig{
       pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
       pupilpatternWave = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
       pattern = (Real*)memMngr.borrowCache(sz);
-      propagate_esw.row = propagate_pupil.row = row;
-      propagate_esw.column = propagate_pupil.column = column;
+      propagate_complete.row = propagate_esw.row = propagate_pupil.row = row;
+      propagate_complete.column = propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = resolution;
+      propagate_complete.pixelsize = lambda*(d+dpupil)/(row*resolution);
       resize_cuda_image(row, column);
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -124,6 +127,9 @@ class ssptycho : public readConfig{
       }else{
         pupilFuncSS(pupilpatternWave, row>>2, pupilSize, 3);
       }
+      if(cancelFresnel) {
+        propagate_complete.removeFresnelPhase(pupilpatternWave);
+      }
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
 
       myCuMalloc(Real, masksum, row*column);
@@ -172,6 +178,9 @@ class ssptycho : public readConfig{
       ccmemMngr.returnCache(h_pupil);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "input_pupil_wave");
       init_fft(row, column);
+      if(cancelFresnel){
+        propagate_complete.removeFresnelPhase(pupilpatternWave_t);
+      }
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave_t, pupilpatternWave_t);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "input_probe_wave");
     }
@@ -198,10 +207,10 @@ class ssptycho : public readConfig{
       }
       complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
       multiply(Fn, pupilpatternWave_t, objectWave_t);
-      plt.plotComplexColor(Fn, 0, 1, "simulated_esw");
-      if(isFresnel) {
+      if(isFresnel || cancelFresnel) {
         propagate_esw.multiplyFresnelPhase(Fn);
       }
+      plt.plotComplexColor(Fn, 0, 1, "simulated_esw");
       myFFT(Fn, Fn);
       getMod2(pattern, Fn, exposure/(row*column));
       cudaConvertFO(pattern);
@@ -287,7 +296,7 @@ class ssptycho : public readConfig{
       pad(split_mask_tmp, split_mask, row/split, column/split);
       myCuFree(split_mask_tmp);
       // Pre-normalize pattern blocks by exposure (same as ptycho.cpp createPattern)
-      int update_probe_iter = 40;
+      int update_probe_iter = 4000;
       Real objMax, probeMax;
       Real *maxCache = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
       myCuDMalloc(Real, d_norm, 2);
@@ -326,7 +335,11 @@ class ssptycho : public readConfig{
       myCuDMalloc(Real, pupilSupport, pupilSize*pupilSize);
       resize_cuda_image(pupilSize, pupilSize);
       createCircleMask(pupilSupport, Real(pupilSize+1)/2, Real(pupilSize+1)/2, Real(pupilSize)/2);
+      resize_cuda_image(row, column);
       bool dozernike;
+      if(isFresnel || cancelFresnel) {
+        propagate_esw.multiplyFresnelPhase(pupilpatternWave);
+      }
       for(int iter = 0; iter < nIter; iter++){
         // Forward: compute exit wave and FFT
         dozernike = iter < zernikeIter && iter%1==0;
@@ -351,23 +364,23 @@ class ssptycho : public readConfig{
         objMax = probeMax = sqrt(objMax*probeMax);
         multiply(esw, pupilpatternWave, objectWave);
         if(iter == nIter-1) plt.plotComplexColor(esw, 0, 1, "recon_esw");
-        if(isFresnel) {
-          propagate_esw.multiplyFresnelPhase(esw);
-        }
         myFFT(esw, Fn);
         if(iter == nIter-1) plt.plotComplex(Fn, MOD2, 1, exposure/(row*column), "recon_pattern", 1, 0, 1);
         applyModAccurate(Fn, pattern, beamstop, norm);
         myIFFT(Fn, Fn);
         applyNorm(Fn, norm);
         add(esw, Fn, -1);
-        clearCuMem(probestep, row*column*sizeof(complexFormat));
-        if(isFresnel) propagate_esw.removeFresnelPhase(esw);
         if(iter < update_probe_iter) {
           updateObject(objectWave, pupilpatternWave, esw, probeMax);
         }else {
           //update probe
+          clearCuMem(probestep, row*column*sizeof(complexFormat));
           updateObjectAndProbeStep(objectWave, pupilpatternWave, probestep, esw, probeMax, objMax, probeStepSize, 0.5);
+          if(isFresnel || cancelFresnel) propagate_esw.removeFresnelPhase(probestep);
           propagate_pupil.angularSpectrumPropagateReverse(probestep, probestep);
+          if(cancelFresnel) {
+            propagate_complete.multiplyFresnelPhase(probestep);
+          }
           applyNorm(probestep, -1);
           updateObject(probeWave, grating, probestep, gratingMax);
           //regularize probe
@@ -385,7 +398,11 @@ class ssptycho : public readConfig{
             plt.plotComplexColor(probeWave, 0, 0.5, "probe_after_zernike");
           }
           multiply(pupilpatternWave, probeWave, grating);
+          if(cancelFresnel) {
+            propagate_complete.removeFresnelPhase(pupilpatternWave);
+          }
           propagate_pupil.angularSpectrumPropagate(pupilpatternWave, pupilpatternWave);
+          if(isFresnel||cancelFresnel) propagate_esw.multiplyFresnelPhase(pupilpatternWave);
         }
 
         //Regularize object
@@ -397,7 +414,7 @@ class ssptycho : public readConfig{
           myIFFT(objectWave,objectWave);
         }
         if(1){
-          if(iter < 300){
+          if(iter < 500){
             FISTA(objectWave, objectWave, 0.2*sqrt(I2), 1, NULL);
           }else
             FISTA(objectWave, objectWave, 0.05*sqrt(I2), 1, NULL);

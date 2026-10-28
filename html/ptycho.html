@@ -669,10 +669,10 @@
         // === TERMINATE MODE (second click) ===
         if (window.reconstructionState.isRunning) {
           try {
-            // Cancel pending stream reload
-            if (window.reconstructionState.streamTimeout) {
-              clearTimeout(window.reconstructionState.streamTimeout);
-              window.reconstructionState.streamTimeout = null;
+            // Cancel pending stream poll
+            if (window.reconstructionState.streamPoll) {
+              clearInterval(window.reconstructionState.streamPoll);
+              window.reconstructionState.streamPoll = null;
             }
 
             // Send termination command (BACKEND MUST IMPLEMENT killPtycho.sh)
@@ -727,26 +727,47 @@
             resetReconstructionUI();
           });
 
-        showNotification('Reconstruction started! Stream refreshing in 1s...', 'success');
+        showNotification('Reconstruction started! Waiting for stream...', 'success');
 
-        // SCHEDULE STREAM RELOAD EXACTLY 1 SECOND AFTER CLICK (critical requirement)
-        if (window.reconstructionState.streamTimeout) {
-          clearTimeout(window.reconstructionState.streamTimeout);
+        // Poll for stream.m3u8 existence instead of fixed delay
+        if (window.reconstructionState.streamPoll) {
+          clearInterval(window.reconstructionState.streamPoll);
         }
 
-        // In the runPtychoBtn click handler, replace the setTimeout block with:
-        window.reconstructionState.streamTimeout = setTimeout(() => {
-          if (!window.reconstructionState.isRunning) return;
+        const outputName = document.getElementById('ptychoOutputName').value?.trim();
+        if (!outputName) return;
 
-          const outputName = document.getElementById('ptychoOutputName').value?.trim();
-          if (!outputName) return;
+        const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
+        const streamPath = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
+        const maxWaitMs = 120000; // give up after 2 minutes
+        const pollIntervalMs = 2000; // check every 2 seconds
+        const startTime = Date.now();
 
-          const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-          console.log(`[STREAM] Loading: ${streamUrl}`);
+        window.reconstructionState.streamPoll = setInterval(() => {
+          if (!window.reconstructionState.isRunning) {
+            clearInterval(window.reconstructionState.streamPoll);
+            window.reconstructionState.streamPoll = null;
+            return;
+          }
+          if (Date.now() - startTime > maxWaitMs) {
+            clearInterval(window.reconstructionState.streamPoll);
+            window.reconstructionState.streamPoll = null;
+            showNotification('Stream not found within 2 minutes', 'error');
+            return;
+          }
 
-          // Simple reload - setupHLSStream handles cache-busting internally
-          setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
-        }, 5000);
+          fetch(url_cmd, {
+            method: 'POST',
+            body: `test -f ${streamPath} && echo OK`
+          }).then(resp => resp.text()).then(data => {
+            if (data.trim() === 'OK') {
+              clearInterval(window.reconstructionState.streamPoll);
+              window.reconstructionState.streamPoll = null;
+              console.log(`[STREAM] Found: ${streamUrl}, loading...`);
+              setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
+            }
+          }).catch(() => { /* ignore network errors, retry on next poll */ });
+        }, pollIntervalMs);
       });
 
       // Helper to reset UI state
@@ -759,9 +780,9 @@
         window.reconstructionState.isRunning = false;
         window.reconstructionState.outputName = null;
 
-        if (window.reconstructionState.streamTimeout) {
-          clearTimeout(window.reconstructionState.streamTimeout);
-          window.reconstructionState.streamTimeout = null;
+        if (window.reconstructionState.streamPoll) {
+          clearInterval(window.reconstructionState.streamPoll);
+          window.reconstructionState.streamPoll = null;
         }
       }
 

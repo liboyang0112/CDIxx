@@ -44,7 +44,8 @@ int main() {
   */
 
   pupilFuncSS(cimage, 50, pupilsize, 3);
-  applyGaussMult(cimage, cimage, 384, 0);
+  applyNorm(cimage, 2);
+  //applyGaussMult(cimage, cimage, 384, 0);
   resize_cuda_image(pupilsize, pupilsize);
   crop(cimage, pupil, rows, cols);
   resize_cuda_image(rows, cols);

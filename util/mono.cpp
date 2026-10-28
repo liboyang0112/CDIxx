@@ -136,7 +136,7 @@ int main(int argc, char** argv){
        Real rat = findSum(d_patternSum)/maxmerged;
        fmt::println("ratio = {:f}", rat);
       }
-      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged, 6553500);
+      if(cdi.simCCDbit) ccdRecord(d_patternSum, d_patternSum, cdi.noiseLevel_pupil, devstates, cdi.exposure/maxmerged, 65535);
       else applyNorm( d_patternSum, cdi.exposure/maxmerged);
       plt.saveFloat(d_patternSum, "broad_pattern");
       myMemcpyD2H(merged, d_patternSum, sz);
