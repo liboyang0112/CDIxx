@@ -292,7 +292,7 @@
                                     <i class="layui-icon layui-icon-template-1"></i> Save As Default
                                 </button>
                                 <button class="layui-btn layui-btn-danger" id="cdi_btn">
-                                    <i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction
+                                    <i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction Reconstruction
                                 </button>
                                 <button class="layui-btn" id="compute_prtf">
                                     <i class="layui-icon layui-icon-chart"></i> Compute PRTF
@@ -652,29 +652,115 @@
         });
         
         document.getElementById("cdi_btn")?.addEventListener('click', async () => {
+            const btn = document.getElementById('cdi_btn');
             const path = repo + workpath + "/";
-            
-            try {
-                setLoading('cdi_btn');
-                const response = await fetch(url_cmd, {
-                    method: 'POST',
-                    body: `./runCDI.sh ${path}`
-                });
-                const data = await response.text();
-                
+
+            // === TERMINATE MODE (second click) ===
+            if (window.cdiIsRunning) {
+                try {
+                    // Cancel stream poll
+                    if (window.cdiStreamPoll) {
+                        clearInterval(window.cdiStreamPoll);
+                        window.cdiStreamPoll = null;
+                    }
+
+                    // Send kill command
+                    const response = await fetch(url_cmd, {
+                        method: 'POST',
+                        body: `pkill -f "runCDI" 2>/dev/null; true`
+                    });
+                    if (response.ok) {
+                        showNotification('CDI reconstruction terminated', 'success');
+                    }
+                } catch (err) {
+                    showNotification('Termination error (process may have already finished)', 'warning');
+                } finally {
+                    // Reset UI
+                    btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
+                    btn.className = 'layui-btn layui-btn-danger';
+                    window.cdiIsRunning = false;
+                }
+                return;
+            }
+
+            // === START MODE (first click) ===
+            window.cdiIsRunning = true;
+
+            // Update button UI immediately
+            btn.innerHTML = '<i class="layui-icon layui-icon-close"></i> Terminate CDI';
+            btn.className = 'layui-btn layui-btn-warm';
+
+            // Fire the reconstruction (PHP blocks until done)
+            fetch(url_cmd, {
+                method: 'POST',
+                body: `./runCDI.sh ${path}`
+            }).then(resp => resp.text()).then(data => {
+                console.log('[CDI] Command finished:', data);
                 document.getElementById('cdilog').innerText = data;
+                // Command finished — reset button
+                window.cdiIsRunning = false;
+                btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
+                btn.className = 'layui-btn layui-btn-danger';
+
+                // Cancel poll if still running
+                if (window.cdiStreamPoll) {
+                    clearInterval(window.cdiStreamPoll);
+                    window.cdiStreamPoll = null;
+                }
+
+                // Refresh result images
                 const timestamp = getTimestamp();
-                
                 document.getElementById('recon').src = path + "recon_intensity_cropped.png?t=" + timestamp;
                 document.getElementById('recon_input').src = path + "init_logpattern.png?t=" + timestamp;
                 document.getElementById('recon_phase').src = path + "recon_phase_cropped.png?t=" + timestamp;
-                
-                clearLoading('cdi_btn');
+
                 showNotification('CDI reconstruction completed', 'success');
-            } catch (error) {
-                clearLoading('cdi_btn');
-                showNotification('Error during CDI reconstruction: ' + error, 'error');
+            }).catch(err => {
+                console.error('[CDI] Error:', err);
+                window.cdiIsRunning = false;
+                btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
+                btn.className = 'layui-btn layui-btn-danger';
+                showNotification('CDI reconstruction error', 'error');
+            });
+
+            showNotification('CDI reconstruction started! Waiting for stream...', 'success');
+
+            // Poll for stream.m3u8 update
+            if (window.cdiStreamPoll) {
+                clearInterval(window.cdiStreamPoll);
             }
+
+            const streamUrl = `${repo}${workpath}/recon_intensity/stream.m3u8`;
+            const streamPath = `${repo}${workpath}/recon_intensity/stream.m3u8`;
+            const maxWaitMs = 120000;
+            const pollIntervalMs = 2000;
+            const startEpoch = Math.floor(Date.now() / 1000) - 5;
+
+            window.cdiStreamPoll = setInterval(() => {
+                if (!window.cdiIsRunning) {
+                    clearInterval(window.cdiStreamPoll);
+                    window.cdiStreamPoll = null;
+                    return;
+                }
+                if (Date.now() - startEpoch * 1000 > maxWaitMs) {
+                    clearInterval(window.cdiStreamPoll);
+                    window.cdiStreamPoll = null;
+                    return;
+                }
+
+                fetch(url_cmd, {
+                    method: 'POST',
+                    body: `stat -c %Y ${streamPath} 2>/dev/null`
+                }).then(resp => resp.text()).then(data => {
+                    const mtime = parseInt(data.trim(), 10);
+                    if (!isNaN(mtime) && mtime >= startEpoch) {
+                        clearInterval(window.cdiStreamPoll);
+                        window.cdiStreamPoll = null;
+                        console.log(`[CDI STREAM] m3u8 updated (mtime=${mtime}), loading...`);
+                        setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
+                    }
+                }).catch(() => { /* retry next poll */ });
+            }, pollIntervalMs);
         });
         
         // ==================== GPU Selection ====================
@@ -704,8 +790,10 @@
         
         // ==================== HLS Stream Setup ====================
         document.addEventListener('DOMContentLoaded', () => {
-            const streamUrl = '/CDIxx/stream/stream.m3u8';
-            setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
+            if (workpath) {
+                const streamUrl = `${repo}${workpath}/recon_intensity/stream.m3u8`;
+                setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
+            }
         });
         
         // ==================== Autocomplete Initialization ====================

@@ -16,8 +16,16 @@ int main(int argc, char** argv )
   }
   init_cuda_image();  //always needed
 
-  Real s_over_lambda2 = pow((633/(2.37*1024*1000)),2);
-  Real dz_over_lambda = 2*M_PI*0.1e6/633;
+  Real merge = 3;
+  Real detector = 2048;
+  Real resolution = 2.37e-3;
+  Real wavelength = 0.6328e-3;
+  Real stepsize = 0.1;
+  Real start = -10;
+  Real end = 10;
+  int steps = (end-start)/stepsize;
+  Real s_over_lambda2 = pow(wavelength/(resolution*(detector/merge)),2);
+  Real dz_over_lambda = 2*M_PI*stepsize/wavelength;
 
   int row, col;
   complexFormat* wave = (complexFormat*)readImage(argv[1], row, col);  //read the image to memory
@@ -43,8 +51,8 @@ int main(int argc, char** argv )
   myCuDMalloc(complexFormat, d_crop, rowi*coli); //allocate GPU memory
   plt.init(rowi, coli);
   int handle = plt.initVideo("propagator.mp4", 4, 0, 0);
-  multiplyPropagatePhase(d_wave, -100*dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
-  for(int i = 0; i < 100; i++){
+  multiplyPropagatePhase(d_wave, (start/stepsize)*dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
+  for(int i = 0; i < steps; i++){
     resize_cuda_image(row, col);  //tell cuda to process the image of this size
     multiplyPropagatePhase(d_wave, dz_over_lambda, s_over_lambda2); // a=z/lambda, b = (s/lambda)^2, s is the image size
     cudaConvertFO(d_wave, d_propagatedwave);
@@ -52,7 +60,7 @@ int main(int argc, char** argv )
     resize_cuda_image(rowi, coli);  //tell cuda to process the image of this size
     crop(d_propagatedwave, d_crop, row, col,mid.real(),mid.imag());
     //crop(d_propagatedwave, d_crop, row, col);
-    plt.plotComplexColor(d_crop, 0, 0.3, ("test_" + to_string(i)).c_str(), 0, 0);
+    plt.plotComplexColor(d_crop, 0, 0.3, ("test_" + to_string(start+(i+1)*stepsize)).c_str(), 0, 0);
   }
   plt.saveVideo(handle);
 }

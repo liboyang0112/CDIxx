@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 20)
 project(CDIxx LANGUAGES CXX C)
 
 #Prerequisite: gsl freetype libpng libtiff
-#Optional: Python(Numpy, skbuild, Cython), VTK, GTK
+#Optional: Python(Numpy, skbuild, Cython), VTK
 
 set(compileVTK FALSE)
 
@@ -18,15 +18,10 @@ find_package(PkgConfig) #package finder, always equipped in linux system, if not
 include(FetchContent)
 
 find_package(fmt REQUIRED) #package finder, always equipped in linux system, if not, install it by `apt install pkg-config`
-#GTK, a GUI library, always equipped in linux system, if not, install it by `apt install libgtk-4-dev
 find_package(Tracy)
 if(PkgConfig_FOUND)
-  pkg_check_modules(GTK gtk4)
   pkg_check_modules(hdf5 hdf5)
 endif(PkgConfig_FOUND)
-if(GTK_FOUND)
-include_directories (${GTK_INCLUDE_DIRS})
-endif()
 if(tracy_FOUND)
   include_directories (${tracy_INCLUDE_DIRS})
 endif()
@@ -279,21 +274,20 @@ if(USE_HIP)
     target_link_libraries(testCXI_run readCXI_cc)
     target_link_libraries(beamDecomposition_run cuPlotter_cc beamDecomposition_cc)
 
-    if(GTK_FOUND)
+    find_package(SDL2 QUIET)
+    find_package(SDL2_ttf QUIET)
+    if(SDL2_FOUND)
       file( GLOB APP_SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/util/gui/*.cpp )
       foreach( sourcefile ${APP_SOURCES} )
         cmake_path(GET sourcefile FILENAME libname)
         string( REPLACE ".cpp" "_run" exename ${libname} )
         add_executable( ${exename} ${sourcefile})
       endforeach( sourcefile ${APP_SOURCES} )
-      set(resourcefile ${PROJECT_SOURCE_DIR}/src/gui/resource.xml)
-      file(GLOB UIFILE ${PROJECT_SOURCE_DIR}/src/gui/*.ui)
-      add_custom_command(OUTPUT resource.c COMMAND glib-compile-resources ${resourcefile} --target=resource.c  --sourcedir=${PROJECT_SOURCE_DIR}/src/gui --generate-source MAIN_DEPENDENCY ${resourcefile} DEPENDS ${UIFILE})
-      file( GLOB APP_SOURCES ${PROJECT_SOURCE_DIR}/src/gui/*c )
-      add_library(gui SHARED ${APP_SOURCES} resource.c)
-      target_link_libraries(gui ${GTK_LIBRARIES} cuPlotter_cc)
-      link_directories(${GTK_LIBRARY_DIRS})
-      target_link_libraries(gui_cdi_run gui cdi_cc ${GTK_LIBRARIES})
+      target_sources(gui_cdi_run PRIVATE ${PROJECT_SOURCE_DIR}/src/gui/dataviewerWinWrapper.cc)
+      target_link_libraries(gui_cdi_run SDL2::SDL2 cuPlotter_cc imgio_cc cdi_cc)
+      if(SDL2_ttf_FOUND)
+        target_link_libraries(gui_cdi_run SDL2_ttf::SDL2_ttf)
+      endif()
     endif()
 
 if(compileVTK)

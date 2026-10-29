@@ -734,14 +734,14 @@
           clearInterval(window.reconstructionState.streamPoll);
         }
 
-        const outputName = document.getElementById('ptychoOutputName').value?.trim();
         if (!outputName) return;
 
         const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
         const streamPath = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
         const maxWaitMs = 120000; // give up after 2 minutes
         const pollIntervalMs = 2000; // check every 2 seconds
-        const startTime = Date.now();
+        // Use 5s before click as threshold so we catch files written just after start
+        const startEpoch = Math.floor(Date.now() / 1000) - 5;
 
         window.reconstructionState.streamPoll = setInterval(() => {
           if (!window.reconstructionState.isRunning) {
@@ -749,21 +749,22 @@
             window.reconstructionState.streamPoll = null;
             return;
           }
-          if (Date.now() - startTime > maxWaitMs) {
+          if (Date.now() - startEpoch * 1000 > maxWaitMs) {
             clearInterval(window.reconstructionState.streamPoll);
             window.reconstructionState.streamPoll = null;
-            showNotification('Stream not found within 2 minutes', 'error');
+            showNotification('Stream not updated within 2 minutes', 'error');
             return;
           }
 
           fetch(url_cmd, {
             method: 'POST',
-            body: `test -f ${streamPath} && echo OK`
+            body: `stat -c %Y ${streamPath} 2>/dev/null`
           }).then(resp => resp.text()).then(data => {
-            if (data.trim() === 'OK') {
+            const mtime = parseInt(data.trim(), 10);
+            if (!isNaN(mtime) && mtime >= startEpoch) {
               clearInterval(window.reconstructionState.streamPoll);
               window.reconstructionState.streamPoll = null;
-              console.log(`[STREAM] Found: ${streamUrl}, loading...`);
+              console.log(`[STREAM] m3u8 updated (mtime=${mtime}), loading...`);
               setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
             }
           }).catch(() => { /* ignore network errors, retry on next poll */ });
