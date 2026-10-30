@@ -57,6 +57,7 @@ void forcePositive(Real* a);
 void logorithm(Real* in, Real* out, Real k = 1, Real b = 0);
 void power(Real* in, Real* out, Real p, Real k = 1);
 void add(Real* a, Real* b, Real c = 1);
+void add(Real* a, Real* b, Real c, Real d);
 void add(Real* store, Real* a, Real* b, Real c = 1);
 void add(complexFormat* a, complexFormat* b, Real c = 1);
 void addPhase(complexFormat* a, complexFormat* b, Real phi0 = 0);

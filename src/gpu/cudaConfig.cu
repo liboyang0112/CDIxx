@@ -924,6 +924,11 @@ cuFunc(add,(Real* a, Real* b, Real c),(a,b,c),{
     a[index]+=b[index]*c;
     })
 
+cuFunc(add,(Real* a, Real* b, Real c, Real d),(a,b,c,d),{
+    cuda1Idx()
+    a[index]=a[index]*c + b[index]*d;
+    })
+
 cuFunc(logorithm,(Real* in, Real* out, Real k, Real b),(in,out,k,b),{
     cuda1Idx()
     out[index]=k*log(in[index]) + b;

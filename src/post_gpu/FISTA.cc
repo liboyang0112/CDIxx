@@ -20,6 +20,9 @@ void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, R
   Real tkp1, fact1;
   Real* tmp;
   for(int iter = 0; iter < niter ; iter++){
+    tkp1 = 0.5+sqrt(0.25+tk*tk);
+    fact1 = (tk-1)/tkp1;
+    tk = tkp1;
     tmp = pij;
     pij = pijprev;
     pijprev = tmp;
@@ -32,13 +35,8 @@ void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, R
     add( pij, pijprev, 1);
     add( qij, qijprev, 1);
     diffMax( pij, qij);
-    tkp1 = 0.5+sqrt(0.25+tk*tk);
-    fact1 = (tk-1)/tkp1;
-    tk = tkp1;
-    applyNorm( pij, 1+fact1);
-    applyNorm( qij, 1+fact1);
-    add( pij, pijprev, -fact1);
-    add( qij, qijprev, -fact1);
+    add( pij, pijprev, 1+fact1, -fact1);
+    add( qij, qijprev, 1+fact1, -fact1);
     calcLpq( lpq, pij, qij);
     add( output, b, lpq, -lambda);
     if(applyC) applyC(output, output);
@@ -116,9 +114,11 @@ void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (appl
     replaceout = 1;
     output = (complexFormat*)memMngr.borrowCache(sz);
   }
-  if(applyC) applyC(b, output);
-  else myMemcpyD2D(output, b, sz);
-  applyNorm( output, 0.125/lambda);
+  if(applyC) {
+    applyC(b, output);
+    applyNorm( output, 0.125/lambda);
+  }
+  else linearConst(output, b, 0.125/lambda, 0);
   partialx( output, pij);
   partialy( output, qij);
   diffMax( pij, qij);

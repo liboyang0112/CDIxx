@@ -362,14 +362,14 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
 
           if(i % 10 == 0)
           verbose(5, plt.plotComplexColor(esw, 0, 1./spectra[i], ("ptycho_esw"+to_string(i) + "_" + to_string(il)).c_str()));
-          if(isFresnel) {
-            propagate_esw.lambda = lambdas[il]*lambda;
-            propagate_esw.multiplyFresnelPhase(esw);
-          }
           int thisrow = row*lambdas[il];
           int thiscol = column*lambdas[il];
           resize_cuda_image(thisrow, thiscol);
           pad(esw, padded, row, column);
+          if(isFresnel) {
+            propagate_esw.lambda = lambdas[il]*lambda;
+            propagate_esw.multiplyFresnelPhase(padded);
+          }
           myFFTM(locplan[il], padded, padded);
           resize_cuda_image(row, column);
           cropinner(padded, esw, thisrow, thiscol);
@@ -605,32 +605,23 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
               shiftWave(objCaches[il], shiftxpix, shiftypix);
             }
             multiply(esws[il], pupilpatternWaves[il], objCaches[il]);
-            //myMemcpyD2D(esws[il], pupilpatternWaves[il], row*column*sizeof(complexFormat));
             if(isFresnel) {
               propagate_esw.lambda = lambdas[il]*lambda;
               propagate_esw.multiplyFresnelPhase(esws[il]);
             }
             myFFT(esws[il],Fns[il]);
-            //if(iter == 0 && ic < 2)
-            //  plt.plotComplex(Fns[il], MOD2, 1, sqrt(exposure/(row*column)), ("ptycho_recon_pattern" + to_string(il)+ "_" + to_string(ic)).c_str(), 1, 0, 1);
+            if(il == 0) getMod2(patternSum, Fns[0]);
+            else
+              addMod2(patternSum, Fns[il]);
           }
           // ------------- sum patterns and compare to detector data ----------------
-          getMod2(patternSum, Fns[0]);
-          for(int il = 1; il < nlambda; il++){
-            addMod2(patternSum, Fns[il]);
-          }
-          //if((iter == nIter - 1 || iter == 0) && i % 10 == 0){
           if((iter == nIter - 1) && i % 10 == 0){
             verbose(1,plt.plotFloat(patternSum, MOD, 1, exposure/(row*column), ("ptycho_recon_pattern" + to_string(i)).c_str(), 1, 0, 1));
           }
           applyNorm(patternSum, norm*norm);
           addRemoveOE( tmp, patternSum, patterns[i], -1);
           getMod2(tmp, tmp);
-          //if((iter == nIter - 1 || iter == 0) && i % 10 == 0)
-          //  plt.plotFloat(tmp, MOD, 1, 1, ("residual" + to_string(i)).c_str(), 1, 0, 1);
           residual += findSum(tmp) / (row*column);
-          //sqrtdivide(patternSum, patternSum, patterns[i]);
-          //if(iter == 1) exit(0);
 
           loop(il , nlambda){
             Real posx = posx0 / lambdas[il] + (lambdas[il]-1)/(2*lambdas[il])*(row_O-row);
@@ -638,14 +629,9 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
             int shiftxpix = posx-round(posx);
             int shiftypix = posy-round(posy);
             bool shiftpix = fabs(shiftxpix)>1e-3||fabs(shiftypix)>1e-3;
-            //multiply(Fns[il], Fns[il], patternSum);
-            //applyNorm(Fns[il], norm*norm);
-            //applyModAccurate(Fns[il], patternSum, patterns[i],beamstop, norm);
             applyMod(Fns[il], patternSum, patterns[i],beamstop, noiseLevel, norm);
-            applyNorm(Fns[il], norm);
             myIFFT(Fns[il],Fns[il]);
-            //if(doUpdatePosition) updatePosition(i, objCache, pupilpatternWave, Fn);
-            add(esws[il], Fns[il], -1);
+            add(esws[il], Fns[il], -norm);
             if(isFresnel) {
               propagate_esw.lambda = lambdas[il]*lambda;
               propagate_esw.removeFresnelPhase(esws[il]);
@@ -659,7 +645,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
             if(shiftpix){
               shiftWave(objCaches[il], -shiftxpix, -shiftypix);
             }
-              updateWindow(objectWaves[il], round(posx), round(posy), row_O, column_O, objCaches[il]);
+            updateWindow(objectWaves[il], round(posx), round(posy), row_O, column_O, objCaches[il]);
           }
         }
         if(iter%20 == 0)
