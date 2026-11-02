@@ -116,7 +116,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
   myCuFree(d_amp);
   myCuFree(d_obj);
 }
-void spectPhase::generateMWL(void* d_pattern, Real thickness){
+void spectPhase::generateMWL(void* d_pattern, Real /*thickness*/){
   myCuDMalloc(Real, single_pattern, row*column);
   myCuDMalloc(complexFormat, img0, row*column);
   myCuDMalloc(complexFormat, d_amp, rows[nlambda-1]*cols[nlambda-1]);

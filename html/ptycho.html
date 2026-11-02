@@ -551,7 +551,7 @@
         container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
 
         // Get list of diagnostic files from server
-        const cmd = `cd ${repo}${workpath} && ls ${outputDir}/*_logimage.png ${outputDir}/*_autocorrelation.png 2>/dev/null | sort -V`;
+        const cmd = `cd ${repo}${workpath} && ls ${outputDir}/*_logimage.jpg ${outputDir}/*_autocorrelation.jpg 2>/dev/null | sort -V`;
         console.log(cmd)
 
         fetch(url_cmd, { method: 'POST', body: cmd })
@@ -811,7 +811,7 @@
         ptychoImages.forEach(imgId => {
           const img = document.getElementById(imgId);
           if (img) {
-            img.src = path + imgId + ".png?t=" + timestamp;
+            img.src = path + imgId + ".jpg?t=" + timestamp;
           }
         });
         displayDiagnosticImages(outputName);

@@ -265,7 +265,7 @@ void CDI::saveState(){
   complexFormat mid = findMiddle(support, row*column);
   int row_spt = row/oversampling_spt;
   int col_spt = column/oversampling_spt;
-  size_t sptsz = row_spt*col_spt*sizeof(Real);
+
   resize_cuda_image(row_spt,col_spt);
   myCuDMalloc(complexFormat, tmp, row_spt*col_spt);
   myCuDMalloc(Real, tmp1, row_spt*col_spt);

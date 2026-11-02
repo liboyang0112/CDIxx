@@ -123,7 +123,6 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       row_O = column_O = int(stepSize * max(smaxx, smaxy) + 3.*row/4)/32*32;
     }
     void allocScan(){
-      size_t scansz = nscan*sizeof(Real);
       myMallocClean(Real*, patterns, nscan);
       myMallocClean(Real, scanpos, nscan*2);
       scanposx = scanpos;

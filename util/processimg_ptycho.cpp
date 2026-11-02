@@ -23,7 +23,7 @@ struct AlignParams {
 
 // Wrap original processing logic — now takes precomputed alignment parameters
 void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
-    const char* output_path, int nmerge, const char* mode_str,
+    const char* output_path, int nmerge, const char* /*mode_str*/,
     float user_shift_y = 0.0f, float user_shift_x = 0.0f,
     bool use_fixed_params = false) {
   size_t sz = row * col * sizeof(Real);

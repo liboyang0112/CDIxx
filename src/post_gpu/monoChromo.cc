@@ -277,7 +277,7 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   myCuDMalloc(complexFormat, deltab, nsz);
   complexFormat *momentum = 0;
   if(doFISTA) {
-    myCuDMallocClean(complexFormat, momentum, nsz);
+    myCuMallocClean(complexFormat, momentum, nsz);
   }
   myCuDMalloc(complexFormat, patternstep, nsz);
   myCuDMalloc(Real, multiplied, nsz);

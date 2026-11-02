@@ -110,7 +110,6 @@ class ptycho : public readConfig{
         }
       }
       nscan = distances.size();
-      size_t scansz = nscan*sizeof(Real);
       myMallocClean(Real*, patterns, nscan);
       myMallocClean(Real, shifts, nscan*2);
       myMallocClean(Real, scanpos, nscan*2);
@@ -128,7 +127,6 @@ class ptycho : public readConfig{
       return max(maxx-minx, maxy-miny)*stepSize;
     }
     void allocScan(){
-      size_t scansz = nscan*sizeof(Real);
       myMallocClean(Real*, patterns, nscan);
       myMallocClean(Real, scanpos, nscan*2);
       scanposx = scanpos;

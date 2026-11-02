@@ -21,7 +21,6 @@ int main(){
   //nblkz.x = (nx*ny-1)/nthd2d.x+1;
 
   size_t nnode = nx*ny*nz;
-  size_t memsz = nnode*sizeof(Real);
   myCuDMallocClean(Real, Hz, nnode);
   myCuDMallocClean(Real, Hx, nnode);
   myCuDMallocClean(Real, Hy, nnode);

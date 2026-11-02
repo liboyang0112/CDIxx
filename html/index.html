@@ -398,25 +398,25 @@
             const timestamp = getTimestamp();
             const path = repo + workpath + "/";
             
-            document.getElementById('recon').src = path + "recon_intensity_cropped.png" + "?t=" + timestamp;
+            document.getElementById('recon').src = path + "recon_intensity_cropped.jpg" + "?t=" + timestamp;
             document.getElementById('recon').title = "CDI reconstruction";
             
-            document.getElementById('recon_phase').src = path + "recon_phase_cropped.png" + "?t=" + timestamp;
+            document.getElementById('recon_phase').src = path + "recon_phase_cropped.jpg" + "?t=" + timestamp;
             document.getElementById('recon_phase').title = "CDI reconstruction phase";
             
-            document.getElementById('recon_input').src = path + "init_logpattern.png" + "?t=" + timestamp;
+            document.getElementById('recon_input').src = path + "init_logpattern.jpg" + "?t=" + timestamp;
             document.getElementById('recon_input').title = "CDI input";
             
-            document.getElementById('logimg').src = path + "mergedlog0.png" + "?t=" + timestamp;
+            document.getElementById('logimg').src = path + "mergedlog0.jpg" + "?t=" + timestamp;
             document.getElementById('logimg').title = "Monochromatization input";
             
-            document.getElementById('solved').src = path + "solvedlog0.png" + "?t=" + timestamp;
+            document.getElementById('solved').src = path + "solvedlog0.jpg" + "?t=" + timestamp;
             document.getElementById('solved').title = "Solved monochromatic pattern";
             
             document.getElementById('residual').src = path + "residual_iter_pulseGen.pdf" + "?t=" + timestamp;
             document.getElementById('residual').title = "Residual of monochromatization";
             
-            document.getElementById('residual_img').src = path + "residual_pulseGen.png" + "?t=" + timestamp;
+            document.getElementById('residual_img').src = path + "residual_pulseGen.jpg" + "?t=" + timestamp;
             document.getElementById('residual_img').title = "Residual of monochromatization";
             
             document.getElementById('spectrum_plt').src = path + "spectra.pdf" + "?t=" + timestamp + "#toolbar=0";
@@ -577,7 +577,7 @@
                 });
                 const data = await response.text();
                 document.getElementById('preparelog').innerText = data;
-                document.getElementById('logimg').src = path + "logimagemerged.png?t=" + getTimestamp();
+                document.getElementById('logimg').src = path + "logimagemerged.jpg?t=" + getTimestamp();
                 clearLoading('prepare');
                 showNotification('Data preparation completed', 'success');
             } catch (error) {
@@ -637,10 +637,10 @@
                 document.getElementById('monolog').innerText = data;
                 const timestamp = getTimestamp();
                 
-                document.getElementById('logimg').src = path + "mergedlog0.png?t=" + timestamp;
-                document.getElementById('solved').src = path + "solvedlog0.png?t=" + timestamp;
+                document.getElementById('logimg').src = path + "mergedlog0.jpg?t=" + timestamp;
+                document.getElementById('solved').src = path + "solvedlog0.jpg?t=" + timestamp;
                 document.getElementById('residual').src = path + "residual_iter_pulseGen.pdf?t=" + timestamp;
-                document.getElementById('residual_img').src = path + "residual_pulseGen.png?t=" + timestamp;
+                document.getElementById('residual_img').src = path + "residual_pulseGen.jpg?t=" + timestamp;
                 document.getElementById('spectrum_plt').src = path + "spectra.pdf?t=" + timestamp + "#toolbar=0";
                 
                 clearLoading('monochrome_btn');
@@ -710,9 +710,9 @@
 
                 // Refresh result images
                 const timestamp = getTimestamp();
-                document.getElementById('recon').src = path + "recon_intensity_cropped.png?t=" + timestamp;
-                document.getElementById('recon_input').src = path + "init_logpattern.png?t=" + timestamp;
-                document.getElementById('recon_phase').src = path + "recon_phase_cropped.png?t=" + timestamp;
+                document.getElementById('recon').src = path + "recon_intensity_cropped.jpg?t=" + timestamp;
+                document.getElementById('recon_input').src = path + "init_logpattern.jpg?t=" + timestamp;
+                document.getElementById('recon_phase').src = path + "recon_phase_cropped.jpg?t=" + timestamp;
 
                 showNotification('CDI reconstruction completed', 'success');
             }).catch(err => {

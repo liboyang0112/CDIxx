@@ -1,5 +1,6 @@
 #include "cudaConfig.hpp"
 #include <cuComplex.h>
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #include "cudaDefs_h.cu"
 #include "memManager.hpp"
 #include <cmath>

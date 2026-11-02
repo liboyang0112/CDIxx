@@ -32,7 +32,6 @@ int main () {
      */
 
   myCuDMallocClean(complexFormat, img2, row*col);
-  myCuDMalloc(complexFormat, img3, row*col);
   init_cuda_image();
   resize_cuda_image(row, col);
   complexFormat shift = 1;
