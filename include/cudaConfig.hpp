@@ -250,5 +250,8 @@ __device__ __host__
 #endif // CUDACC
  Real gaussian(Real x, Real y, Real sigma);
 void createPlaneWave(complexFormat* out, Real peakX, Real peakY, Real amp);
+void initTurboLUT();
+void applyColorMapGPU(const pixeltype* input, uint8_t* rgb);
+extern "C" int writeJPEG_GPU(void* d_rgb, int height, int width, const char* fname, int quality);
 
 #endif

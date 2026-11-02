@@ -120,6 +120,7 @@ void cuPlotter::init(int rows_, int cols_, const char* prefix_){
   myMalloc(uint8_t, cv_cache, rows*cols*3);
   myMalloc(pixeltype, cv_data, rows*cols);
   myCuMalloc(uint8_t, cuCache_data, rows*cols*3);
+  myCuMalloc(uint8_t, cuRGB_data, rows*cols*3);
   if (prefix) {        // Free previous string if reinitializing
     free(const_cast<char*>(prefix));
   }
@@ -145,6 +146,7 @@ void cuPlotter::freeMem(){
     cv_complex_data = 0;
   }
   if(cuCache_data) { memMngr.returnCache(cuCache_data); cuCache_data = 0; }
+  if(cuRGB_data) { memMngr.returnCache(cuRGB_data); cuRGB_data = 0; }
 }
 
 void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
@@ -183,7 +185,17 @@ void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, c
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
   }
-  processComplexColor(cudaData,isFrequency,decay,islog,isFlip, phaseOnly);
+  std::string fname = (prefix + std::string(label));
+  if(fname.find(".")==std::string::npos) fname += ".jpg";
+  bool isJPG = fname.find(".jpg")!=std::string::npos;
+  if(!cuCache_data) myCuMalloc(col_rgb, cuCache_data, rows*cols);
+  process_rgb(cudaData, (col_rgb*)cuCache_data, isFrequency, decay, islog, isFlip, phaseOnly);
+  if(isJPG && toVideo<0) {
+    writeJPEG_GPU(cuCache_data, rows, cols, fname.c_str(), 100);
+    fmt::println("written to file {}", fname);
+    return;
+  }
+  myMemcpyD2H(cv_cache, cuCache_data, rows*cols*sizeof(col_rgb));
   char color[3] = {-1,0,0};
   if(label) putText(label, 0, rows-1, rows, cols, cv_cache, 1, color);
   if(toVideo>=0) {
@@ -191,9 +203,8 @@ void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, c
     pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
     if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
   }else{
-    auto fname = (prefix + std::string(label)+".png");
     writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
-    fmt::println("written to file {}", fname.c_str());
+    fmt::println("written to file {}", fname);
   }
 }
 void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
@@ -201,7 +212,13 @@ void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
   }
-  processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
+  bool isJPG = std::string(label).find(".jpg")!=std::string::npos;
+  if(isJPG) {
+    if(!cuCache_data) myCuMalloc(pixeltype, cuCache_data, rows*cols);
+    process<complexFormat>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+  } else {
+    processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
+  }
   plot(label, isColor, caption);
 }
 void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
@@ -209,7 +226,13 @@ void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, 
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
   }
-  processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
+  bool isJPG = std::string(label).find(".jpg")!=std::string::npos;
+  if(isJPG) {
+    if(!cuCache_data) myCuMalloc(pixeltype, cuCache_data, rows*cols);
+    process<Real>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+  } else {
+    processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
+  }
   plot(label, isColor, caption);
 }
 void cuPlotter::saveComplex(void* cudaData, const char* label){
@@ -255,13 +278,22 @@ void* cuPlotter::cvt8bit(void* icache){
 }
 void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
   std::string fname = label;
-  if(fname.find(".")==std::string::npos) fname+=".png";
+  if(fname.find(".")==std::string::npos) fname += iscolor ? ".jpg" : ".png";
   if(iscolor){
     if(vid_thread) {
       pthread_join(vid_thread, nullptr);
       vid_thread = 0;
     }
-    cvtTurbo();
+    bool isJPG = std::string(fname).find(".jpg")!=std::string::npos;
+    if(isJPG && cuCache_data) {
+      int n = rows*cols;
+      if(!cuRGB_data) myCuMalloc(uint8_t, cuRGB_data, 3*n);
+      initTurboLUT();
+      applyColorMapGPU((pixeltype*)cuCache_data, (uint8_t*)cuRGB_data);
+      if(caption || toVideo>=0) myMemcpyD2H(cv_cache, cuRGB_data, 3*n);
+    } else {
+      cvtTurbo();
+    }
     char color[3] = {-1,0,0};
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_cache, 1, color);
     if(toVideo>=0) {
@@ -273,7 +305,7 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
     else if(std::string(fname).find(".png")!=std::string::npos)
       writePng((prefix + fname).c_str(), cv_cache, rows, cols, 8, 1);
     else if(std::string(fname).find(".jpg")!=std::string::npos)
-      writeJPEG((prefix + fname).c_str(), cv_cache, rows, cols, 25);
+      writeJPEG_GPU(cuRGB_data, rows, cols, (prefix + fname).c_str(), 100);
   }else{
     pixeltype color = -1;
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_data, 0, &color);

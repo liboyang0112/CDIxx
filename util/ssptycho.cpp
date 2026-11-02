@@ -111,7 +111,7 @@ class ssptycho : public readConfig{
 
       // Plot the recovered grating
       plt.init(row, column, outputDir);
-      plt.plotComplexColor(grating, 0, 1, "recon_grating");
+      plt.plotComplexColor(grating, 0, 1, "recon_grating.jpg");
     }
 
     void initIteration(){
@@ -138,8 +138,8 @@ class ssptycho : public readConfig{
       plt.plotFloat(masksum, MOD, 0, 1, "masksum");
 
       plt.init(row, column, outputDir);
-      plt.plotComplexColor(probeWave, 0, 1, "init_probe_wave");
-      plt.plotComplexColor(pupilpatternWave, 0, 1, "init_probe_pattern");
+      plt.plotComplexColor(probeWave, 0, 1, "init_probe_wave.jpg");
+      plt.plotComplexColor(pupilpatternWave, 0, 1, "init_probe_pattern.jpg");
       random(objectWave, devstates);
     }
 
@@ -196,7 +196,7 @@ class ssptycho : public readConfig{
       resize_cuda_image(row, column);
       init_fft(row, column);
       plt.init(row, column, outputDir);
-      plt.plotFloat(pattern, MOD, 0, 1, "input_pattern", 1, 0, 1);
+      plt.plotFloat(pattern, MOD, 0, 1, "input_pattern.jpg", 1, 0, 1);
       cudaConvertFO(pattern, pattern, 1./exposure);
     }
 
@@ -216,7 +216,7 @@ class ssptycho : public readConfig{
       cudaConvertFO(pattern);
       if(simCCDbit) ccdRecord(pattern, pattern, noiseLevel, devstates);
       plt.saveFloat(pattern, common.Pattern);
-      plt.plotFloat(pattern, MOD, 0, 1, "simulated_pattern", 1, 0, 1);
+      plt.plotFloat(pattern, MOD, 0, 1, "simulated_pattern.jpg", 1, 0, 1);
       cudaConvertFO(pattern,pattern,1./exposure);
     }
 
@@ -254,7 +254,7 @@ class ssptycho : public readConfig{
         propagate_pupil.angularSpectrumPropagate(Fn, Fn);
         multiply(Fn, Fn, objectWave);
         myFFT(Fn, Fn);
-        plt.plotComplex(Fn, MOD2, 1, exposure/(3*row*column), ("beam_diffraction_"+to_string(i)).c_str(), 1, 0, 1);
+        plt.plotComplex(Fn, MOD2, 1, exposure/(3*row*column), ("beam_diffraction_"+to_string(i)+".jpg").c_str(), 1, 0, 1);
       }
       myCuFree(Fn);
       myCuFree(planeWave);
@@ -266,7 +266,7 @@ class ssptycho : public readConfig{
       plt.plotComplex(objectWave, MOD2, 0, 1, "recon_intensity",0,0,1);
       myFFT(objectWave, objectWave);
       //plt.plotComplex(objectWave, MOD, 1, sqrt(exposure/(30*row*column)), "obj_freq",1,0,1);
-      plt.plotComplex(objectWave, MOD2, 1, exposure/(9*row*column), "obj_freq",1,0,1);
+      plt.plotComplex(objectWave, MOD2, 1, exposure/(9*row*column), "obj_freq.jpg",1,0,1);
       plt.plotComplexColor(probeWave, 0, 1, "recon_probe_wave");
       cudaConvertFO(objectWave);
       myCuDMalloc(complexFormat, lowres, (row/3)*(column/3));
@@ -365,7 +365,7 @@ class ssptycho : public readConfig{
         multiply(esw, pupilpatternWave, objectWave);
         if(iter == nIter-1) plt.plotComplexColor(esw, 0, 1, "recon_esw");
         myFFT(esw, Fn);
-        if(iter == nIter-1) plt.plotComplex(Fn, MOD2, 1, exposure/(row*column), "recon_pattern", 1, 0, 1);
+        if(iter == nIter-1) plt.plotComplex(Fn, MOD2, 1, exposure/(row*column), "recon_pattern.jpg", 1, 0, 1);
         applyModAccurate(Fn, pattern, beamstop, norm);
         myIFFT(Fn, Fn);
         applyNorm(Fn, norm);

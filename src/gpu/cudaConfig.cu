@@ -1498,3 +1498,47 @@ cuFuncc(createPlaneWave,(complexFormat* out, Real peakX, Real peakY, Real amp),(
     sincosf(phase, &s, &c);
     out[index] = make_cuComplex(amp * c, amp * s);
 })
+
+//-------GPU JPEG colormap LUT-------
+__constant__ uint8_t d_turboLUT[768]; // 256 entries x 3 bytes (RGB)
+static bool d_turboLUT_initialized = false;
+
+const float TurboDataGPU[3][8][3] = {
+  {{48.628736, 1.26493952, 0.0179480064}, {12.9012, 3.17599, -0.0432176},
+   {550.736, -13.3905, 0.0850816}, {-377.035, 4.95565, -0.00546875},
+   {-461.663, 6.91765, -0.0158418}, {-904.194, 12.7805, -0.0352175},
+   {-397.815, 7.43316, -0.0210902}, {-513.745, 8.50106, -0.0235486}},
+  {{18.3699, 2.98435, -0.00590619}, {25.5339, 2.60115, -0.000838337},
+   {-65.9885, 5.48243, -0.023616}, {-90.9164, 5.82642, -0.024485},
+   {-47.1592, 5.39126, -0.0237502}, {-65.915, 5.26759, -0.0222375},
+   {1648.81, -12.6094, 0.0243797}, {1160.21, -8.10854, 0.014018}},
+  {{59.4351, 7.57781, -0.0720408}, {29.4288, 9.18296, -0.0932682},
+   {391.685, -2.3166, -0.0016649}, {770.071, -8.98098, 0.0266769},
+   {606.475, -7.75046, 0.0270971}, {-638.138, 8.68843, -0.0270811},
+   {1017.44, -8.76258, 0.0189386}, {625.18, -5.14916, 0.0106199}}
+};
+
+void initTurboLUT() {
+  if (d_turboLUT_initialized) return;
+  uint8_t h_lut[768];
+  for (int i = 0; i < 256; i++) {
+    Real x = (Real)i;
+    int sec = i / 32;
+    for (int c = 0; c < 3; c++) {
+      int val = (int)(TurboDataGPU[c][sec][0] + TurboDataGPU[c][sec][1]*x + TurboDataGPU[c][sec][2]*x*x);
+      if (val < 0) val = 0;
+      if (val > 255) val = 255;
+      h_lut[i*3+c] = (uint8_t)val;
+    }
+  }
+  gpuErrchk(cudaMemcpyToSymbol(d_turboLUT, h_lut, 768));
+  d_turboLUT_initialized = true;
+}
+
+cuFunc(applyColorMapGPU, (const pixeltype* input, uint8_t* rgb), (input, rgb), {
+    cuda1Idx()
+    int idx = (input[index] >> 8) & 0xFF;
+    rgb[index*3]   = d_turboLUT[idx*3];
+    rgb[index*3+1] = d_turboLUT[idx*3+1];
+    rgb[index*3+2] = d_turboLUT[idx*3+2];
+    })

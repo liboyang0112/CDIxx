@@ -10,6 +10,7 @@ class cuPlotter
   int rows;
   int cols;
   void *cuCache_data = 0; //cv format
+  void *cuRGB_data = 0; //GPU RGB buffer for JPEG
   void *cv_data = 0; //cv_data = cv_cache->data
   void *cv_complex_data = 0; //cv_data = cv_cache->data
                                //
