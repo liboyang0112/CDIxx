@@ -36,16 +36,16 @@ void deleteCache(void* b){
 }
 
 int main(){
-  Real** vectors = (Real**)ccmemMngr.borrowCache(N*sizeof(Real*));
+  myDMalloc(Real*, vectors, N);
   for(int i = 0; i < N; i++){
-    vectors[i] = (Real*) ccmemMngr.borrowCache(N*sizeof(Real));
+    myMalloc(Real, vectors[i], N);
   }
   vectors[0][0] = 1;
   vectors[0][1] = 0;
   vectors[1][0] = 1;
   vectors[1][1] = 2;
   Real right[N] = {0,59};
-  double* out = (double*) ccmemMngr.borrowCache(N*sizeof(double));
+  myDMalloc(double, out, N);
   Fit(out, N, (void**)vectors, right, innerProd, mult, add, createCache, deleteCache);
   fmt::println("solved: {:f},{:f}", out[0], out[1]);
  }

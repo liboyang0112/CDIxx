@@ -51,7 +51,7 @@ store(findMaxIdx);
 #define initStore(name)\
   if(store_##name##_n) {\
     store_##name##_n = 0;\
-    memMngr.returnCache(store_##name);\
+    myCuFree(store_##name);\
     store_##name = 0;\
   }
 void initCub(){
@@ -81,7 +81,7 @@ gpuErrchk(cub::DeviceReduce::Reduce(STORE, STORE##_n, (T*)d_in, (T*)d_out, num_i
 T output = T();\
 if(!hascache){\
 myMemcpyD2H(&output, d_out, sizeof(T));\
-if (d_out) memMngr.returnCache(d_out);\
+if (d_out) myCuFree(d_out);\
 }
 
 
@@ -110,7 +110,7 @@ int findMaxIdx(Real* d_in, int num, void* d_out)
   gpuErrchk(cub::DeviceReduce::ArgMax(store_findMaxIdx, store_findMaxIdx_n, (Real*)d_in, &((cub::KeyValuePair<int, Real>*)d_out)->value, &((cub::KeyValuePair<int, Real>*)d_out)->key, num_items)); //new cub api, not compatible with hip
   if(!hascache){
     myMemcpyD2H(&output, d_out, sizeof(cub::KeyValuePair<int, Real>));
-    memMngr.returnCache(d_out);
+    myCuFree(d_out);
     return output.key;
   }
   return 0;

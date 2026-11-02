@@ -43,25 +43,25 @@ int main(int argc, char** argv){
       objcol = 128;
       for(int iconfig  = 0; iconfig < nconfig; iconfig++)
         mnist_dat[iconfig] = new cuMnist(cdi.mnistData, datamerge[iconfig], datarefine[iconfig], objrow, objcol);
-      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_input, objrow*objcol);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
-      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_obj, objrow*objcol);
     }
     else {
       training = 0;
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
-      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_input, objrow*objcol);
       myMemcpyH2D(d_input, intensity, objrow*objcol*sizeof(Real));
-      ccmemMngr.returnCache(intensity);
+      myFree(intensity);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
-      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_obj, objrow*objcol);
       resize_cuda_image(objrow, objcol);
       pad(d_input, d_obj, objrow/cdi.oversampling, objcol/cdi.oversampling);
       plt.init(objrow, objcol);
       plt.plotFloat(d_obj, MOD, 0, 1, "object", 0, 0, 0);
-      memMngr.returnCache(d_input);
+      myCuFree(d_input);
     }
   }else{
     training = 0;
@@ -77,8 +77,8 @@ int main(int argc, char** argv){
   if(string(cdi.spectrum) == "gaussian"){
     int lambdarange = 4;
     int nlambda = objrow*(lambdarange-1)/2;
-    lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-    spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+    myMalloc(double, lambdas, nlambda);
+    myMalloc(double, spectra, nlambda);
     for(int i = 0; i < nlambda; i++){
       lambdas[i] = 1 + 2.*i/objrow;
       spectra[i] = exp(-pow(2*(i*2./nlambda-1),2))/nlambda; //gaussian, -1,1 with sigma=1
@@ -105,12 +105,12 @@ int main(int argc, char** argv){
   }
   init_fft(objrow, objcol);
   int sz = mwl.row*mwl.column*sizeof(Real);
-  Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
-  Real *realcache = (Real*)memMngr.borrowCache(sz);
-  Real *single = (Real*)ccmemMngr.borrowCache(sz);
-  Real *merged = (Real*)ccmemMngr.borrowCache(sz);
-  complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
-  complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
+  myCuDMalloc(Real, d_patternSum, mwl.row*mwl.column);
+  myCuDMalloc(Real, realcache, mwl.row*mwl.column);
+  myDMalloc(Real, single, mwl.row*mwl.column);
+  myDMalloc(Real, merged, mwl.row*mwl.column);
+  myCuDMalloc(complexFormat, d_CpatternSum, mwl.row*mwl.column);
+  myCuDMalloc(complexFormat, d_solved, mwl.row*mwl.column);
   resize_cuda_image(mwl.row, mwl.column);
   plt.init(mwl.row, mwl.column);
   void *devstates = newRand(mwl.column * mwl.row);
@@ -157,7 +157,7 @@ int main(int argc, char** argv){
       }
     }else{
       myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));
-      ccmemMngr.returnCache(intensity);
+      myFree(intensity);
       if(cdi.solveSpectrum){
         mwl.resetSpectra();
         int tmprow, tmpcol;
@@ -166,7 +166,7 @@ int main(int argc, char** argv){
         if(tmprow > objrow) crop((Real*)d_solved, realcache, tmprow, tmpcol);
         else pad((Real*)d_solved, realcache, tmprow,tmpcol);
         extendToComplex(realcache, d_solved);
-        ccmemMngr.returnCache(intensity);
+        myFree(intensity);
       }
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("mergedlog"+to_string(j)).c_str(), 1, 0, 1);
       plt.plotFloat(d_patternSum, MOD, 0, 1, ("merged"+to_string(j)).c_str(), 0);
@@ -188,7 +188,7 @@ int main(int argc, char** argv){
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 1, 1, 0, 1);
         mwl.lambda_ref = monoLambda;
         mwl.writeSpectra("spectrum_solved.txt");
-        spectra = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
+        myMalloc(double, spectra, mwl.nlambda);
         memcpy(spectra, mwl.spectra, mwl.nlambda*sizeof(double));
       }
       //run Phase retrievial;

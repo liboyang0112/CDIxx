@@ -47,7 +47,7 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
     std::complex<Real> mid(findMiddle(d_bit, row * col));
     midx = mid.real() * row;
     midy = mid.imag() * col;
-    memMngr.returnCache(d_bit);
+    myCuFree(d_bit);
 
     // Apply user offset
     if (user_shift_x != 0 || user_shift_y != 0) {
@@ -99,11 +99,11 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
   //}
 
   getReal(tmp, tmp1);
-  memMngr.returnCache(tmp1);
+  myCuFree(tmp1);
 
   resize_cuda_image(finsize, finsize);
   mergePixel(d_sig, tmp, outrow, nmerge);
-  memMngr.returnCache(tmp);
+  myCuFree(tmp);
   transpose(d_sig, d_sig);
 
   plt.init(finsize, finsize);
@@ -119,7 +119,7 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
 
   plt.saveFloat(d_sig, output_path);
 
-  memMngr.returnCache(xc);
+  myCuFree(xc);
 }
 
 int main(int argc, char** argv) {
@@ -163,6 +163,6 @@ int main(int argc, char** argv) {
     if (!firstSig) firstSig = true;
   }
 
-  memMngr.returnCache(d_bkg);
+  myCuFree(d_bkg);
   return 0;
 }

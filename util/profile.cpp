@@ -28,7 +28,7 @@ Real *readFromCDIRecon(const char* fname, int &row, int &col){
   }
   myCuDMalloc(complexFormat, d_wfr, row*col);
   myMemcpyH2D(d_wfr, wf, sz);
-  ccmemMngr.returnCache(wf);
+  myFree(wf);
   init_fft(row, col);
   myIFFT(d_wfr,d_wfr);
   myCuDMalloc(Real, ret, row*col);
@@ -46,7 +46,7 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   std::complex<Real> mid(findMiddle(d_bit, row*col));
   mid += std::complex<Real>(shiftx, -shifty);
   fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
-  memMngr.returnCache(d_bit);
+  myCuFree(d_bit);
   if(!outrow || !outcol){
     outrow = (row-int(std::abs(mid.real())*row)*2)/4*4;
     outcol = (col-int(std::abs(mid.imag())*col)*2)/4*4;

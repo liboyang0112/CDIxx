@@ -38,7 +38,7 @@ void spectPhase::initRefSupport(complexFormat* refer, complexFormat* d_supportin
   saveRef(d_support, d_supportinput, (uint32_t*)d_supportMap, row, column, row, column, 1);
   d_ref = refer;
   myFree(maskMap);
-  ccmemMngr.returnCache(support);
+  myFree(support);
 }
 void spectPhase::solvecSpectrum(Real* pattern, int niter){
   myCuDMalloc(Real, d_pattern, row*column);

@@ -180,7 +180,7 @@ static bool open_file(const char* fname, View* v) {
   v->d_image = d_image;
   v->img_rows = f.rows; v->img_cols = f.cols; v->img_type = f.type;
   init_fft(f.rows, f.cols);
-  v->d_fft = memMngr.borrowCache((size_t)f.rows * f.cols * sizeof(complexFormat));
+  myCuMalloc(complexFormat, v->d_fft, f.rows * f.cols);
   v->rgb.resize((size_t)f.rows * f.cols * 3);
   if (f.type != REALIDX && f.type != COMPLEXIDX) {
     fprintf(stderr, "Unsupported type %d in '%s'\n", f.type, fname);

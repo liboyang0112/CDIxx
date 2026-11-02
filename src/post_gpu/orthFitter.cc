@@ -27,10 +27,10 @@ void runIter_cu(int n, int niter, Real step_lambda, double* bi, double* prods, d
     calcbs(d_bi, d_matrix, lambdas, d_prods);
   }
   myMemcpyD2H(bi,d_bi,sz);
-  memMngr.returnCache(lambdas);
-  memMngr.returnCache(d_bi);
-  memMngr.returnCache(d_prods);
-  memMngr.returnCache(d_matrix);
+  myCuFree(lambdas);
+  myCuFree(d_bi);
+  myCuFree(d_prods);
+  myCuFree(d_matrix);
 }
 
 void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* matrix){
@@ -51,7 +51,7 @@ void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* 
 #ifdef useLapack
   myCuDMalloc(double, d_matrix_ext, n*n);
   fillMatrix(d_matrix, d_matrix_ext);
-  memMngr.returnCache(d_matrix);
+  myCuFree(d_matrix);
   d_matrix = d_matrix_ext;
 #endif
   resize_cuda_image(n, 1);
@@ -60,14 +60,14 @@ void runIter_fast_cu(int n, int niter, double step_lambda, double* out, double* 
     calcas_fast(d_bi, d_matrix, lambda, d_out);
   }
   myMemcpyD2H(out,d_out,n*sizeof(double));
-  memMngr.returnCache(d_matrix);
-  memMngr.returnCache(d_bi);
-  memMngr.returnCache(d_out);
-  memMngr.returnCache(lambda);
+  myCuFree(d_matrix);
+  myCuFree(d_bi);
+  myCuFree(d_out);
+  myCuFree(lambda);
 }
 
 void runIter(int n, int niter, Real step_lambda, double* bi, double* prods, double* matrix){
-  double *lambdas = (double*)ccmemMngr.borrowCleanCache(n*sizeof(double)); // lagrangian multiplier
+  myDMallocClean(double, lambdas, n); // lagrangian multiplier
   for(int iter = 0; iter < niter; iter++){
     for(int j = 0; j < n; j++){
       for(int i = j; i < n; i++){
@@ -82,14 +82,14 @@ void runIter(int n, int niter, Real step_lambda, double* bi, double* prods, doub
       }
     }
   }
-  ccmemMngr.returnCache(lambdas);
+  myFree(lambdas);
 }
 
 void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void (*mult)(void*, Real), void (*add)(void*, void*, Real), void* (createCache)(void*), void deleteCache(void*), bool renorm, void* param){
-  double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); //orthogalized ai
-  double *ni = (double*)ccmemMngr.borrowCache(n*sizeof(double));  //normalization of each vector
-  double *matrix = (double*)ccmemMngr.borrowCleanCache(n*(n+1)/2*sizeof(double));  // b_i = M_ij*a_j
-  void **orthedVector = (void**)ccmemMngr.borrowCache(n*sizeof(void*));
+  myDMalloc(double, bi, n); //orthogalized ai
+  myDMalloc(double, ni, n);  //normalization of each vector
+  myDMallocClean(double, matrix, n*(n+1)/2);  // b_i = M_ij*a_j
+  myDMalloc(void*, orthedVector, n);
   for(int i = 0; i < n; i++){
     orthedVector[i] = createCache(vectors[i]);
     if(renorm) {
@@ -144,12 +144,12 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
   fmt::println("step_lambda = {:e}", step_lambda);
   int niter = 30000;
   //now lets solve dual problem
-  double *prods = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // b_i without positive constraints
+  myDMalloc(double, prods, n); // b_i without positive constraints
   for(int i = 0; i < n; i++){
     bi[i] = prods[i] = innerProd(right,orthedVector[i],param);
   }
   runIter_cu(n, niter, step_lambda, bi, prods, matrix);
-  ccmemMngr.returnCache(prods);
+  myFree(prods);
   //calculate a.
   memset(out, 0, n*sizeof(double));
   for(int j = 0; j < n; j++){
@@ -158,16 +158,16 @@ void Fit(double* out, int n, void** vectors, void* right, Real (*innerProd)(void
       out[j] += matrix[rs+j]*bi[i];
     }
   }
-  ccmemMngr.returnCache(matrix);
-  ccmemMngr.returnCache(bi);
+  myFree(matrix);
+  myFree(bi);
   for(int i = 0; i < n; i++){
     if(renorm) {
       out[i] /= ni[i];
     }
     deleteCache(orthedVector[i]);
   }
-  ccmemMngr.returnCache(ni);
-  ccmemMngr.returnCache(orthedVector);
+  myFree(ni);
+  myFree(orthedVector);
 }
 
 int getRFPidx(int i, int j, int n){
@@ -194,7 +194,7 @@ int getRFPidx(int i, int j, int n){
 }
 
 void runIter_fast(int n, int niter, double step_lambda, double* bi, double* out, double* matrix){
-  double *lambda = (double*)ccmemMngr.borrowCleanCache(n*sizeof(double)); // lambdas
+  myDMallocClean(double, lambda, n); // lambdas
   memcpy(bi, out, n*sizeof(double));
   for(int iter = 0; iter < niter; iter++){
     //update lambda
@@ -213,14 +213,15 @@ void runIter_fast(int n, int niter, double step_lambda, double* bi, double* out,
 }
 
 void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void* param){
-  double *bi = (double*)ccmemMngr.borrowCache(n*sizeof(double)); // ATb
-  double *matrix = (double*)ccmemMngr.borrowCleanCache(
+  myDMalloc(double, bi, n); // ATb
+  int szmat =
 #ifdef useLapack
-      n*(n+1)/2
+    n*(n+1)/2
 #else
-      n*n
+    n*n
 #endif
-      *sizeof(double));  // ATA
+    ;
+  myDMallocClean(double, matrix, szmat);  // ATA
   for(int i = 0; i < n; i++){
     for(int j = 0; j <= i; j++){
 #ifdef useLapack
@@ -271,8 +272,8 @@ void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)
   int niter = 60000;
   //runIter_fast(n, niter, step_lambda, bi, out, matrix);
   runIter_fast_cu(n, niter, step_lambda, out, matrix);
-  ccmemMngr.returnCache(matrix);
-  ccmemMngr.returnCache(bi);
+  myFree(matrix);
+  myFree(bi);
 }
 void Fit_fast_matrix(double* out, int n, double* matrix, double* bi){
   inverseMatrixEigen(matrix, n);

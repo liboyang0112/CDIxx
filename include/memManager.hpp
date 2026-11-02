@@ -5,9 +5,10 @@
 #include <vector>
 
 #define myDMalloc(fmt, var, size) fmt* var = (fmt*)ccmemMngr.borrowCache((size)*sizeof(fmt))
+#define myDMallocClean(fmt, var, size) fmt* var = (fmt*)ccmemMngr.borrowCleanCache((size)*sizeof(fmt))
 #define myMalloc(fmt, var, size) var = (fmt*)ccmemMngr.borrowCache((size)*sizeof(fmt))
-#define myMallocClean(fmt, var, size) var = (fmt*)ccmemMngr.borrowCleanCache((size)*sizeof(fmt));
-#define myFree(ptr) ccmemMngr.returnCache(ptr); ptr = 0
+#define myMallocClean(fmt, var, size) var = (fmt*)ccmemMngr.borrowCleanCache((size)*sizeof(fmt))
+#define myFree(ptr) ccmemMngr.returnCache(ptr)
 
 class memManager{
   std::unordered_map<size_t, std::vector<void*>> pool;

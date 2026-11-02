@@ -20,10 +20,10 @@ complexFormat findMiddle(complexFormat* d_in, int num){
   findSum(tmp, num, out);
   multiplyy(d_in,tmp);
   findSum(tmp, num, out+1);
-  memMngr.returnCache(tmp);
+  myCuFree(tmp);
   myMemcpyD2H(h_out, out, 3*sizeof(Real));
-  memMngr.returnCache(out);
-  ccmemMngr.returnCache(h_out);
+  myCuFree(out);
+  myFree(h_out);
   return {h_out[0]/h_out[2], h_out[1]/h_out[2]};
 };
 complexFormat findMiddle(Real* d_in, int num){
@@ -36,10 +36,10 @@ complexFormat findMiddle(Real* d_in, int num){
   findSum(tmp, num, out);
   multiplyy(d_in,tmp);
   findSum(tmp, num, out+1);
-  memMngr.returnCache(tmp);
+  myCuFree(tmp);
   myMemcpyD2H(h_out, out, 3*sizeof(Real));
-  memMngr.returnCache(out);
-  ccmemMngr.returnCache(h_out);
+  myCuFree(out);
+  myFree(h_out);
   return {h_out[0]/h_out[2], h_out[1]/h_out[2]};
 };
 void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real* &d_intensity, Real* &d_phase, int &objrow, int &objcol){
@@ -47,9 +47,9 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
   if(intensityFile) {
     Real* intensity = readImage(intensityFile, objrow, objcol);
     sz = objrow*objcol*sizeof(Real);
-    if(!d_intensity) d_intensity = (Real*)memMngr.borrowCache(sz); //use the memory allocated;
+    if(!d_intensity) myCuMalloc(Real, d_intensity, objrow*objcol); //use the memory allocated;
     myMemcpyH2D(d_intensity, intensity, sz);
-    ccmemMngr.returnCache(intensity);
+    myFree(intensity);
   }
   if(phaseFile) {
     int tmprow,tmpcol;
@@ -59,10 +59,10 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
       objrow = tmprow;
       objcol = tmpcol;
     }
-    if(!d_phase) d_phase = (Real*)memMngr.borrowCache(sz);
+    if(!d_phase) myCuMalloc(Real, d_phase, objrow*objcol);
     size_t tmpsz = tmprow*tmpcol*sizeof(Real);
     if(tmpsz!=sz){
-      Real* d_phasetmp = (Real*)memMngr.borrowCache(tmpsz);
+      myCuDMalloc(Real, d_phasetmp, tmprow*tmpcol);
       myMemcpyH2D(d_phasetmp,phase,tmpsz);
       resize_cuda_image(objrow, objcol);
       if(tmpsz > sz){
@@ -70,13 +70,13 @@ void readComplexWaveFront(const char* intensityFile, const char* phaseFile, Real
       }else{
         pad(d_phasetmp, d_phase, tmprow, tmpcol);
       }
-      memMngr.returnCache(d_phasetmp);
+      myCuFree(d_phasetmp);
     }
     else {
       myMemcpyH2D(d_phase,phase,sz);
     }
 
-    ccmemMngr.returnCache(phase);
+    myFree(phase);
   }
 }
 void applyGaussConv(Real* input, Real* output, Real* gaussMem, Real sigma, int size){
@@ -120,7 +120,7 @@ uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow
   for(int idx = 0; idx < mrow*mcol ; idx++){
     if(refMask[idx] > 0.5) pixCount++;
   }
-  uint32_t* maskMap = (uint32_t*)ccmemMngr.borrowCache(pixCount*sizeof(uint32_t));
+  myDMalloc(uint32_t, maskMap, pixCount);
   int idx = 0, ic = 0;
   for(int x = 0; x < mrow ; x++){
     for(int y = 0; y < mcol ; y++){
@@ -136,12 +136,10 @@ uint32_t* createMaskMap(Real* refMask, int &pixCount, int row, int col, int mrow
 
 void unwrapPhaseFFT(Real* d_wrapped_phase, Real* d_unwrapped_phase, int width, int height) {
     const int N = width * height;
-    const size_t bytes_real = N * sizeof(Real);
-    const size_t bytes_cplx = ((width/2 + 1) * height) * sizeof(complexFormat);
 
     // --- Step 1: Allocate workspace ---
-    Real* d_b = (Real*)memMngr.borrowCache(bytes_real);           // divergence (∇·v)
-    myCuDMalloc(complexFormat, d_fft, bytes_cplx);
+    myCuDMalloc(Real, d_b, N);           // divergence (∇·v)
+    myCuDMalloc(complexFormat, d_fft, (width/2 + 1) * height);
 
     // --- Step 2: Compute divergence b = ∂gx/∂x + ∂gy/∂y ---
     phaseUnwrapping(d_wrapped_phase);
@@ -191,7 +189,7 @@ void convolute(complexFormat* store, complexFormat* input1, complexFormat* input
     myIFFT(store, store);
 }
 Real* createBeamStop(int row, int column, int beamStopSize){
-  Real* beamstop = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  myCuDMalloc(Real, beamstop, row*column);
   createCircleMask(beamstop, row>>1, column>>1, beamStopSize, 1);
   return beamstop;
 }
@@ -247,8 +245,8 @@ void getNormSpectrum(const char* fspectrum, const char* ccd_response, Real &star
     nlambda++;
   }
   endLambda /= startLambda;
-  outlambda = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  outspectrum = (double*) ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  myMalloc(double, outlambda, nlambda);
+  myMalloc(double, outspectrum, nlambda);
   for(int i = 0; i < nlambda; i++){
     outlambda[i] = spectrum_lambda[i];
     outspectrum[i] = spectrum[i];
@@ -291,17 +289,16 @@ Real* readPNG(const char* name, int &row, int &col) {
     if (!raw) return nullptr;
 
     size_t sz_raw = row * col * sizeof(uint16_t);
-    size_t sz_real = row * col * sizeof(Real);
 
-    uint16_t* d_raw = (uint16_t*)memMngr.borrowCache(sz_raw);
+    myCuDMalloc(uint16_t, d_raw, row*col);
     myMemcpyH2D(d_raw, raw, sz_raw);
 
-    Real* d_real = (Real*)memMngr.borrowCache(sz_real);
+    myCuDMalloc(Real, d_real, row*col);
     resize_cuda_image(row, col);
     assignVal(d_real, d_raw);
     applyNorm(d_real, 1.0f / 65535.0f);
 
-    memMngr.returnCache(d_raw);
+    myCuFree(d_raw);
     free(raw);
 
     return d_real;
@@ -384,7 +381,7 @@ std::vector<PeakPos> refinePeaks(Real* image, const std::vector<int>& peaks, Rea
   int n = peaks.size();
   positions.reserve(n);
   // One GPU mask buffer reused for each peak
-  Real* mask = (Real*)memMngr.borrowCache(rows*cols*sizeof(Real));
+  myCuDMalloc(Real, mask, rows*cols);
   for(int i = 0; i < n; i++){
     int idx = peaks[i];
     int y0 = idx % cols;
@@ -392,13 +389,13 @@ std::vector<PeakPos> refinePeaks(Real* image, const std::vector<int>& peaks, Rea
     // Circular mask on GPU
     createCircleMask(mask, (Real)x0, (Real)y0, sigma * 2, 0);
     // Multiply image by mask, then findMiddle gives weighted centroid
-    Real* masked = (Real*)memMngr.borrowCache(rows*cols*sizeof(Real));
+    myCuDMalloc(Real, masked, rows*cols);
     multiply(masked, image, mask);
     complexFormat center = findMiddle(masked, rows*cols);
-    memMngr.returnCache(masked);
+    myCuFree(masked);
     positions.push_back({(Real)creal(center), (Real)cimag(center)});
   }
-  memMngr.returnCache(mask);
+  myCuFree(mask);
   return positions;
 }
 
@@ -408,7 +405,6 @@ std::vector<Real*> createPeakGauss(const std::vector<int>& peaks, const std::vec
   int cols = getCudaCols();
   int rows = getCudaRows();
   int numPeaks = peaks.size();
-  size_t sz = rows * cols * sizeof(Real);
   myCuDMalloc(int, d_peaks, numPeaks);
   myCuDMalloc(Real, d_energies, numPeaks);
   myCuDMalloc(Real, d_total, rows * cols);
@@ -417,7 +413,7 @@ std::vector<Real*> createPeakGauss(const std::vector<int>& peaks, const std::vec
   resize_cuda_image(rows, cols);
   peakGaussSum(d_peaks, d_energies, d_total, (Real)epsilon, numPeaks);
   for (int i = 0; i < numPeaks; i++) {
-    Real* d_ratio = (Real*)memMngr.borrowCache(sz);
+    myCuDMalloc(Real, d_ratio, rows*cols);
     peakGaussRatio(d_peaks, d_energies, d_total, d_ratio, (Real)epsilon, numPeaks, i);
     ratios.push_back(d_ratio);
   }

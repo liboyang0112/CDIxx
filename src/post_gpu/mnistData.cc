@@ -36,12 +36,12 @@ mnistData::mnistData(const char* dir){
   number_of_images = ReverseInt(number_of_images);
   rowraw = ReverseInt(rowraw);
   colraw = ReverseInt(colraw);
-  output = (Real*)ccmemMngr.borrowCache(rowraw*colraw*sizeof(Real));
+  myMalloc(Real, output, rowraw*colraw);
   fmt::println("mnist image size: {} x {}", rowraw, colraw);
 };
 Real* mnistData::read(){
   size_t sz =  rowraw*colraw*sizeof(char);
-  unsigned char* tmp = (unsigned char*)ccmemMngr.borrowCache(sz);
+  myDMalloc(unsigned char, tmp, rowraw*colraw);
   size_t startpos = sz * size_t(idat);
   ((ifstream*)dataset)->seekg (sizeof(int)*4 + startpos);
   ((ifstream*)dataset)->read((char*)tmp, sz);
@@ -49,19 +49,19 @@ Real* mnistData::read(){
   for(int i = 0; i < rowraw*colraw; i++){
     output[i] = Real(tmp[i])/255;
   }
-  ccmemMngr.returnCache(tmp);
+  myFree(tmp);
   return output;
 }
 mnistData::~mnistData(){
   delete (ifstream*)dataset;
-  ccmemMngr.returnCache(output);
+  myFree(output);
 };
 
 cuMnist::cuMnist(const char* dir, int nm, int re, int r, int c) : mnistData(dir), refinement(re), row(r), col(c), nmerge(nm){
-  cuRaw = memMngr.borrowCache(rowraw*colraw*sizeof(Real));
+  myCuMalloc(Real, cuRaw, rowraw*colraw);
   rowrf = rowraw*nmerge;
   colrf = colraw*nmerge;
-  cuRefine = memMngr.borrowCache(rowrf*colrf*refinement*refinement*sizeof(Real));
+  myCuMalloc(Real, cuRefine, rowrf*colrf*refinement*refinement);
   if(refinement!=1){
     createPlan(&handle, rowrf*refinement, colrf*refinement);
     createPlan(&handleraw, rowrf, colrf);

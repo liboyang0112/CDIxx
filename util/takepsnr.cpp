@@ -38,7 +38,7 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   std::complex<Real> mid(findMiddle(d_bit, row*col));
   mid += std::complex<Real>(shiftx, -shifty);
   fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
-  memMngr.returnCache(d_bit);
+  myCuFree(d_bit);
   if(!outrow || !outcol){
     outrow = (row-int(std::abs(mid.real())*row)*2)/4*4;
     outcol = (col-int(std::abs(mid.imag())*col)*2)/4*4;
@@ -76,7 +76,7 @@ Real* mergewf(complexFormat * d_wfr, int &row, int &col, Real mg, Real shiftx, R
   //plt.plotComplex(d_wf, MOD2, 0, 1, "restart_pattern");
   myCuDMalloc(Real, d_int, row*col);
   getMod2(d_int, d_wf);
-  memMngr.returnCache(d_wf);
+  myCuFree(d_wf);
   return d_int;
 }
 complexFormat *readFromCDIRecon(const char* fname, int &row, int &col){
@@ -95,7 +95,7 @@ complexFormat *readFromCDIRecon(const char* fname, int &row, int &col){
   }
   myCuDMalloc(complexFormat, d_wfr, row*col);
   myMemcpyH2D(d_wfr, wf, sz);
-  ccmemMngr.returnCache(wf);
+  myFree(wf);
   return d_wfr;
 }
 
@@ -105,10 +105,10 @@ complexFormat* readFromPng(const char* fname, int &row, int &col){
   size_t sz = row*col;
   myCuDMalloc(Real,d_img,sz);
   myMemcpyH2D(d_img, img, sz*sizeof(Real));
-  ccmemMngr.returnCache(img);
+  myFree(img);
   myCuDMalloc(complexFormat, d_wfr, sz);
   extendToComplex(d_img, d_wfr);
-  memMngr.returnCache(d_img);
+  myCuFree(d_img);
   init_fft(row, col);
   myFFT(d_wfr, d_wfr);
   applyNorm(d_wfr, 1./sqrt(sz));

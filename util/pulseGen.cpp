@@ -43,22 +43,22 @@ int main(int argc, char** argv){
       objcol = 128;
       for(int iconfig  = 0; iconfig < nconfig; iconfig++)
         mnist_dat[iconfig] = new cuMnist(cdi.mnistData, datamerge[iconfig], datarefine[iconfig], objrow, objcol);
-      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_input, objrow*objcol);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
-      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_obj, objrow*objcol);
     }
     else {
       intensity = readImage(cdi.common.Intensity, objrow, objcol);
-      d_input = (Real*) memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_input, objrow*objcol);
       myMemcpyH2D(d_input, intensity, objrow*objcol*sizeof(Real));
-      ccmemMngr.returnCache(intensity);
+      myFree(intensity);
       objrow *= cdi.oversampling;
       objcol *= cdi.oversampling;
-      d_obj = (Real*)memMngr.borrowCache(objrow*objcol*sizeof(Real));
+      myCuMalloc(Real, d_obj, objrow*objcol);
         resize_cuda_image(objrow, objcol);
       pad(d_input, d_obj,  objrow/cdi.oversampling, objcol/cdi.oversampling);
-      memMngr.returnCache(d_input);
+      myCuFree(d_input);
     }
   }else{
     intensity = readImage(cdi.common.Pattern, objrow, objcol);
@@ -74,8 +74,8 @@ int main(int argc, char** argv){
     Real dlambda = 2./objrow;
     Real midlambda = Real(lambdarange+1)/2;
     int nlambda = (lambdarange-1)/dlambda;
-    lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-    spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+    myMalloc(double, lambdas, nlambda);
+    myMalloc(double, spectra, nlambda);
     for(int i = 0; i < nlambda; i++){
       lambdas[i] = 1 + dlambda*i;
       spectra[i] = exp(-pow((lambdas[i]-midlambda)/sigma,2)/2)/nlambda; //gaussian, -1,1 with sigma=1
@@ -126,12 +126,12 @@ int main(int argc, char** argv){
   }
   init_fft(objrow, objcol);
   int sz = mwl.row*mwl.column*sizeof(Real);
-  Real *d_patternSum = (Real*)memMngr.borrowCache(sz);
-  Real *realcache = (Real*)memMngr.borrowCache(sz);
-  Real *single = (Real*)ccmemMngr.borrowCache(sz);
-  Real *merged = (Real*)ccmemMngr.borrowCache(sz);
-  complexFormat *d_CpatternSum = (complexFormat*)memMngr.borrowCache(sz*2);
-  complexFormat *d_solved = (complexFormat*)memMngr.borrowCache(sz*2);
+  myCuDMalloc(Real, d_patternSum, mwl.row*mwl.column);
+  myCuDMalloc(Real, realcache, mwl.row*mwl.column);
+  myDMalloc(Real, single, mwl.row*mwl.column);
+  myDMalloc(Real, merged, mwl.row*mwl.column);
+  myCuDMalloc(complexFormat, d_CpatternSum, mwl.row*mwl.column);
+  myCuDMalloc(complexFormat, d_solved, mwl.row*mwl.column);
   resize_cuda_image(mwl.row, mwl.column);
   plt.init(mwl.row, mwl.column);
   void *devstates = newRand(mwl.column * mwl.row);
@@ -184,7 +184,7 @@ int main(int argc, char** argv){
       }
     }else{
       myMemcpyH2D(d_patternSum, intensity, objrow*objcol*sizeof(Real));
-      ccmemMngr.returnCache(intensity);
+      myFree(intensity);
       if(cdi.solveSpectrum){
         int tmprow, tmpcol;
         intensity = readImage(cdi.pupil.Pattern, tmprow, tmpcol);
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
         if(tmprow > objrow) crop((Real*)d_solved, realcache, tmprow, tmpcol);
         else pad((Real*)d_solved, realcache, tmprow,tmpcol);
         extendToComplex(realcache, d_solved);
-        ccmemMngr.returnCache(intensity);
+        myFree(intensity);
       }
     }
     if(cdi.doIteration){
@@ -211,8 +211,8 @@ int main(int argc, char** argv){
       if(cdi.solveSpectrum) {
         mwl.solveMWL(d_CpatternSum, d_solved, 0, 0, 1, 0, 1);
         mwl.writeSpectra("spectra.txt");
-        lambdas = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
-        spectra = (double*)ccmemMngr.borrowCache(mwl.nlambda*sizeof(double));
+        myMalloc(double, lambdas, mwl.nlambda);
+        myMalloc(double, spectra, mwl.nlambda);
         memcpy(spectra, mwl.spectra, mwl.nlambda*sizeof(double));
         for(int i = 0; i < mwl.nlambda ; i++) {
           lambdas[i] = monoLambda*mwl.rows[i]/mwl.row;

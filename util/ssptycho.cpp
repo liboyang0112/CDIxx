@@ -68,11 +68,11 @@ class ssptycho : public readConfig{
       fmt::println("resolution={}", resolution);
       if(devstates) return;
       sz = row*column*sizeof(Real);
-      objectWave = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
-      objectWave_t = (complexFormat*)memMngr.borrowCache(row*column*sizeof(Real)*2);
-      pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
-      pupilpatternWave = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
-      pattern = (Real*)memMngr.borrowCache(sz);
+      myCuMalloc(complexFormat, objectWave, row*column);
+      myCuMalloc(complexFormat, objectWave_t, row*column);
+      myCuMalloc(complexFormat, pupilpatternWave_t, row*column);
+      myCuMalloc(complexFormat, pupilpatternWave, row*column);
+      myCuMalloc(Real, pattern, row*column);
       propagate_complete.row = propagate_esw.row = propagate_pupil.row = row;
       propagate_complete.column = propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = resolution;
@@ -91,8 +91,8 @@ class ssptycho : public readConfig{
 
       // Allocate grating and peak parameter arrays
       resize_cuda_image(row, column);
-      grating = (complexFormat*)memMngr.borrowCleanCache(row*column*sizeof(complexFormat));
-      peakEnergies = (Real*)ccmemMngr.borrowCache(nPeaks*sizeof(Real));
+      myCuMallocClean(complexFormat, grating, row*column);
+      myMalloc(Real, peakEnergies, nPeaks);
 
       // Copy energies and compute amplitudes (sqrt of normalized energy)
       Real totalE = 0;
@@ -102,12 +102,12 @@ class ssptycho : public readConfig{
       }
 
       // Zero-init, then sum plane waves for each peak
-      complexFormat* pw = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+      myCuDMalloc(complexFormat, pw, row*column);
       for(int i = 0; i < nPeaks; i++){
         createPlaneWave(pw, peaks[i].x*row, peaks[i].y*column, peakEnergies[i]);
         add(grating, pw);
       }
-      memMngr.returnCache(pw);
+      myCuFree(pw);
 
       // Plot the recovered grating
       plt.init(row, column, outputDir);
@@ -118,7 +118,7 @@ class ssptycho : public readConfig{
       I2 = findSum(pattern)/(row*column);
       if(nPeaks > 0 && grating){
         resize_cuda_image(row, column);
-        probeWave = (complexFormat*)memMngr.borrowCleanCache(row*column*sizeof(complexFormat));
+        myCuMallocClean(complexFormat, probeWave, row*column);
         myCuDMalloc(Real, tmp, row*column);
         createCircleMask(tmp, row>>1, column>>1, pupilSize/2);
         extendToComplex(tmp, probeWave);
@@ -175,7 +175,7 @@ class ssptycho : public readConfig{
       }else{
         myMemcpyH2D(pupilpatternWave_t, h_pupil, sz*2);
       }
-      ccmemMngr.returnCache(h_pupil);
+      myFree(h_pupil);
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "input_pupil_wave");
       init_fft(row, column);
       if(cancelFresnel){
@@ -192,7 +192,7 @@ class ssptycho : public readConfig{
       allocateMem();
       sz = row * column * sizeof(Real);
       myMemcpyH2D(pattern, h_pat, sz);
-      ccmemMngr.returnCache(h_pat);
+      myFree(h_pat);
       resize_cuda_image(row, column);
       init_fft(row, column);
       plt.init(row, column, outputDir);
@@ -205,7 +205,7 @@ class ssptycho : public readConfig{
         beamstop = createBeamStop(row,column,beamStopSize);
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
-      complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, Fn, row*column);
       multiply(Fn, pupilpatternWave_t, objectWave_t);
       if(isFresnel || cancelFresnel) {
         propagate_esw.multiplyFresnelPhase(Fn);
@@ -227,13 +227,13 @@ class ssptycho : public readConfig{
       myMemcpyH2D(pattern, spots, row*column*sizeof(Real));
       auto rawpeaks = findPeaks(pattern, 100);
       energies = getPeakEnergies(pattern, rawpeaks, 100); //energies should be class member;
-      peaks = refinePeaks(pattern, rawpeaks, 100.0); //peaks should be class member;
+      peaks = refinePeaks(spots, rawpeaks, 100.0); //peaks should be class member;
       Real epsilon = 1.0/row;
       ratios = createPeakGauss(rawpeaks, energies, epsilon);
       if(verbose > 5)
       for(uint i = 0; i < ratios.size(); i++){
         plt.plotFloat(ratios[i], MOD, 0, 1, ("peak_lorentzian_"+to_string(i)).c_str(), 0, 0, 1);
-        memMngr.returnCache(ratios[i]);
+        myCuFree(ratios[i]);
       }
       // Recover grating from refined peaks
       myCuFree(pattern);
@@ -243,9 +243,9 @@ class ssptycho : public readConfig{
     // After reconstruction: multiply probe by each peak's plane wave, propagate, plot each beam
     void plotEachBeam(){
       if(nPeaks == 0) return;
-      complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, Fn, row*column);
       // Allocate per-peak plane wave buffer
-      complexFormat* planeWave = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+      myCuDMalloc(complexFormat, planeWave, row*column);
       for(int i = 0; i < nPeaks; i++){
         Real px = peaks[i].x * row;
         Real py = peaks[i].y * column;
@@ -256,8 +256,8 @@ class ssptycho : public readConfig{
         myFFT(Fn, Fn);
         plt.plotComplex(Fn, MOD2, 1, exposure/(3*row*column), ("beam_diffraction_"+to_string(i)).c_str(), 1, 0, 1);
       }
-      memMngr.returnCache(Fn);
-      memMngr.returnCache(planeWave);
+      myCuFree(Fn);
+      myCuFree(planeWave);
     }
 
     void plotResults(){
@@ -282,8 +282,8 @@ class ssptycho : public readConfig{
     void iterate(){
       Real norm = 1./sqrt(row*column);
       // Allocate block buffers
-      complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
-      complexFormat *esw = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, Fn, row*column);
+      myCuDMalloc(complexFormat, esw, row*column);
       myCuDMallocClean(complexFormat, objectWave_prev, row*column);
       myCuDMallocClean(complexFormat, probe_prev, row*column);
       myCuDMalloc(complexFormat, probestep, row*column);
@@ -298,7 +298,7 @@ class ssptycho : public readConfig{
       // Pre-normalize pattern blocks by exposure (same as ptycho.cpp createPattern)
       int update_probe_iter = 4000;
       Real objMax, probeMax;
-      Real *maxCache = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+      myCuDMalloc(Real, maxCache, row*column);
       myCuDMalloc(Real, d_norm, 2);
       myDMalloc(Real, h_norm, 2);
 
@@ -461,8 +461,8 @@ class ssptycho : public readConfig{
       }
       fmt::println("Iterations complete.");
       plt.saveVideo(vidhandle_object);
-      memMngr.returnCache(Fn);
-      memMngr.returnCache(esw);
+      myCuFree(Fn);
+      myCuFree(esw);
     }
 };
 

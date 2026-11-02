@@ -16,19 +16,19 @@ int main(int argc, char** argv )
   size_t sz = row*col*sizeof(Real);
   myCuDMalloc(Real,d_bkg,sz);
   myMemcpyH2D(d_bkg, bkg, sz);
-  ccmemMngr.returnCache(bkg);
+  myFree(bkg);
   Real* sig = readImage(argv[2], row1, col1);
   sz = row1*col1*sizeof(Real);
   myCuDMalloc(Real, d_sig, sz);
   myMemcpyH2D(d_sig, sig, sz);
-  ccmemMngr.returnCache(sig);
+  myFree(sig);
   init_cuda_image(rcolor, 1);
   if(row!=row1){
     if(row > row1){
       myCuDMalloc(Real, tmp, row1*col1);
       resize_cuda_image(row1, col1);
       crop(d_bkg, tmp, row, col);
-      memMngr.returnCache(d_bkg);
+      myCuFree(d_bkg);
       d_bkg = tmp;
       row = row1;
       col = col1;
@@ -36,7 +36,7 @@ int main(int argc, char** argv )
       myCuDMalloc(Real, tmp, row*col);
       resize_cuda_image(row, col);
       crop(d_sig, tmp, row1, col1);
-      memMngr.returnCache(d_sig);
+      myCuFree(d_sig);
       d_sig = tmp;
     }
   }else{
@@ -63,7 +63,7 @@ int main(int argc, char** argv )
   std::complex<Real> mid(findMiddle(d_bit, row*col));
   Real midx = mid.real()*row;
   Real midy = mid.imag()*col;
-  memMngr.returnCache(d_bit);
+  myCuFree(d_bit);
   //memMngr.returnCache(d_mask);
   //memMngr.returnCache(cuda_spt);
   if(argc >= 7){

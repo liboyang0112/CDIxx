@@ -45,15 +45,15 @@ void spectImaging::initRefs(Real* refMask_dev, int mrow, int mcol, int shiftx, i
   myDMalloc(Real, refMask, mrow*mcol);
   myMemcpyH2D(refMask, refMask_dev, mrow*mcol*sizeof(Real));
   uint32_t* maskMap = createMaskMap(refMask, pixCount, row, column, mrow, mcol, shiftx, shifty);
-  d_maskMap = (uint32_t*)memMngr.borrowCache(pixCount*sizeof(uint32_t));
+  myCuMalloc(uint32_t, d_maskMap, pixCount);
   myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
   myFree(maskMap);
   myFree(refMask);
-  refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
+  myMalloc(void*, refs, nlambda);
 
   complexFormat val = 1;
   for(int i = 0; i < nlambda; i++){
-    refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
+    myCuMalloc(complexFormat, refs[i], pixCount);
     setValue((complexFormat*)refs[i], val);
   }
   fmt::println("mask has {} pixels", pixCount);
@@ -67,9 +67,9 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   fmt::println("{}, {}", static_cast<int32_t>(maskMap[0]),static_cast<int32_t>(maskMap[1]));
   myCuMalloc(uint32_t, d_maskMap, pixCount);
   myMemcpyH2D(d_maskMap, maskMap, pixCount*sizeof(uint32_t));
-  refs = (void**)ccmemMngr.borrowCache(nlambda*sizeof(void*));
+  myMalloc(void*, refs, nlambda);
   for(int i = 0; i < nlambda; i++){
-    refs[i] = memMngr.borrowCache(pixCount*sizeof(complexFormat));
+    myCuMalloc(complexFormat, refs[i], pixCount);
   }
   myDMalloc(complexFormat, d_ref, pixCount);
   for (int i = 0; i < pixCount; i++) {
@@ -81,9 +81,9 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   fmt::println("mask has {} pixels", pixCount);
 }
 void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask){
-  complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
-  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
-  Real *d_pattern= (Real*)memMngr.borrowCleanCache(row*column*sizeof(Real));
+  myCuDMallocClean(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
+  myCuDMalloc(complexFormat, camp, row*column);
+  myCuDMallocClean(Real, d_pattern, row*column);
   complexFormat* masked = 0;
   if(mask) myCuMalloc(complexFormat, masked, imrow*imcol);
   for(int i = 0; i < nlambda; i++){
@@ -132,9 +132,9 @@ void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask
   myCuFree(d_pattern);
 }
 void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
-  complexFormat *amp = (complexFormat*)memMngr.borrowCleanCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
-  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
-  Real *d_pattern= (Real*)memMngr.borrowCleanCache(row*column*sizeof(Real));
+  myCuDMallocClean(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
+  myCuDMalloc(complexFormat, camp, row*column);
+  myCuDMallocClean(Real, d_pattern, row*column);
   resize_cuda_image(row, column);
   for(int i = 0; i < nlambda; i++){
     int thisrow = rows[i];
@@ -297,14 +297,15 @@ void spectImaging::reconRefs(void* d_patternSum){
   resize_cuda_image(row, column);
   clearRefs();
   uint32_t sz = memMngr.getSize(d_patternSum);
-  Real* patternRecon = (Real*)memMngr.borrowCache(sz);
-  Real* residual = (Real*)memMngr.borrowCache(sz);
-  complexFormat *amp = (complexFormat*)memMngr.borrowCache(rows[nlambda-1]*cols[nlambda-1]*sizeof(complexFormat));
-  complexFormat *camp = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
-  Real *campm = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  Real *deltao = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  Real *deltao2 = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
-  complexFormat* reftmp = (complexFormat*)memMngr.borrowCache(sizeof(complexFormat)*pixCount);
+  size_t nsz = sz/sizeof(Real);
+  myCuDMalloc(Real, patternRecon, nsz);
+  myCuDMalloc(Real, residual, nsz);
+  myCuDMalloc(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
+  myCuDMalloc(complexFormat, camp, row*column);
+  myCuDMalloc(Real, campm, row*column);
+  myCuDMalloc(Real, deltao, row*column);
+  myCuDMalloc(Real, deltao2, row*column);
+  myCuDMalloc(complexFormat, reftmp, pixCount);
   Real kfactor = 0;
   Real stepsize = 1;
   plt.plotFloat(d_patternSum, MOD, 0, 1, "target_pattern", 1, 0, 1);
@@ -418,4 +419,8 @@ void spectImaging::reconRefs(void* d_patternSum){
   myCuFree(residual);
   myCuFree(amp);
   myCuFree(camp);
+  myCuFree(campm);
+  myCuFree(deltao);
+  myCuFree(deltao2);
+  myCuFree(reftmp);
 }

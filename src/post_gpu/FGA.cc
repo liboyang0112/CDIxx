@@ -6,7 +6,7 @@
 
 int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* data, int niter, int binskip)
 {
-    Real* realb = (Real*)memMngr.borrowCache(sizeof(Real)*row*col);
+    myCuDMalloc(Real, realb, row*col);
     myMemcpyH2D(realb, data, sizeof(Real)*row*col);
     init_cuda_image();
     resize_cuda_image(row, col);
@@ -18,8 +18,8 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     mwl.init(row, col, lambdas, spectra, nlambda);
     mwl.lambda_ref = lambdas[0];
     plt.init(row, col);
-    complexFormat* complexpattern = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
-    complexFormat* solved = (complexFormat*)memMngr.borrowCache(sizeof(double)*row*col);
+    myCuDMalloc(complexFormat, complexpattern, row*col);
+    myCuDMalloc(complexFormat, solved, row*col);
     extendToComplex(realb, complexpattern);
     plt.saveFloat(realb, "broadpattern");
     plt.plotComplex(complexpattern,MOD,0,1,"logbroadpattern",1,0,1);

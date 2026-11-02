@@ -97,7 +97,7 @@ static int mkdir_p(const char* path) {
 void* createVideo(const char* output_path, int row, int col, int fps, const char* unused) {
   (void)unused;
 
-  struct video* thisvid = (struct video*)ccmemMngr.borrowCache(sizeof(struct video));
+  myDMalloc(struct video, thisvid, 1);
   memset(thisvid, 0, sizeof(struct video));
   
   if (col <= 0 || row <= 0) {
@@ -377,5 +377,5 @@ void saveVideo(void* ptr) {
   av_frame_free(&v->frame);
   av_packet_free(&v->pkt);
   sws_freeContext(v->sws_ctx);
-  ccmemMngr.returnCache(v);
+  myFree(v);
 }

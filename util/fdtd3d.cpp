@@ -22,12 +22,12 @@ int main(){
 
   size_t nnode = nx*ny*nz;
   size_t memsz = nnode*sizeof(Real);
-  Real* Hz = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Hx = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Hy = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Ex = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Ey = (Real*)memMngr.borrowCleanCache(memsz);
-  Real* Ez = (Real*)memMngr.borrowCleanCache(memsz);
+  myCuDMallocClean(Real, Hz, nnode);
+  myCuDMallocClean(Real, Hx, nnode);
+  myCuDMallocClean(Real, Hy, nnode);
+  myCuDMallocClean(Real, Ex, nnode);
+  myCuDMallocClean(Real, Ey, nnode);
+  myCuDMallocClean(Real, Ez, nnode);
   //Real* Px = (Real*)memMngr.borrowCleanCache(memsz);  //polarization
   //Real* Py = (Real*)memMngr.borrowCleanCache(memsz);
   //Real* Pz = (Real*)memMngr.borrowCleanCache(memsz);
@@ -50,7 +50,7 @@ int main(){
   myCuDMallocClean(Real, HxBdz0, nx*ny);
   myCuDMallocClean(Real, HyBdz0, nx*ny);
   //select slice for visualization
-  Real* slice = (Real*)memMngr.borrowCache(nx*ny*sizeof(Real));
+  myCuDMalloc(Real, slice, nx*ny);
 
   bool saveField = 0;
   int sourcePos = nx/2+nx*ny/2 + nx*ny*nz/2;

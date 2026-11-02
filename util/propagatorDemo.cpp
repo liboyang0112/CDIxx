@@ -32,7 +32,7 @@ int main(int argc, char** argv )
   myCuDMalloc(complexFormat, d_wave, row*col); //allocate GPU memory
   myCuDMalloc(Real, d_mod2, row*col); //allocate GPU memory
   myMemcpyH2D(d_wave, wave,row*col*sizeof(complexFormat));
-  ccmemMngr.returnCache(wave); //the image on memory is not needed later, therefore we recycled it here.
+  myFree(wave); //the image on memory is not needed later, therefore we recycled it here.
   myCuDMalloc(complexFormat, d_propagatedwave, row*col) //allocate the memory on GPU memory for complex amplitude, oversampled by oversampling x oversampling
 
   resize_cuda_image(row, col);  //tell cuda to process the image of this size

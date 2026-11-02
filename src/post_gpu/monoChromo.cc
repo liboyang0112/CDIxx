@@ -12,7 +12,8 @@
 using namespace std;
 
 Real innerProd(complexFormat* a, complexFormat* b, Real* param){
-  Real* tmp = (Real*)memMngr.borrowCache(memMngr.getSize(a)/2);
+  size_t nsz = memMngr.getSize(a)/sizeof(complexFormat);
+  myCuDMalloc(Real, tmp, nsz);
   multiplyReal(tmp,a, b);
   applyMask(tmp, (Real*)param);
   Real sum = findSum(tmp);
@@ -40,11 +41,11 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   spt.starty = spt.startx = d;
   spt.endx = spt.endy = row-d-1;
   rect *cuda_spt;
-  cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
+  myCuMalloc(rect, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &spt, sizeof(spt));
   Real *sptimg = 0;
   if(updateA){
-    sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+    myCuMalloc(Real, sptimg, row*column);
     createMaskBar(sptimg, cuda_spt, 0);
     myCuFree(cuda_spt);
     applyMaskBar(sptimg, d_input, 0.99);
@@ -79,7 +80,7 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
     fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
     if(step_a<=0 || step_a!=step_a) abort();
-    momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
+    myMallocClean(Real, momentum_a, nlambda);
   }
   complexFormat *fbi = 0;
   if(!updateX) {
@@ -88,15 +89,15 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   }
   int nmem = nlambda/8;
   if(updateA) {
-    gs = (complexFormat**)ccmemMngr.borrowCache((nmem+1)*sizeof(complexFormat*));
+    myMalloc(complexFormat*, gs, nmem+1);
     for(int j = 0; j < nmem+1; j++){
       myCuMalloc(complexFormat, gs[j], sz);
     }
   }else myCuMalloc(complexFormat, fbi, sz);
   // Real tk = 1;
   bool calcDeltab = 0;
-  double* matrix = (double*) ccmemMngr.borrowCache(nlambda*nlambda*sizeof(double));
-  double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
+  myDMalloc(double, matrix, nlambda*nlambda);
+  myDMalloc(double, right, nlambda);
   for(int i = 0; i < nIter; i++){
     if(updateX||i==0||!gs) {
       myIFFT(d_output, fftb);
@@ -256,29 +257,30 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   spt.starty = spt.startx = d;
   spt.endx = spt.endy = row-d-1;
   rect *cuda_spt;
-  cuda_spt = (rect*)memMngr.borrowCache(sizeof(rect));
+  myCuMalloc(rect, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &spt, sizeof(spt));
   Real *sptimg = 0;
   if(updateA){
-    sptimg = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+    myCuMalloc(Real, sptimg, row*column);
     createMaskBar(sptimg, cuda_spt, 0);
     myCuFree(cuda_spt);
     applyMaskBar(sptimg, d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
   size_t sz = row*column*sizeof(complexFormat);
+  size_t nsz = sz/sizeof(complexFormat);
   init_fft(row,column);
   resize_cuda_image(row, column);
   bool doFISTA = true;//0.1;
   if(!restart)
     clearCuMem(d_output,  sz);
-  complexFormat *deltab = (complexFormat*)memMngr.borrowCache(sz);
+  myCuDMalloc(complexFormat, deltab, nsz);
   complexFormat *momentum = 0;
   if(doFISTA) {
-    momentum = (complexFormat*)memMngr.borrowCleanCache(sz);
+    myCuDMallocClean(complexFormat, momentum, nsz);
   }
-  complexFormat *patternstep = (complexFormat*)memMngr.borrowCache(sz);
-  Real *multiplied = (Real*)memMngr.borrowCache(sz/2);
+  myCuDMalloc(complexFormat, patternstep, nsz);
+  myCuDMalloc(Real, multiplied, nsz);
   Real *momentum_a = 0;
   float step_a = 0;
   fmt::ostream* fresidual;
@@ -289,26 +291,27 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
     fmt::println("normalization: {:f}",mod2ref);
     step_a = 1./(mod2ref*nlambda);
     if(step_a<=0 || step_a!=step_a) abort();
-    momentum_a = (Real*) ccmemMngr.borrowCleanCache(nlambda*sizeof(Real));
+    myMallocClean(Real, momentum_a, nlambda);
   }
   complexFormat *fbi;
   complexFormat *fbj;
 
   int nmem = 0;
   if(updateA) {
-    gs = (complexFormat**)ccmemMngr.borrowCache((nlambda)*sizeof(complexFormat*));
+    myMalloc(complexFormat*, gs, nlambda);
     for(int j = 0; j < nlambda; j++){
       myCuMalloc(complexFormat, gs[j], row*column);
       nmem++;
       if(getGPUFreeMem()<1000) break;
     }
   }else {
-    fbj = fbi = (complexFormat*)memMngr.borrowCache(sz);
+    myCuMalloc(complexFormat, fbi, nsz);
+    fbj = fbi;
   }
   // Real tk = 1;
   bool calcDeltab = 0;
-  double* matrix = (double*) ccmemMngr.borrowCleanCache(nlambda*nlambda*sizeof(double));
-  double* right = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
+  myDMallocClean(double, matrix, nlambda*nlambda);
+  myDMalloc(double, right, nlambda);
 
   int vidhandle_probe = plt.initVideo("recon_mono.mp4",24);
   plt.toVideo = -1;

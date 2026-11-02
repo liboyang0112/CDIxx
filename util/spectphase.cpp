@@ -22,8 +22,8 @@ int main(int argc, char* argv[]){
 #if 1
   Real lambdarange = 2;
   int nlambda = row*(lambdarange-1)/2;
-  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  spectra = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
+  myMalloc(double, lambdas, nlambda);
+  myMalloc(double, spectra, nlambda);
   for(int i = 0; i < nlambda; i++){
     lambdas[i] = 1 + 2.*i/row;
     spectra[i] = 1; //gaussian, -1,1 with sigma=1

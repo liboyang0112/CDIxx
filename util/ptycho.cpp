@@ -111,15 +111,15 @@ class ptycho : public readConfig{
       }
       nscan = distances.size();
       size_t scansz = nscan*sizeof(Real);
-      patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
-      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
-      scanpos = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      myMallocClean(Real*, patterns, nscan);
+      myMallocClean(Real, shifts, nscan*2);
+      myMallocClean(Real, scanpos, nscan*2);
       scanposx = scanpos;
       scanposy = scanpos + nscan;
-      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
+      myCuMallocClean(Real, d_shifts, nscan*2);
       shiftx = shifts;
       shifty = shifts+nscan;
-      d_shift = (Real*)memMngr.borrowCache(scansz*2);
+      myCuMalloc(Real, d_shift, nscan*2);
       for(int i = 0; i < nscan; i++){
         scanposx[i] = (distances[i][0]-minx)*stepSize;
         scanposy[i] = (distances[i][1]-miny)*stepSize;
@@ -129,15 +129,15 @@ class ptycho : public readConfig{
     }
     void allocScan(){
       size_t scansz = nscan*sizeof(Real);
-      patterns = (Real**)ccmemMngr.borrowCleanCache(nscan*sizeof(Real*));
-      scanpos = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
+      myMallocClean(Real*, patterns, nscan);
+      myMallocClean(Real, scanpos, nscan*2);
       scanposx = scanpos;
       scanposy = scanpos + nscan;
-      shifts = (Real*)ccmemMngr.borrowCleanCache(scansz*2);
-      d_shifts = (Real*)memMngr.borrowCleanCache(scansz*2);
+      myMallocClean(Real, shifts, nscan*2);
+      myCuMallocClean(Real, d_shifts, nscan*2);
       shiftx = shifts;
       shifty = shifts+nscan;
-      d_shift = (Real*)memMngr.borrowCache(scansz*2);
+      myCuMalloc(Real, d_shift, nscan*2);
     }
     void initScan_rect(){
       nscan = scanx*scany;
@@ -262,11 +262,11 @@ class ptycho : public readConfig{
       if(devstates) return;
       devstates = newRand(column_O * row_O);
       fmt::println("allocating memory");
-      objectWave = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
-      objectWave_t = (complexFormat*)memMngr.borrowCache(row_O*column_O*sizeof(Real)*2);
-      pupilpatternWave = (complexFormat*)memMngr.borrowCache(sz*2);
-      pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(sz*2);
-      esw = (complexFormat*) memMngr.borrowCache(sz*2);
+      myCuMalloc(complexFormat, objectWave, row_O*column_O);
+      myCuMalloc(complexFormat, objectWave_t, row_O*column_O);
+      myCuMalloc(complexFormat, pupilpatternWave, row*column);
+      myCuMalloc(complexFormat, pupilpatternWave_t, row*column);
+      myCuMalloc(complexFormat, esw, row*column);
       propagate_complete.row = propagate_esw.row = propagate_pupil.row = row;
       propagate_complete.column = propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = resolution;
@@ -293,8 +293,8 @@ class ptycho : public readConfig{
       allocateMem();
       createWaveFront(d_object_intensity, d_object_phase, objectWave_t, 1);
       //createWaveFront(d_object_intensity, 0, objectWave_t, 1);
-      memMngr.returnCache(d_object_intensity);
-      memMngr.returnCache(d_object_phase);
+      myCuFree(d_object_intensity);
+      myCuFree(d_object_phase);
       verbose(2,
           plt.init(row_O,column_O, outputDir);
           plt.plotComplexColor(objectWave_t, 0, 1, "inputObject");
@@ -304,22 +304,22 @@ class ptycho : public readConfig{
           plt.plotComplex(objectWave_t, PHASE, 0, 1, "inputPhase");
           //plt.plotPhase(objectWave_t, PHASERAD, 0, 1, "inputPhase");
           )
-        Real* d_intensity = (Real*) memMngr.borrowCache(sz); //use the memory allocated;
+        myCuDMalloc(Real, d_intensity, row*column); //use the memory allocated;
       myMemcpyH2D(d_intensity, pupil_intensity, sz);
-      ccmemMngr.returnCache(pupil_intensity);
+      myFree(pupil_intensity);
       Real* d_phase = 0;
       if(doPhaseModulationPupil){
-        d_phase = (Real*) memMngr.borrowCache(sz);
+        myCuMalloc(Real, d_phase, row*column);
         int tmp;
         Real* pupil_phase = readImage(pupil.Phase, tmp,tmp);
         myMemcpyH2D(d_phase, pupil_phase, sz);
-        ccmemMngr.returnCache(pupil_phase);
+        myFree(pupil_phase);
       }
-      pupilpatternWave_t = (complexFormat*)memMngr.borrowCache(row*column*sizeof(complexFormat));
+      myCuMalloc(complexFormat, pupilpatternWave_t, row*column);
       resize_cuda_image(row,column);
       createWaveFront(d_intensity, d_phase, pupilpatternWave_t, 1);
-      memMngr.returnCache(d_intensity);
-      if(d_phase) memMngr.returnCache(d_phase);
+      myCuFree(d_intensity);
+      if(d_phase) myCuFree(d_phase);
       plt.init(row,column, outputDir);
       if(cancelFresnel){
         propagate_complete.removeFresnelPhase(pupilpatternWave_t);
@@ -349,7 +349,7 @@ class ptycho : public readConfig{
         beamstop = createBeamStop(row,column,beamStopSize);
         plt.plotFloat(beamstop, MOD, 1, 1,"beamstop", 0);
       }
-      complexFormat* window = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, window, row*column);
       myMalloc(complexFormat*, esws_t, nscan);
       I2 = 0;
       if(isFresnel || cancelFresnel) {
@@ -368,7 +368,7 @@ class ptycho : public readConfig{
         multiply(esws_t[i], pupilpatternWave_t, window);
         verbose(5, plt.plotComplex(esws_t[i], MOD2, 0, 1, ("ptycho_esw"+to_string(i)).c_str()));
         myFFT(esws_t[i],esw);
-        if(!patterns[i]) patterns[i] = (Real*)memMngr.borrowCache(sz);
+        if(!patterns[i]) myCuMalloc(Real, patterns[i], row*column);
         getMod2(patterns[i], esw, 1./(row*column));
         if(useBS) applySupport(patterns[i], beamstop);
         if(simCCDbit) {
@@ -396,7 +396,7 @@ class ptycho : public readConfig{
       I2 /= nscan;
       I2 /=row*column;
       printf("I avg:%f\n",I2);
-      memMngr.returnCache(window);
+      myCuFree(window);
     }
     void initObject(){
       resize_cuda_image(row_O,column_O);
@@ -427,9 +427,9 @@ class ptycho : public readConfig{
       findSum(cache, n, d_shift+scanidx);
       calcPartial(cache, cachey, Fn, pattern, beamstop);
       findSum(cache, n, d_shift+scanidx+nscan);
-      memMngr.returnCache(cachex);
-      memMngr.returnCache(cachey);
-      memMngr.returnCache(cache);
+      myCuFree(cachex);
+      myCuFree(cachey);
+      myCuFree(cache);
     }
     void updatePosition_conv(complexFormat* obj, complexFormat* probe, complexFormat* Fn){
       size_t n = row*column;
@@ -469,12 +469,12 @@ class ptycho : public readConfig{
       resize_cuda_image(row,column);
       Real objMax = 1;
       Real probeMax = 1;
-      complexFormat *Fn = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, Fn, row*column);
       myCuDMallocClean(complexFormat, probeStep, row*column);
       myCuDMallocClean(complexFormat, probe_prev, row*column);
-      complexFormat *objCache = (complexFormat*)memMngr.borrowCache(sz*2);
+      myCuDMalloc(complexFormat, objCache, row*column);
       myCuDMallocClean(complexFormat, objectWave_prev, row_O*column_O);
-      Real *maxCache = (Real*)memMngr.borrowCache(row_O*column_O*sizeof(Real));
+      myCuDMalloc(Real, maxCache, row_O*column_O);
       myCuDMalloc(complexFormat, objeff, row_O*column_O);
       myCuDMallocClean(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
@@ -719,7 +719,7 @@ class ptycho : public readConfig{
             //FISTA_step(objectWave, objectWave, 0.025*sqrt(I2), NULL);
           }
           else
-            L2_step(objectWave, objectWave, 0.01*I2, NULL);
+            L2_step(objectWave, objectWave, 0.02*I2, NULL);
         }
         if(mPIE > iter){ //momentum update
           resize_cuda_image(row_O, column_O);
@@ -765,8 +765,8 @@ class ptycho : public readConfig{
       }
       myCuFree(d_norm);
       myFree(h_norm);
-      memMngr.returnCache(Fn);
-      memMngr.returnCache(objCache);
+      myCuFree(Fn);
+      myCuFree(objCache);
       Real crop_ratio = 1;
       int rowc = row_O*crop_ratio;
       int colc = column_O*crop_ratio;
@@ -804,9 +804,9 @@ class ptycho : public readConfig{
       I2 = 0;
       for(int i = 0; i < nscan; i++){
         if(i!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".bin").c_str(), row, column);
-        if(!patterns[i]) patterns[i] = (Real*)memMngr.borrowCache(sz);
+        if(!patterns[i]) myCuMalloc(Real, patterns[i], row*column);
         myMemcpyH2D(patterns[i], pattern, sz);
-        ccmemMngr.returnCache(pattern);
+        myFree(pattern);
         cudaConvertFO(patterns[i]);
         applyNorm(patterns[i], 1./exposure);
         I2 += findSum(patterns[i]);
@@ -820,9 +820,9 @@ class ptycho : public readConfig{
     Real computeErrorSim(){  //compute error of esw instead of probe and object, this is easier since brightness scaling, phase shift cancels out.
       if(!runSim) return 0;
       size_t n = row*column;
-      complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sz*2);
-      complexFormat* cc = (complexFormat*)memMngr.borrowCache(sz*2);
-      Real* diff2 = (Real*)memMngr.borrowCache(sz);
+      myCuDMalloc(complexFormat, tmp, row*column);
+      myCuDMalloc(complexFormat, cc, row*column);
+      myCuDMalloc(Real, diff2, row*column);
       Real err = 0;
       for(int i = 0; i < nscan; i++){
         Real posx = scanposx[i] + shiftx[i];
@@ -860,9 +860,9 @@ class ptycho : public readConfig{
         getMod2(diff2, esw);
         err += findSum(diff2, n)/n;
       }
-      memMngr.returnCache(tmp);
-      memMngr.returnCache(cc);
-      memMngr.returnCache(diff2);
+      myCuFree(tmp);
+      myCuFree(cc);
+      myCuFree(diff2);
       return err / nscan;
     }
 };

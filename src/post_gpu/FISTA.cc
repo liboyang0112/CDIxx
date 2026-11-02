@@ -4,15 +4,16 @@
 
 void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, Real*)){
   size_t sz = memMngr.getSize(b);
-  Real* pij = (Real*)memMngr.borrowCleanCache(sz);
-  Real* qij = (Real*)memMngr.borrowCleanCache(sz);
-  Real* lpq = (Real*)memMngr.borrowCache(sz);
-  Real* pijprev = (Real*)memMngr.borrowCache(sz);
-  Real* qijprev = (Real*)memMngr.borrowCache(sz);
+  size_t nsz = sz/sizeof(Real);
+  myCuDMallocClean(Real, pij, nsz);
+  myCuDMallocClean(Real, qij, nsz);
+  myCuDMalloc(Real, lpq, nsz);
+  myCuDMalloc(Real, pijprev, nsz);
+  myCuDMalloc(Real, qijprev, nsz);
   bool replaceout = 0;
   if(output == b) {
     replaceout = 1;
-    output = (Real*)memMngr.borrowCache(sz);
+    myCuMalloc(Real, output, nsz);
   }
   if(applyC) applyC(b, output);
   else myMemcpyD2D(output, b, sz);
@@ -41,28 +42,29 @@ void FISTA(Real* b, Real* output, Real lambda, int niter, void (applyC)(Real*, R
     add( output, b, lpq, -lambda);
     if(applyC) applyC(output, output);
   }
-  memMngr.returnCache(pij);
-  memMngr.returnCache(qij);
-  memMngr.returnCache(lpq);
-  memMngr.returnCache(pijprev);
-  memMngr.returnCache(qijprev);
+  myCuFree(pij);
+  myCuFree(qij);
+  myCuFree(lpq);
+  myCuFree(pijprev);
+  myCuFree(qijprev);
   if(replaceout){
     myMemcpyD2D(b, output, sz);
-    memMngr.returnCache(output);
+    myCuFree(output);
   }
 };
 
 void FISTA(complexFormat* b, complexFormat* output, Real lambda, int niter, void (applyC)(complexFormat*, complexFormat*)){
   size_t sz = memMngr.getSize(b);
-  complexFormat* pij = (complexFormat*)memMngr.borrowCleanCache(sz);
-  complexFormat* qij = (complexFormat*)memMngr.borrowCleanCache(sz);
-  complexFormat* lpq = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* pijprev = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* qijprev = (complexFormat*)memMngr.borrowCache(sz);
+  size_t nsz = sz/sizeof(complexFormat);
+  myCuDMallocClean(complexFormat, pij, nsz);
+  myCuDMallocClean(complexFormat, qij, nsz);
+  myCuDMalloc(complexFormat, lpq, nsz);
+  myCuDMalloc(complexFormat, pijprev, nsz);
+  myCuDMalloc(complexFormat, qijprev, nsz);
   bool replaceout = 0;
   if(output == b) {
     replaceout = 1;
-    output = (complexFormat*)memMngr.borrowCache(sz);
+    myCuMalloc(complexFormat, output, nsz);
   }
   if(applyC) applyC(b, output);
   else myMemcpyD2D(output, b, sz);
@@ -93,26 +95,27 @@ void FISTA(complexFormat* b, complexFormat* output, Real lambda, int niter, void
     add( output, b, lpq, -lambda);
     if(applyC) applyC(output, output);
   }
-  memMngr.returnCache(pij);
-  memMngr.returnCache(qij);
-  memMngr.returnCache(lpq);
-  memMngr.returnCache(pijprev);
-  memMngr.returnCache(qijprev);
+  myCuFree(pij);
+  myCuFree(qij);
+  myCuFree(lpq);
+  myCuFree(pijprev);
+  myCuFree(qijprev);
   if(replaceout){
     myMemcpyD2D(b, output, sz);
-    memMngr.returnCache(output);
+    myCuFree(output);
   }
 };
 
 void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*), size_t sz){
   if(sz == 0) sz = memMngr.getSize(b);
-  complexFormat* lpq = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* pij = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* qij = (complexFormat*)memMngr.borrowCache(sz);
+  size_t nsz = sz/sizeof(complexFormat);
+  myCuDMalloc(complexFormat, lpq, nsz);
+  myCuDMalloc(complexFormat, pij, nsz);
+  myCuDMalloc(complexFormat, qij, nsz);
   bool replaceout = 0;
   if(output == b) {
     replaceout = 1;
-    output = (complexFormat*)memMngr.borrowCache(sz);
+    myCuMalloc(complexFormat, output, nsz);
   }
   if(applyC) {
     applyC(b, output);
@@ -125,23 +128,24 @@ void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (appl
   calcLpq( lpq, pij, qij);
   add( output, b, lpq, -lambda);
   if(applyC) applyC(output, output);
-  memMngr.returnCache(pij);
-  memMngr.returnCache(qij);
-  memMngr.returnCache(lpq);
+  myCuFree(pij);
+  myCuFree(qij);
+  myCuFree(lpq);
   if(replaceout){
     myMemcpyD2D(b, output, sz);
-    memMngr.returnCache(output);
+    myCuFree(output);
   }
 };
 void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*)){
   size_t sz = memMngr.getSize(b);
-  complexFormat* lpq = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* pij = (complexFormat*)memMngr.borrowCache(sz);
-  complexFormat* qij = (complexFormat*)memMngr.borrowCache(sz);
+  size_t nsz = sz/sizeof(complexFormat);
+  myCuDMalloc(complexFormat, lpq, nsz);
+  myCuDMalloc(complexFormat, pij, nsz);
+  myCuDMalloc(complexFormat, qij, nsz);
   bool replaceout = 0;
   if(output == b) {
     replaceout = 1;
-    output = (complexFormat*)memMngr.borrowCache(sz);
+    myCuMalloc(complexFormat, output, nsz);
   }
   if(applyC) applyC(b, output);
   else myMemcpyD2D(output, b, sz);
@@ -150,11 +154,11 @@ void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)
   calcLpq( lpq, pij, qij);
   add( output, b, lpq, -lambda);
   if(applyC) applyC(output, output);
-  memMngr.returnCache(pij);
-  memMngr.returnCache(qij);
-  memMngr.returnCache(lpq);
+  myCuFree(pij);
+  myCuFree(qij);
+  myCuFree(lpq);
   if(replaceout){
     myMemcpyD2D(b, output, sz);
-    memMngr.returnCache(output);
+    myCuFree(output);
   }
 };

@@ -31,8 +31,8 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
   spectra = spectra_;
   row = nrow;
   column = ncol;
-  rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  myMalloc(int, rows, nlambda);
+  myMalloc(int, cols, nlambda);
   plt.init(row,column);
   myMalloc(void*, locplan, nlambda);
   fmt::ostream file = fmt::output_file("spectrum_raw.txt");
@@ -45,7 +45,7 @@ void broadBand::init(int nrow, int ncol, int nlambda_, double* lambdas_, double*
     //file << lambdas_[i] << " " << 0 << endl;
   }
   file.close();
-  padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
+  myCuMalloc(complexFormat, padding_cache, rows[nlambda-1]*cols[nlambda-1]);
 }
 void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   row = nrow;
@@ -54,10 +54,10 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
   minlambda = 1-ceil((1-minlambda)/stepsize)*stepsize;
   maxlambda = 1+ceil((maxlambda-1)/stepsize)*stepsize;
   nlambda = (maxlambda-minlambda)/stepsize+1;
-  rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  lambdas = (double*)ccmemMngr.borrowCache(sizeof(double)*nlambda);
-  spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
+  myMalloc(int, rows, nlambda);
+  myMalloc(int, cols, nlambda);
+  myMalloc(double, lambdas, nlambda);
+  myMallocClean(double, spectra, nlambda);
   myMalloc(void*, locplan, nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+(i+(minlambda-1)/stepsize)*2*jump;
@@ -66,7 +66,7 @@ void broadBand::init(int nrow, int ncol, double minlambda, double maxlambda){
     fmt::println("{}: ({},{})",i, rows[i],cols[i]);
     createPlan(locplan+i, rows[i], cols[i]);
   }
-  padding_cache = (complexFormat*) memMngr.borrowCache(sizeof(complexFormat)*rows[nlambda-1]*cols[nlambda-1]);
+  myCuMalloc(complexFormat, padding_cache, rows[nlambda-1]*cols[nlambda-1]);
 }
 void broadBand_constRatio::init_flatspectrum(int nrow, int ncol, double maxlambda, bool createplan){
   nmiddle = 0;
@@ -125,7 +125,7 @@ void broadBand_constRatio::init(int nrow, int ncol, double minlambda, double max
   for(int i = nmiddle+1; i < nlambda; i++){
     lambdas[i] = lambdas[i-1]*factor1;
   }
-  spectra = (double*) ccmemMngr.borrowCleanCache(nlambda*sizeof(double));
+  myMallocClean(double, spectra, nlambda);
   createPlan(locplan, thisrow, thiscol);
   myCuMalloc(complexFormat, cache, thisrow*thiscol);
 }
@@ -173,7 +173,7 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   Real stepsize = 2./row*jump;
   Real skiplambda = 2./row*skip;
   nlambda = (lambdasi[narray-1]-skiplambda-1)/stepsize+1;
-  spectra = (double*) ccmemMngr.borrowCache(nlambda*sizeof(double));
+  myMalloc(double, spectra, nlambda);
   fmt::ostream spectrumfile = fmt::output_file("spectra_raw.txt");
   for(int i = 0; i < narray; i++){
     spectrumfile.print("{} {}\n",lambdasi[i],spectrumi[i]/spectrumi[narray-1]);
@@ -200,11 +200,11 @@ Real broadBand::init(int nrow, int ncol, double* lambdasi, double* spectrumi, in
   gsl_spline_free (spline);
   gsl_interp_accel_free (acc);
 
-  rows = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
-  cols = (int*)ccmemMngr.borrowCache(sizeof(int)*nlambda);
+  myMalloc(int, rows, nlambda);
+  myMalloc(int, cols, nlambda);
   myMalloc(double, lambdas, nlambda);
   plt.init(row,column);
-  locplan = (void**)ccmemMngr.borrowCache(sizeof(void*)*nlambda);
+  myMalloc(void*, locplan, nlambda);
   for(int i = 0; i < nlambda; i++){
     rows[i] = row+i*2*jump;
     cols[i] = column+i*2*jump;

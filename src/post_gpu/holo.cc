@@ -10,15 +10,14 @@
 
 holo::holo(const char* configfile) : CDI(configfile){}
 void holo::allocateMem_holo(){
-  size_t sz = row*column*sizeof(Real);
-  patternData_holo = (Real*)memMngr.borrowCache(sz);
-  patternData_obj = (Real*)memMngr.borrowCache(sz);
-  xcorrelation = (Real*)memMngr.borrowCache(sz);
-  support_holo = (Real*)memMngr.borrowCache(sz);
-  xcorrelation_support = (Real*)memMngr.borrowCache(sz);
-  patternWave_holo = memMngr.borrowCache(sz*2);
-  patternWave_obj = memMngr.borrowCache(sz*2);
-  objectWave_holo = memMngr.borrowCache(sz*2);
+  myCuMalloc(Real, patternData_holo, row*column);
+  myCuMalloc(Real, patternData_obj, row*column);
+  myCuMalloc(Real, xcorrelation, row*column);
+  myCuMalloc(Real, support_holo, row*column);
+  myCuMalloc(Real, xcorrelation_support, row*column);
+  myCuMalloc(complexFormat, patternWave_holo, row*column);
+  myCuMalloc(complexFormat, patternWave_obj, row*column);
+  myCuMalloc(complexFormat, objectWave_holo, row*column);
 }
 void holo::calcXCorrelation(bool doplot){
   add( patternData_holo, patternData, -1);
@@ -55,7 +54,7 @@ void holo::initXCorrelation(){
   cir.endx=row/2+objrow;
   cir.endy=column/2+objcol;
   decltype(cir) *cuda_spt;
-  cuda_spt = (decltype(cir)*)memMngr.borrowCache(sizeof(cir));
+  myCuMalloc(rect, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   createMask( xcorrelation_support, cuda_spt, 1);
   applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
@@ -101,7 +100,7 @@ void holo::simulate(){
   if(!runSim || simCCDbit) {
     Real* intensity = readImage(pupil.Pattern, row, column);
     myMemcpyH2D(patternData_holo, intensity, memMngr.getSize(patternData_holo));
-    ccmemMngr.returnCache(intensity);
+    myFree(intensity);
     applyNorm( patternData_holo, 1./exposurepupil);
     cudaConvertFO( patternData_holo);
   }
@@ -127,8 +126,8 @@ void holo::iterate(){
   int size = floor(gaussianSigma*6);
   size = ((size>>1)<<1)+1;
   const size_t sz = row*column*sizeof(Real);
-  Real*  d_gaussianKernel = (Real*) memMngr.borrowCache(size*size*sizeof(Real));
-  Real* cuda_objMod = (Real*) memMngr.borrowCache(sz);
+  myCuDMalloc(Real, d_gaussianKernel, size*size);
+  myCuDMalloc(Real, cuda_objMod, row*column);
   clearCuMem(patternWave_obj,  sz*2);
   AlgoParser algo(algorithm);
   int ialgo;
@@ -165,7 +164,7 @@ void holo::iterate(){
   }
   bitMap( support_holo, support_holo);
   plt.plotFloat(support_holo, MOD, 0, 1, "support", 0);
-  memMngr.returnCache(d_gaussianKernel);
+  myCuFree(d_gaussianKernel);
   plt.plotComplex(objectWave_holo, MOD2, 0, 1, "object");
   plt.plotComplex(objectWave_holo, PHASE, 0, 1, "object_phase");
 }

@@ -78,20 +78,20 @@ void CDI::readObjectWave(){
     applyNorm(d_phase, phaseModulation);
   }
   createWaveFront( d_intensity, d_phase, objectWave, objrow, objcol);
-  if(d_phase) memMngr.returnCache(d_phase);
-  if(d_intensity) memMngr.returnCache(d_intensity);
+  if(d_phase) myCuFree(d_phase);
+  if(d_intensity) myCuFree(d_intensity);
 }
 void CDI::readPattern(){
   Real* pattern = readImage(common.Pattern, row, column);
   if(cropPattern) {
-    Real* tmp = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+    myCuDMalloc(Real, tmp, row*column);
     myMemcpyH2D(tmp, pattern, row*column*sizeof(Real));
     int rowtmp = row;
     int coltmp = column;
     row = column = cropPattern;
     allocateMem();
     crop( tmp, patternData, rowtmp, coltmp);
-    memMngr.returnCache(tmp);
+    myCuFree(tmp);
   }else{
     allocateMem();
     myMemcpyH2D(patternData, pattern, row*column*sizeof(Real));
@@ -101,7 +101,7 @@ void CDI::readPattern(){
       exit(0);
     }
   }
-  ccmemMngr.returnCache(pattern);
+  myFree(pattern);
   //multiplySqy(patternData,patternData);
   cudaConvertFO(patternData);
   applyNorm(patternData, 1./exposure);
@@ -137,9 +137,8 @@ void CDI::init(){
         fmt::println(stderr, "Beam stop mask ({}, {}) is not of the same size as diffraction pattern ({}, {})!", r,c,row,column);
         abort();
       }
-      size_t sz = r*c*sizeof(Real);
-      beamstop = (Real*)memMngr.borrowCache(sz);
-      myMemcpyH2D(beamstop, bs, sz);
+      myCuMalloc(Real, beamstop, r*c);
+      myMemcpyH2D(beamstop, bs, r*c*sizeof(Real));
       cudaConvertFO(beamstop);
       invert(beamstop);
       plt.plotFloat(beamstop, MOD, 1, 1, "beamstop");
@@ -169,8 +168,8 @@ void CDI::prepareIter(){
         ((cuMnist*)mnist_dat)->cuRead(phase);
       }
       createWaveFront((Real*)intensity, (Real*)phase, objectWave, 1);
-      memMngr.returnCache(intensity);
-      if(phaseModulation) memMngr.returnCache(phase);
+      myCuFree(intensity);
+      if(phaseModulation) myCuFree(phase);
     }
     if(isFresnel) propagate.multiplyFresnelPhase(objectWave);
     //applyRandomPhase(objectWave, 0, devstates);
@@ -207,13 +206,12 @@ void CDI::prepareIter(){
         fmt::println("WARNING: file {} is empty!", common.restart);
       }
     if(fdata.rows == row && fdata.cols == column){
-      size_t sz = row*column*sizeof(complexFormat);
-      complexFormat *wf = (complexFormat*) ccmemMngr.borrowCache(sz);
-      if(!fread(wf, sz, 1, frestart)){
+      myDMalloc(complexFormat, wf, row*column);
+      if(!fread(wf, row*column*sizeof(complexFormat), 1, frestart)){
         fmt::println("WARNING: file {} is empty!", common.restart);
       }
-      myMemcpyH2D(patternWave, wf, sz);
-      ccmemMngr.returnCache(wf);
+      myMemcpyH2D(patternWave, wf, row*column*sizeof(complexFormat));
+      myFree(wf);
       verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "restart_pattern", 1));
     }else{
       fmt::println("Restart file size mismatch: {}!={} || {}!={}", fdata.rows, row, fdata.cols, column);
@@ -244,11 +242,10 @@ void CDI::createSupport(){
   re.starty = (oversampling_spt-1)/2*column/oversampling_spt-1;
   re.endx = row-re.startx;
   re.endy = column-re.starty;
-  cuda_spt = memMngr.borrowCache(sizeof(rect));
+  myCuMalloc(rect, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &re, sizeof(rect));
-  support = (Real*)memMngr.borrowCache(row*column*sizeof(Real));
+  myCuMalloc(Real, support, row*column);
   createMask(support, (rect*)cuda_spt,0);
-  memMngr.returnCache(cuda_spt);
 }
 void CDI::initSupport(){
   createMask(support, (rect*)cuda_spt,0);
@@ -257,7 +254,7 @@ void CDI::saveState(){
   myDMalloc(complexFormat, outputData, row*column);
   myMemcpyD2H(outputData, patternWave, row*column*sizeof(complexFormat));
   writeComplexImage(common.restart, outputData, row, column);//save the step
-  ccmemMngr.returnCache(outputData);
+  myFree(outputData);
 
   complexFormat *cuda_gkp1 = objectWave;
   verbose(2,plt.plotComplex(patternWave, MOD2, 1, exposure, "recon_pattern", 1, 0, 1))
@@ -270,8 +267,8 @@ void CDI::saveState(){
   int col_spt = column/oversampling_spt;
   size_t sptsz = row_spt*col_spt*sizeof(Real);
   resize_cuda_image(row_spt,col_spt);
-  complexFormat* tmp = (complexFormat*)memMngr.borrowCache(sptsz<<1);
-  Real* tmp1 = (Real*)memMngr.borrowCache(sptsz);
+  myCuDMalloc(complexFormat, tmp, row_spt*col_spt);
+  myCuDMalloc(Real, tmp1, row_spt*col_spt);
   fmt::println("mid= {:f},{:f}",crealf(mid), cimagf(mid));
   crop(cuda_gkp1, tmp, row, column,crealf(mid), cimagf(mid));
   getMod2(tmp1, tmp);
@@ -282,7 +279,7 @@ void CDI::saveState(){
   plt.plotComplexColor(tmp, 0, maxnorm, ("recon_wave"+save_suffix).c_str(), 0, isFlip);
   resize_cuda_image(row,column);
   plt.init(row,column);
-  memMngr.returnCache(tmp);
+  myCuFree(tmp);
   if(isFresnel) {
     propagate.removeFresnelPhase(cuda_gkp1);
     plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
@@ -444,8 +441,8 @@ complexFormat* CDI::phaseRetrieve(){
   plt.init(row, column);
   resize_cuda_image(row, column);
 
-  memMngr.returnCache(cuda_gkprime);
-  memMngr.returnCache(cuda_objMod);
+  myCuFree(cuda_gkprime);
+  myCuFree(cuda_objMod);
 
   return patternWave;
 }
