@@ -1,9 +1,10 @@
-// SDL2 image viewer. Pipeline: readImage_c -> to_gpu -> processFloat/processComplex -> RGB24 -> SDL texture.
+// SDL3 image viewer. Pipeline: readImage_c -> to_gpu -> processFloat/processComplex -> RGB24 -> SDL texture.
 // Controls: q close | drag pan | scroll zoom
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include <vector>
 #include "cuPlotter.hpp"
 #include "cudaConfig.hpp"
@@ -62,29 +63,29 @@ struct View {
 
 static void render_text(SDL_Renderer* rend, const char* text, int cx, int cy, Uint8 r, Uint8 g, Uint8 b) {
   if (!g_font) return;
-  SDL_Surface* surf = TTF_RenderText_Solid(g_font, text, SDL_Color{r, g, b, 255});
+  SDL_Surface* surf = TTF_RenderText_Solid(g_font, text, strlen(text), SDL_Color{r, g, b, 255});
   if (!surf) return;
   SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surf);
   if (tex) {
-    SDL_Rect dst{cx - surf->w / 2, cy - surf->h / 2, (int)surf->w, (int)surf->h};
-    SDL_RenderCopy(rend, tex, NULL, &dst);
+    SDL_FRect dst{(float)(cx - surf->w / 2), (float)(cy - surf->h / 2), (float)surf->w, (float)surf->h};
+    SDL_RenderTexture(rend, tex, NULL, &dst);
     SDL_DestroyTexture(tex);
   }
-  SDL_FreeSurface(surf);
+  SDL_DestroySurface(surf);
 }
 
 static void draw_button(SDL_Renderer* rend, int x, int y, int bw, int bh,
                         int fr, int fg, int fb, const char* label) {
-  SDL_Rect r{x, y, bw, bh};
+  SDL_FRect r{(float)x, (float)y, (float)bw, (float)bh};
   SDL_SetRenderDrawColor(rend, 20, 20, 20, 255);
   SDL_RenderFillRect(rend, &r);
   SDL_SetRenderDrawColor(rend, (Uint8)(fr+40), (Uint8)(fg+40), (Uint8)(fb+40), 255);
-  SDL_RenderDrawLine(rend, x, y, x + bw, y);
-  SDL_RenderDrawLine(rend, x, y, x, y + bh);
+  SDL_RenderLine(rend, x, y, x + bw, y);
+  SDL_RenderLine(rend, x, y, x, y + bh);
   SDL_SetRenderDrawColor(rend, 10, 10, 10, 255);
-  SDL_RenderDrawLine(rend, x, y + bh - 1, x + bw, y + bh - 1);
-  SDL_RenderDrawLine(rend, x + bw - 1, y, x + bw - 1, y + bh - 1);
-  SDL_Rect inner{x + 2, y + 2, bw - 4, bh - 4};
+  SDL_RenderLine(rend, x, y + bh - 1, x + bw, y + bh - 1);
+  SDL_RenderLine(rend, x + bw - 1, y, x + bw - 1, y + bh - 1);
+  SDL_FRect inner{(float)(x + 2), (float)(y + 2), (float)(bw - 4), (float)(bh - 4)};
   SDL_SetRenderDrawColor(rend, (Uint8)fr, (Uint8)fg, (Uint8)fb, 255);
   SDL_RenderFillRect(rend, &inner);
   render_text(rend, label, x + bw / 2, y + bh / 2, 255, 255, 255);
@@ -92,15 +93,15 @@ static void draw_button(SDL_Renderer* rend, int x, int y, int bw, int bh,
 
 static void draw_bar(View* v, int w, int h) {
   BarLayout l = BarLayout::compute(w, h);
-  SDL_Rect r;
+  SDL_FRect r;
   SDL_SetRenderDrawColor(v->rend, 40, 40, 40, 255);
-  r = {0, l.bar_y, w, BAR_H}; SDL_RenderFillRect(v->rend, &r);
+  r = {0, (float)l.bar_y, (float)w, (float)BAR_H}; SDL_RenderFillRect(v->rend, &r);
   int track_y = l.bar_y + (BAR_H - 16) / 2;
   SDL_SetRenderDrawColor(v->rend, 80, 80, 80, 255);
-  r = {l.slider_x, track_y, l.slider_w, 16}; SDL_RenderFillRect(v->rend, &r);
+  r = {(float)l.slider_x, (float)track_y, (float)l.slider_w, 16}; SDL_RenderFillRect(v->rend, &r);
   int thumb_x = l.slider_x + (int)(v->slider_pos * (l.slider_w - 12));
   SDL_SetRenderDrawColor(v->rend, 200, 200, 200, 255);
-  r = {thumb_x, track_y, 12, 16}; SDL_RenderFillRect(v->rend, &r);
+  r = {(float)thumb_x, (float)track_y, 12, 16}; SDL_RenderFillRect(v->rend, &r);
   draw_button(v->rend, l.btn_x[0], l.btn_y, BarLayout::btn_w, BarLayout::btn_h,
               v->islog ? 40 : 70, v->islog ? 120 : 70, v->islog ? 40 : 70, "Log");
   draw_button(v->rend, l.btn_x[1], l.btn_y, BarLayout::btn_w, BarLayout::btn_h,
@@ -138,24 +139,26 @@ static void reprocess(View* v) {
 }
 
 static void render_view(View* v) {
-  int w, h, tw, th;
-  SDL_GetRendererOutputSize(v->rend, &w, &h);
-  SDL_QueryTexture(v->tex, NULL, NULL, &tw, &th);
+  int w, h;
+  float tw, th;
+  SDL_GetCurrentRenderOutputSize(v->rend, &w, &h);
+  SDL_GetTextureSize(v->tex, &tw, &th);
   float s = SDL_min((float)w / tw, (float)(h - BAR_H) / th) * v->zoom;
   int dw = (int)(tw * s), dh = (int)(th * s);
   int dx = (w - dw) / 2 + (int)v->pan_x;
   int dy = ((h - BAR_H) - dh) / 2 + (int)v->pan_y;
   SDL_SetRenderDrawColor(v->rend, 0, 0, 0, 255);
   SDL_RenderClear(v->rend);
-  SDL_Rect r;
-  r = {0, 0, w, h - BAR_H}; SDL_RenderSetClipRect(v->rend, &r);
-  r = {dx, dy, dw, dh}; SDL_RenderCopy(v->rend, v->tex, NULL, &r);
-  SDL_RenderSetClipRect(v->rend, NULL);
+  SDL_Rect clip;
+  clip = {0, 0, w, h - BAR_H}; SDL_SetRenderClipRect(v->rend, &clip);
+  SDL_FRect dst{(float)dx, (float)dy, (float)dw, (float)dh};
+  SDL_RenderTexture(v->rend, v->tex, NULL, &dst);
+  SDL_SetRenderClipRect(v->rend, NULL);
   draw_bar(v, w, h);
   SDL_RenderPresent(v->rend);
 }
 
-static void find_view(std::vector<View>& views, Uint32 id, View** out) {
+static void find_view(std::vector<View>& views, SDL_WindowID id, View** out) {
   for (auto& v : views)
     if (v.open && v.win && SDL_GetWindowID(v.win) == id) { *out = &v; return; }
   *out = NULL;
@@ -187,15 +190,14 @@ static bool open_file(const char* fname, View* v) {
     return false;
   }
   int w = f.cols, h = f.rows;
-  v->win = SDL_CreateWindow(fname, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_RESIZABLE);
+  v->win = SDL_CreateWindow(fname, w, h, SDL_WINDOW_RESIZABLE);
   if (!v->win) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
-  v->rend = SDL_CreateRenderer(v->win, -1, SDL_RENDERER_ACCELERATED);
-  if (!v->rend) v->rend = SDL_CreateRenderer(v->win, -1, 0);
+  v->rend = SDL_CreateRenderer(v->win, NULL);
   if (!v->rend) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); SDL_DestroyWindow(v->win); v->win = NULL; return false; }
-  SDL_DisplayMode dm;
-  if (SDL_GetDesktopDisplayMode(0, &dm) == 0) {
-    if (w > dm.w) w = dm.w;
-    if (h > dm.h) h = dm.h;
+  const SDL_DisplayMode* dm = SDL_GetDesktopDisplayMode(0);
+  if (dm) {
+    if (w > dm->w) w = dm->w;
+    if (h > dm->h) h = dm->h;
     SDL_SetWindowSize(v->win, w, h);
   }
   v->tex = SDL_CreateTexture(v->rend, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, f.cols, f.rows);
@@ -214,7 +216,7 @@ static bool open_file(const char* fname, View* v) {
 
 int main(int argc, char** argv) {
   if (argc < 2) { fprintf(stderr, "usage: %s <image> [...]\ncontrols: q close | drag pan | scroll zoom\n", argv[0]); return 1; }
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
+  if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
   TTF_Init();
   g_font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16);
   if (!g_font) fprintf(stderr, "Warning: no font\n");
@@ -232,66 +234,68 @@ int main(int argc, char** argv) {
 
     do {
       View* v = NULL;
-      Uint32 wid = 0;
+      SDL_WindowID wid = 0;
       switch (e.type) {
-        case SDL_KEYDOWN:         wid = e.key.windowID;    break;
-        case SDL_MOUSEMOTION:     wid = e.motion.windowID;  break;
-        case SDL_MOUSEBUTTONDOWN: wid = e.button.windowID;  break;
-        case SDL_MOUSEBUTTONUP:   wid = e.button.windowID;  break;
-        case SDL_MOUSEWHEEL:      wid = e.wheel.windowID;   break;
-        case SDL_WINDOWEVENT:     wid = e.window.windowID;  break;
+        case SDL_EVENT_KEY_DOWN:        wid = e.key.windowID;    break;
+        case SDL_EVENT_MOUSE_MOTION:    wid = e.motion.windowID;  break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN: wid = e.button.windowID; break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:   wid = e.button.windowID; break;
+        case SDL_EVENT_MOUSE_WHEEL:     wid = e.wheel.windowID;   break;
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: wid = e.window.windowID; break;
+        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:    wid = e.window.windowID; break;
         default: break;
       }
       if (wid) find_view(views, wid, &v);
       if (!v) continue;
 
-      if (e.type == SDL_MOUSEMOTION) v->mouse_x = e.motion.x, v->mouse_y = e.motion.y;
+      if (e.type == SDL_EVENT_MOUSE_MOTION) v->mouse_x = (int)e.motion.x, v->mouse_y = (int)e.motion.y;
 
-      if (e.type == SDL_QUIT) {
+      if (e.type == SDL_EVENT_QUIT) {
         for (auto& vw : views) close_view(&vw);
         any_open = false;
         break;
-      } else if (e.type == SDL_KEYDOWN && (e.key.keysym.sym == SDLK_q || e.key.keysym.sym == SDLK_ESCAPE)) {
+      } else if (e.type == SDL_EVENT_KEY_DOWN && (e.key.key == SDLK_Q || e.key.key == SDLK_ESCAPE)) {
         close_view(v);
-      } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        int w, h; SDL_GetRendererOutputSize(v->rend, &w, &h);
+      } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT) {
+        int w, h; SDL_GetCurrentRenderOutputSize(v->rend, &w, &h);
         BarLayout l = BarLayout::compute(w, h);
-        if (e.button.y >= l.bar_y) {
-          if (l.in_slider(e.button.x, e.button.y)) {
+        if ((int)e.button.y >= l.bar_y) {
+          if (l.in_slider((int)e.button.x, (int)e.button.y)) {
             v->slider_dragging = true;
-            v->slider_pos = l.slider_pos_at(e.button.x);
+            v->slider_pos = l.slider_pos_at((int)e.button.x);
             v->decay = powf(10.0f, -2.0f + 4.0f * v->slider_pos);
             need = 2;
-          } else if (l.btn_at(e.button.x, e.button.y) == 0) { v->islog = !v->islog; need = 2; }
-          else if (l.btn_at(e.button.x, e.button.y) == 1) { v->iscolor = !v->iscolor; need = 2; }
-          else if (l.btn_at(e.button.x, e.button.y) == 2) { v->fft = !v->fft; v->fft_dirty = true; need = 2; }
+          } else if (l.btn_at((int)e.button.x, (int)e.button.y) == 0) { v->islog = !v->islog; need = 2; }
+          else if (l.btn_at((int)e.button.x, (int)e.button.y) == 1) { v->iscolor = !v->iscolor; need = 2; }
+          else if (l.btn_at((int)e.button.x, (int)e.button.y) == 2) { v->fft = !v->fft; v->fft_dirty = true; need = 2; }
         } else {
-          v->dragging = true; v->drag_last_x = e.button.x; v->drag_last_y = e.button.y;
-          SDL_CaptureMouse(SDL_TRUE);
+          v->dragging = true; v->drag_last_x = (int)e.button.x; v->drag_last_y = (int)e.button.y;
+          SDL_CaptureMouse(true);
         }
-      } else if (e.type == SDL_MOUSEMOTION && v->slider_dragging) {
-        int w, h; SDL_GetRendererOutputSize(v->rend, &w, &h);
+      } else if (e.type == SDL_EVENT_MOUSE_MOTION && v->slider_dragging) {
+        int w, h; SDL_GetCurrentRenderOutputSize(v->rend, &w, &h);
         BarLayout l = BarLayout::compute(w, h);
-        v->slider_pos = l.slider_pos_at(e.motion.x);
+        v->slider_pos = l.slider_pos_at((int)e.motion.x);
         v->decay = powf(10.0f, -2.0f + 4.0f * v->slider_pos);
         need = 2;
-      } else if (e.type == SDL_MOUSEMOTION && v->dragging) {
-        v->pan_x += e.motion.x - v->drag_last_x;
-        v->pan_y += e.motion.y - v->drag_last_y;
-        v->drag_last_x = e.motion.x; v->drag_last_y = e.motion.y;
+      } else if (e.type == SDL_EVENT_MOUSE_MOTION && v->dragging) {
+        v->pan_x += (int)e.motion.x - v->drag_last_x;
+        v->pan_y += (int)e.motion.y - v->drag_last_y;
+        v->drag_last_x = (int)e.motion.x; v->drag_last_y = (int)e.motion.y;
         need = 1;
-      } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+      } else if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) {
         v->dragging = v->slider_dragging = false;
-        SDL_CaptureMouse(SDL_FALSE);
-      } else if (e.type == SDL_MOUSEWHEEL) {
+        SDL_CaptureMouse(false);
+      } else if (e.type == SDL_EVENT_MOUSE_WHEEL) {
         const float k = 1.1f;
         v->zoom *= e.wheel.y > 0 ? k : (e.wheel.y < 0 ? 1.0f / k : 1.0f);
         v->zoom = SDL_max(0.1f, SDL_min(50.0f, v->zoom));
         need = 1;
-      } else if (e.type == SDL_WINDOWEVENT) {
-        if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) need = 1;
-        else if (e.window.event == SDL_WINDOWEVENT_CLOSE) close_view(v);
-      } else if (e.type == SDL_MOUSEMOTION) {
+      } else if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+        need = 1;
+      } else if (e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+        close_view(v);
+      } else if (e.type == SDL_EVENT_MOUSE_MOTION) {
         need = 1; // coordinate update
       }
       if (need > 0) rv = v;
