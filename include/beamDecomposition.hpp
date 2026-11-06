@@ -14,6 +14,7 @@ void** zernike_init_group(int* widths, int maxN, int n, int max_blocks = 0);
 void zernike_destroy(void* handle_ptr);
 complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius, Real reg_strength = 0);
 complexFormat* zernike_coeff(void* handle_ptr);
+complexFormat* zernike_coeff_dev(void* handle_ptr);
 void* laguerre_init(int width, int maxN, int maxM, int max_blocks);
 void laguerre_destroy(void* handle_ptr);
 complexFormat* laguerre_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius);

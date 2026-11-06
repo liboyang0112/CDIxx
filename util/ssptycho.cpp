@@ -76,7 +76,7 @@ class ssptycho : public readConfig{
       propagate_complete.row = propagate_esw.row = propagate_pupil.row = row;
       propagate_complete.column = propagate_esw.column = propagate_pupil.column = column;
       propagate_pupil.pixelsize = resolution;
-      propagate_complete.pixelsize = lambda*(d+dpupil)/(row*resolution);
+      propagate_complete.pixelsize = (d+dpupil)/d *pixelsize;
       resize_cuda_image(row, column);
       init_cuda_image(rcolor, 1./exposure);
       unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -104,6 +104,10 @@ class ssptycho : public readConfig{
       // Zero-init, then sum plane waves for each peak
       myCuDMalloc(complexFormat, pw, row*column);
       for(int i = 0; i < nPeaks; i++){
+        if(cancelFresnel) {
+          peaks[i].x *= d/(d+dpupil);
+          peaks[i].y *= d/(d+dpupil);
+        }
         createPlaneWave(pw, peaks[i].x*row, peaks[i].y*column, peakEnergies[i]);
         add(grating, pw);
       }
@@ -116,6 +120,9 @@ class ssptycho : public readConfig{
 
     void initIteration(){
       I2 = findSum(pattern)/(row*column);
+      if(cancelFresnel){
+        pupilSize*=1+dpupil/d;
+      }
       if(nPeaks > 0 && grating){
         resize_cuda_image(row, column);
         myCuMallocClean(complexFormat, probeWave, row*column);
@@ -179,6 +186,17 @@ class ssptycho : public readConfig{
       plt.plotComplexColor(pupilpatternWave_t, 0, 1, "input_pupil_wave");
       init_fft(row, column);
       if(cancelFresnel){
+        int tmprow = row*(d+dpupil)/d;
+        int tmpcolumn = column*(d+dpupil)/d;
+        myCuDMalloc(complexFormat, tmp, tmprow*tmpcolumn);
+        void *handle;
+        createPlan(&handle, tmprow, tmpcolumn);
+        myFFT(pupilpatternWave_t,pupilpatternWave_t);
+        resize_cuda_image(tmprow, tmpcolumn);
+        padinner(pupilpatternWave_t, tmp, row, column, 1./(row*column));
+        myIFFTM(handle, tmp, tmp);
+        resize_cuda_image(row, column);
+        crop(tmp, pupilpatternWave_t, tmprow, tmpcolumn);
         propagate_complete.removeFresnelPhase(pupilpatternWave_t);
       }
       propagate_pupil.angularSpectrumPropagate(pupilpatternWave_t, pupilpatternWave_t);

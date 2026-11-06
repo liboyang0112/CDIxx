@@ -7,6 +7,7 @@
 #include <random>
 #include <chrono>
 #include <string>
+#include <system_error>
 #include <vector>
 #include <cstdlib>
 #include "imgio.hpp"
@@ -496,7 +497,9 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       int update_probe_iter = 40;
       int positionUpdateIter = 50000;
       myCuDMalloc(complexFormat, zernikeCrop, pupilSize*pupilSize);
-      void** zernike = zernike_init_group(widths, 15, nlambda);
+      int maxN = 15;
+      void** zernike = zernike_init_group(widths, maxN, nlambda);
+      int nmodes = (maxN + 1) * (maxN + 2) / 2;
       myCuDMalloc(Real, pupilSupport, row*column*nlambda);
       myCuDMalloc(Real, patternSum, row*column);
       loop(i, nlambda){
@@ -553,6 +556,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       Real tkprobe = 0.5+sqrt(1.25);
       Real tkp1probe;
       Real residual = 0;
+      Real cross_wavelength_reg_strength = 0.2;
       loop(iter, nIter){
         Real dozernike = iter < zernikeIter && iter%1==0;
         loop(il, nlambda){
@@ -757,6 +761,22 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
                 resize_cuda_image(widths[il], widths[il]);
                 crop((complexFormat*)pupilpatternWaves[il], zernikeCrop, row, column);
                 zernike_compute(zernike[il], zernikeCrop, Real(widths[il]-1)/2, Real(widths[il]-1)/2, Real(widths[il])/2, 2e-6);
+                if(iter > update_probe_iter+20){
+                resize_cuda_image(nmodes, 1);
+                complexFormat* coeff = zernike_coeff_dev(zernike[il]);
+                if(il == 0){
+                  applyNorm(coeff, 1-cross_wavelength_reg_strength);
+                  add(coeff, zernike_coeff_dev(zernike[il+1]), cross_wavelength_reg_strength);
+                }else if(il == nlambda-1){
+                  applyNorm(coeff, 1-cross_wavelength_reg_strength);
+                  add(coeff, zernike_coeff_dev(zernike[il-1]), cross_wavelength_reg_strength);
+                }else{
+                  applyNorm(coeff, 1-2*cross_wavelength_reg_strength);
+                  add(coeff, zernike_coeff_dev(zernike[il+1]), cross_wavelength_reg_strength);
+                  add(coeff, zernike_coeff_dev(zernike[il-1]), cross_wavelength_reg_strength);
+                }
+                resize_cuda_image(widths[il], widths[il]);
+                }
                 zernike_reconstruct(zernike[il], zernikeCrop, Real(widths[il])/2);
                 resize_cuda_image(row, column);
                 pad(zernikeCrop, pupilpatternWaves[il], widths[il], widths[il]);

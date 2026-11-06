@@ -317,6 +317,13 @@ void** zernike_init_group(int* widths, int maxN, int n, int max_blocks) {
   return handles;
 }
 
+complexFormat* zernike_coeff_dev(void* handle_ptr) {
+  if (!handle_ptr) return nullptr;
+  ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
+  if (!handle->initialized) return nullptr;
+  return (complexFormat*)handle->final_coeff;
+}
+
 complexFormat* zernike_coeff(void* handle_ptr) {
   if (!handle_ptr) return nullptr;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
