@@ -2,7 +2,7 @@
 #include <cstddef>
 complexFormat** zernikeDecomposition(complexFormat* img, int maxn, int radius, complexFormat* coefficient = NULL, complexFormat* projected = NULL);
 complexFormat** laguerreDecomposition(complexFormat* img, int maxn, int maxl, int radius, complexFormat* coefficient = NULL, complexFormat* projected = NULL);
-void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius) ;
+void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius, void* coeff = NULL) ;
 void multiplyZernikeConj(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m);
 void multiplyLaguerreConj(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m);
 void addZernike(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m);
@@ -12,7 +12,7 @@ void multiplyHermit(Real* store, Real* data, Real pupilsize, int n, int m);
 void* zernike_init(int width, int maxN, int max_blocks = 0);
 void** zernike_init_group(int* widths, int maxN, int n, int max_blocks = 0);
 void zernike_destroy(void* handle_ptr);
-complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius, Real reg_strength = 0);
+complexFormat* zernike_compute(void* handle_ptr, complexFormat* phi, Real cx, Real cy, Real radius, Real reg_strength = 0, void* coeff = NULL);
 complexFormat* zernike_coeff(void* handle_ptr);
 complexFormat* zernike_coeff_dev(void* handle_ptr);
 void* laguerre_init(int width, int maxN, int maxM, int max_blocks);

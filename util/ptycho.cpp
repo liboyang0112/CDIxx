@@ -808,7 +808,7 @@ class ptycho : public readConfig{
         cudaConvertFO(patterns[i]);
         applyNorm(patterns[i], 1./exposure);
         I2 += findSum(patterns[i]);
-        verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str()));
+        verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)+".jpg").c_str()));
       }
       I2 /= nscan;
       I2 /=row*column;

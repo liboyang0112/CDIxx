@@ -575,10 +575,12 @@ __global__ void zernike_reconstruct_kernel(cuComplex* phi_out, int width, Real c
 complexFormat* zernike_compute(
     void* handle_ptr,
     complexFormat* phi,
-    Real cx, Real cy, Real radius, Real reg_strength
+    Real cx, Real cy, Real radius, Real reg_strength,
+    void* coeff
     ) {
   if (!handle_ptr) return nullptr;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
+  if(coeff == NULL) coeff = handle->final_coeff;
   if (!handle->initialized) return nullptr;
 
   zernike_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
@@ -587,19 +589,20 @@ complexFormat* zernike_compute(
   int reduce_threads = handle->nthread;
   int reduce_blocks = (handle->nmodes + reduce_threads - 1) / reduce_threads;
   reduce_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->block_coeff, handle->nblocks, handle->nmodes, handle->final_coeff, 1./(M_PI*radius*radius)
+      handle->block_coeff, handle->nblocks, handle->nmodes, (cuComplex*)coeff, 1./(M_PI*radius*radius)
       );
   regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->nmodes, reg_strength, handle->final_coeff
-      //handle->nmodes, 1e-7, 0, handle->final_coeff
+      handle->nmodes, reg_strength, (cuComplex*)coeff
+      //handle->nmodes, 1e-7, 0, (cuComplex*)coeff
       );
 
   return (complexFormat*)handle->final_coeff;  // return device pointer
 }
 
-void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius) {
+void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius, void* coeff) {
   if (!handle_ptr || !phi_out) return;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
+  if(coeff == NULL) coeff = handle->final_coeff;
   if (!handle->initialized) return;
 
   int npixels = handle->width * handle->width;
@@ -613,7 +616,7 @@ void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius) 
       Real(handle->width-1)/2,   // cy
       radius,
       handle->maxN,
-      handle->final_coeff,    // ← internal coefficient cache
+      (cuComplex*)coeff,    // ← internal coefficient cache
       handle->nmodes
       );
 }

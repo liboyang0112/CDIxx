@@ -136,8 +136,8 @@ void FISTA_step(complexFormat* b, complexFormat* output, Real lambda, void (appl
     myCuFree(output);
   }
 };
-void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*)){
-  size_t sz = memMngr.getSize(b);
+void L2_step(complexFormat* b, complexFormat* output, Real lambda, void (applyC)(complexFormat*, complexFormat*), size_t sz){
+  if(sz==0) sz = memMngr.getSize(b);
   size_t nsz = sz/sizeof(complexFormat);
   myCuDMalloc(complexFormat, lpq, nsz);
   myCuDMalloc(complexFormat, pij, nsz);

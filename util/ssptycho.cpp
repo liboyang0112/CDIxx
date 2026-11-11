@@ -239,7 +239,7 @@ class ssptycho : public readConfig{
     }
 
     void gratingCalib(){
-      Real *spots = readImage("gratings.png", row, column);
+      Real *spots = readImage(pupil.Pattern, row, column);
       myCuDMalloc(Real, pattern, row*column);
       resize_cuda_image(row, column);
       myMemcpyH2D(pattern, spots, row*column*sizeof(Real));

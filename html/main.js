@@ -51,7 +51,18 @@ const imageNames = {
     'recon_pupil': 'Recon Pupil',
     'recon_pupil_b4_proj': 'Pupil Before Projection',
     'ptycho_afterIterwave': 'Wave After Iteration',
-    'ptycho_probe_afterIter': 'Probe After Iteration'
+    'ptycho_probe_afterIter': 'Probe After Iteration',
+    'recon_object_wave': 'Recon Object Wave',
+    'recon_intensity': 'Recon Intensity',
+    'obj_freq': 'Object Frequency',
+    'recon_probe_wave': 'Recon Probe Wave',
+    'recon_lowres': 'Recon Low Resolution',
+    'ptycho_afterIterwave0': 'Wave After Iteration (λ0)',
+    'ptycho_afterIterwave1': 'Wave After Iteration (λ1)',
+    'recon_pupil_0': 'Recon Pupil (λ0)',
+    'recon_pupil_1': 'Recon Pupil (λ1)',
+    'ptycho_probe_afterIter_0': 'Probe After Iteration (λ0)',
+    'ptycho_probe_afterIter_1': 'Probe After Iteration (λ1)'
 };
 
 // ==================== Utility Functions ====================

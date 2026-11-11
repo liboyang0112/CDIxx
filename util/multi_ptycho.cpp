@@ -7,8 +7,6 @@
 #include <random>
 #include <chrono>
 #include <string>
-#include <system_error>
-#include <vector>
 #include <cstdlib>
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
@@ -361,7 +359,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           multiply(esw, pupilpatternWave_t + row*column*il, window);
 
           if(i % 10 == 0)
-          verbose(5, plt.plotComplexColor(esw, 0, 1./spectra[i], ("ptycho_esw"+to_string(i) + "_" + to_string(il)).c_str()));
+            verbose(5, plt.plotComplexColor(esw, 0, 1./spectra[i], ("ptycho_esw"+to_string(i) + "_" + to_string(il)).c_str()));
           int thisrow = row*lambdas[il];
           int thiscol = column*lambdas[il];
           resize_cuda_image(thisrow, thiscol);
@@ -490,8 +488,9 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       myDMalloc(complexFormat*, probeSteps, nlambda);
       myCuDMalloc(complexFormat, objCache, row*column*nlambda);
       myDMalloc(complexFormat*, objCaches, nlambda);
-      myCuDMalloc(Real, maxCache, max(row_O*column_O/4, row*column));
+      myCuDMalloc(Real, maxCache, max(row_O*column_O, row*column));
       myCuDMalloc(complexFormat, cropObj, row_O*column_O/4);
+      myCuDMalloc(complexFormat, objeff, row_O*column_O);
       myCuDMalloc(Real, tmp, row*column);
       Real norm = 1./sqrt(row*column);
       int update_probe_iter = 40;
@@ -500,6 +499,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       int maxN = 15;
       void** zernike = zernike_init_group(widths, maxN, nlambda);
       int nmodes = (maxN + 1) * (maxN + 2) / 2;
+      myCuDMalloc(complexFormat, zernike_coeff, nmodes*nlambda);
       myCuDMalloc(Real, pupilSupport, row*column*nlambda);
       myCuDMalloc(Real, patternSum, row*column);
       loop(i, nlambda){
@@ -511,7 +511,7 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         createCircleMask(pupilSupport + row*column*i, Real(row+1)/2, Real(column+1)/2, Real(pupilSize)/(2*lambdas[i]));
       }
       resize_cuda_image(row,column);
-      Real probeStepSize = 1./nscan;
+      Real probeStepSize = 1./sqrt(nscan);
       bool doprl = 0;
       void **prlplan;
       if(doprl){
@@ -550,13 +550,27 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
       Real redundancy = findSum(masksum, row_O*column_O);
       redundancy = (nscan*M_PI*pupilSize*pupilSize)/(4*redundancy);
       fmt::println("Max overlap = {}, Redundancy = {}", maxOverlap, redundancy - 1);
-      clearCuMem(masksum, row_O*column_O);
+      // STEP 1: per-wavelength masksum (just compute, not used yet)
+      myDMalloc(Real*, masksums, nlambda);
+      resize_cuda_image(row, column);
+      loop(il, nlambda) {
+        myCuMallocClean(Real, masksums[il], row_O*column_O);
+        loop(i, nscan) {
+          int posx = (int)round(scanposx[i] / lambdas[il] + (lambdas[il]-1)/(2*lambdas[il])*(row_O-row));
+          int posy = (int)round(scanposy[i] / lambdas[il] + (lambdas[il]-1)/(2*lambdas[il])*(column_O-column));
+          addWindow(masksums[il], posx, posy, row_O, column_O, pupilSupport + row*column*il, 1);
+        }
+        resize_cuda_image(row_O, column_O);
+        bitMap(masksums[il], masksums[il], 0.5);
+      }
+      // END STEP 1
       Real tk = 0.5+sqrt(1.25);
       Real tkp1;
       Real tkprobe = 0.5+sqrt(1.25);
       Real tkp1probe;
       Real residual = 0;
-      Real cross_wavelength_reg_strength = 0.2;
+      Real cross_wavelength_reg_strength = 0.;
+      bool momentum_probe = 1;
       loop(iter, nIter){
         Real dozernike = iter < zernikeIter && iter%1==0;
         loop(il, nlambda){
@@ -564,10 +578,17 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           getMod2(maxCache, pupilpatternWaves[il]);
           findMax(maxCache, row*column ,d_norm);
           if(iter >= update_probe_iter) {
-            resize_cuda_image(row_O>>3,column_O>>3);
-            crop(objectWaves[il], cropObj, row_O, column_O);
-            getMod2(maxCache, cropObj);
-            findMax(maxCache, row_O*column_O/256, d_norm+1);
+            if(1){ // masksum-based objMax
+              resize_cuda_image(row_O,column_O);
+              getMod2(maxCache, objectWaves[il]);
+              multiply(maxCache, maxCache, masksums[il]);
+              findMax(maxCache, row_O*column_O, d_norm+1);
+            }else{ // crop-based objMax
+              resize_cuda_image(row_O>>3,column_O>>3);
+              crop(objectWaves[il], cropObj, row_O, column_O);
+              getMod2(maxCache, cropObj);
+              findMax(maxCache, row_O*column_O/256, d_norm+1);
+            }
             myMemcpyD2H(h_norm, d_norm, 2*sizeof(Real));
             objMax[il] = h_norm[1];
             resize_cuda_image(row_O,column_O);
@@ -640,10 +661,10 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
               propagate_esw.removeFresnelPhase(esws[il]);
             }
             if(iter < update_probe_iter){
-                updateObject(objCaches[il], pupilpatternWaves[il], esws[il], probeMax[il], 1./nlambda);
+              updateObject(objCaches[il], pupilpatternWaves[il], esws[il], probeMax[il], 1./nlambda);
             } 
             else {
-                updateObjectAndProbeStep(objCaches[il], pupilpatternWaves[il], probeSteps[il], esws[il],probeMax[il], objMax[il], probeStepSize);
+              updateObjectAndProbeStep(objCaches[il], pupilpatternWaves[il], probeSteps[il], esws[il],probeMax[il], objMax[il], probeStepSize);
             }
             if(shiftpix){
               shiftWave(objCaches[il], -shiftxpix, -shiftypix);
@@ -658,8 +679,13 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
         if(zernikeIter > iter){
           loop(il,nlambda){
             FISTA_step(objectWaves[il], objectWaves[il], 1e-3, NULL, row_O*column_O*sizeof(complexFormat));
+            //L2_step(objectWaves[il], objectWaves[il], 1e-3, NULL, row_O*column_O*sizeof(complexFormat));
+            //complexFormat sum = findSum(objectWaves[il], row_O*column_O);
+            //sum /= cabsf(sum);
+            //multiplyConj(objectWaves[il], objectWaves[il], sum);
           }
         }
+        
         //}
         if(iter >= update_probe_iter) {
           resize_cuda_image(row*column*nlambda, 1);
@@ -684,34 +710,6 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           //}
           //exit(0);
           resize_cuda_image(row, column);
-        }
-        if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
-          resize_cuda_image(row_O, column_O);
-          plt_O.toVideo = vidhandle_O;
-          plt_O.plotComplexColor(objectWaves[10], 0, sqrt(nlambda), ("recon_object"+to_string(iter)).c_str(), 0, isFlip);
-          plt_O.toVideo = -1;
-          resize_cuda_image(row, column);
-          plt.toVideo = vidhandle_probe;
-          plt.plotComplexColor(pupilpatternWaves[0], 0, sqrt(nlambda), ("recon_probe"+to_string(iter)).c_str(), 0, isFlip);
-          plt.toVideo = -1;
-        }
-        if(mPIE > iter){ //momentum update
-          resize_cuda_image(row_O*column_O*nlambda, 1);
-          add(objectWave_prev, objectWave, objectWave_prev, -1);
-          tkp1 = 0.5+sqrt(0.25+tk*tk);
-          add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
-          tk = tkp1;
-          complexFormat* tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
-          complexFormat** tmp1 = objectWaves; objectWaves = objectWave_prevs; objectWave_prevs = tmp1;
-          resize_cuda_image(row*column*nlambda, 1);
-          if(0 && dozernike){
-            tkp1probe = 0.5+sqrt(0.25+tkprobe*tkprobe);
-            add(probe_prev, pupilpatternWave, probe_prev, -1);
-            add(probe_prev, pupilpatternWave, probe_prev, (tkprobe-1)/tkp1probe);
-            tmp = pupilpatternWave; pupilpatternWave = probe_prev; probe_prev = tmp;
-            tmp1 = pupilpatternWaves; pupilpatternWaves = probe_prevs; probe_prevs = tmp1;
-            tkprobe = tkp1probe;
-          }
         }
         if(iter >= update_probe_iter){
           complexFormat middle = 0;
@@ -743,58 +741,87 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
               propagate_pupil.lambda = lambdas[il]*lambda_ref;
               propagate_pupil.angularSpectrumPropagate(pupilpatternWaves[il], pupilpatternWaves[il]);
             }
-
-          }else
+          }else{
             loop(il, nlambda){
               propagate_pupil.pixelsize = resolution*lambdas[il];
               propagate_pupil.lambda = lambdas[il]*lambda;
               propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[il], pupilpatternWaves[il]);
               if(saveVideoEveryIter && iter%saveVideoEveryIter == 0 && il == 0){
                 plt.toVideo = vidhandle_pupil;
-                plt.plotComplexColor(pupilpatternWaves[il], 0, 0.5*sqrt(nlambda), ("recon_pupil"+to_string(iter)+"_"+to_string(il)).c_str(), 0, isFlip);
+                plt.plotComplexColor(pupilpatternWaves[il], 0, 0.9/sqrt(probeMax[il]), ("recon_pupil"+to_string(iter)+"_"+to_string(il)).c_str(), 0, isFlip);
                 plt.toVideo = -1;
               }
-              if(iter == zernikeIter - 1 || (iter <zernikeIter && iter == nIter-1)) {
-                plt.plotComplexColor(pupilpatternWaves[il], 0, 0.5*sqrt(nlambda), ("recon_pupil_b4_proj"+to_string(il)).c_str());
-              }
-              if(dozernike){
+            }
+            if(dozernike){
+              loop(il, nlambda){
+                if(iter == zernikeIter - 1 || (iter <zernikeIter && iter == nIter-1)) {
+                  plt.plotComplexColor(pupilpatternWaves[il], 0, 0.9/sqrt(probeMax[il]), ("recon_pupil_b4_proj"+to_string(il)).c_str());
+                }
                 resize_cuda_image(widths[il], widths[il]);
                 crop((complexFormat*)pupilpatternWaves[il], zernikeCrop, row, column);
-                zernike_compute(zernike[il], zernikeCrop, Real(widths[il]-1)/2, Real(widths[il]-1)/2, Real(widths[il])/2, 2e-6);
-                if(iter > update_probe_iter+20){
-                resize_cuda_image(nmodes, 1);
-                complexFormat* coeff = zernike_coeff_dev(zernike[il]);
-                if(il == 0){
-                  applyNorm(coeff, 1-cross_wavelength_reg_strength);
-                  add(coeff, zernike_coeff_dev(zernike[il+1]), cross_wavelength_reg_strength);
-                }else if(il == nlambda-1){
-                  applyNorm(coeff, 1-cross_wavelength_reg_strength);
-                  add(coeff, zernike_coeff_dev(zernike[il-1]), cross_wavelength_reg_strength);
-                }else{
-                  applyNorm(coeff, 1-2*cross_wavelength_reg_strength);
-                  add(coeff, zernike_coeff_dev(zernike[il+1]), cross_wavelength_reg_strength);
-                  add(coeff, zernike_coeff_dev(zernike[il-1]), cross_wavelength_reg_strength);
-                }
-                resize_cuda_image(widths[il], widths[il]);
-                }
-                zernike_reconstruct(zernike[il], zernikeCrop, Real(widths[il])/2);
+                zernike_compute(zernike[il], zernikeCrop, Real(widths[il]-1)/2, Real(widths[il]-1)/2, Real(widths[il])/2, 5e-6, zernike_coeff + il*nmodes);
+              }
+            }
+            loop(il, nlambda){
+              if(dozernike){
+                zernike_reconstruct(zernike[il], zernikeCrop, Real(widths[il])/2, zernike_coeff + il*nmodes);
                 resize_cuda_image(row, column);
                 pad(zernikeCrop, pupilpatternWaves[il], widths[il], widths[il]);
+                if(iter == zernikeIter - 1 || (iter <zernikeIter && iter == nIter-1)) {
+                  plt.plotComplexColor(pupilpatternWaves[il], 0, 0.9/sqrt(probeMax[il]), ("recon_pupil_proj"+to_string(il)).c_str());
+                }
               }else{
                 applyMask(pupilpatternWaves[il], pupilSupport + il*row*column);
-              }
-              if(iter == zernikeIter - 1 || (iter <zernikeIter && iter == nIter-1)) {
-                plt.plotComplexColor(pupilpatternWaves[il], 0, 0.5*sqrt(nlambda), ("recon_pupil_proj"+to_string(il)).c_str());
               }
               propagate_pupil.pixelsize = resolution*lambdas[il];
               propagate_pupil.lambda = lambdas[il]*lambda;
               propagate_pupil.angularSpectrumPropagate(pupilpatternWaves[il], pupilpatternWaves[il]);
-              myFFT(pupilpatternWaves[il], esws[il]); //just reuse esw, instread of allocating new memory
-              cudaConvertFO(esws[il]);
-              getMod2(tmp, esws[il]);
-              middle = findMiddle(tmp);
-              multiplyShift(pupilpatternWaves[il], crealf(middle)*row-0.5, cimagf(middle)*column-0.5); //freq middle is n/2+1, not n/2+0.5
             }
+          }
+        }
+        if(mPIE > iter){ //momentum update
+                         // STEP 3: remove constant phase per wavelength
+          resize_cuda_image(row_O, column_O);
+          loop(il, nlambda){
+            multiply(objeff, objectWaves[il], masksums[il]);
+            complexFormat sum = findSum(objeff);
+            sum /= cabsf(sum);
+            multiplyConj(objectWaves[il], objectWaves[il], sum);
+            multiplyConj(objectWave_prevs[il], objectWave_prevs[il], sum);
+          }
+          resize_cuda_image(row, column);
+          loop(il, nlambda){
+            complexFormat sum = findSum(pupilpatternWaves[il], row*column);
+            sum /= cabsf(sum);
+            multiplyConj(pupilpatternWaves[il], pupilpatternWaves[il], sum);
+          }
+          // END STEP 3
+          resize_cuda_image(row_O*column_O*nlambda, 1);
+          add(objectWave_prev, objectWave, objectWave_prev, -1);
+          tkp1 = 0.5+sqrt(0.25+tk*tk);
+          add(objectWave_prev, objectWave, objectWave_prev, (tk-1)/tkp1);
+          tk = tkp1;
+          complexFormat* tmp = objectWave; objectWave = objectWave_prev; objectWave_prev = tmp;
+          complexFormat** tmp1 = objectWaves; objectWaves = objectWave_prevs; objectWave_prevs = tmp1;
+          resize_cuda_image(row*column*nlambda, 1);
+          if(momentum_probe && dozernike){
+            tkp1probe = 0.5+sqrt(0.25+tkprobe*tkprobe);
+            add(probe_prev, pupilpatternWave, probe_prev, -1);
+            add(probe_prev, pupilpatternWave, probe_prev, 0.5*(tkprobe-1)/tkp1probe);
+            tmp = pupilpatternWave; pupilpatternWave = probe_prev; probe_prev = tmp;
+            tmp1 = pupilpatternWaves; pupilpatternWaves = probe_prevs; probe_prevs = tmp1;
+            tkprobe = tkp1probe;
+          }
+        }
+        if(saveVideoEveryIter && iter%saveVideoEveryIter == 0){
+          resize_cuda_image(row_O, column_O);
+          plt_O.toVideo = vidhandle_O;
+          plt_O.plotComplexColor(objectWaves[10], 0, sqrt(nlambda), ("recon_object"+to_string(iter)).c_str(), 0, isFlip);
+          plt_O.toVideo = -1;
+          resize_cuda_image(row, column);
+          plt.toVideo = vidhandle_probe;
+          plt.plotComplexColor(pupilpatternWaves[0], 0, sqrt(nlambda), ("recon_probe"+to_string(iter)).c_str(), 0, isFlip);
+          plt.toVideo = -1;
         }
         if(iter == positionUpdateIter && verbose > 5){
           resize_cuda_image(row_O,column_O);
@@ -802,116 +829,121 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           plt_O.plotComplex(objectWave, PHASE, 0, 1, "ptycho_b4positionphase", 0);
           resize_cuda_image(row,column);
         }
-        }
-        resize_cuda_image(row,column);
-        loop(il, nlambda){
-          plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("ptycho_probe_afterIter_" + to_string(il)).c_str(), 1);
-          propagate_pupil.pixelsize = resolution*lambdas[il];
-          propagate_pupil.lambda = lambdas[il]*lambda;
-          propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[il], pupilpatternWaves[il]);
-          plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("recon_pupil_" + to_string(il)).c_str());
-        }
-        if(verbose>=3){
-          for(int i = 0 ; i < nscan; i++){
-            fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
-          }
-        }
-        if(saveVideoEveryIter){
-          plt_O.saveVideo(vidhandle_O);
-          plt.saveVideo(vidhandle_probe);
-          plt.saveVideo(vidhandle_pupil);
-        }
-        myCuFree(d_norm);
-        myFree(h_norm);
-        myCuFree(Fn);
-        myCuFree(objCache);
-        Real crop_ratio = 1;
-        int rowc = row_O*crop_ratio;
-        int colc = column_O*crop_ratio;
-        resize_cuda_image(rowc, colc);
-        plt.init(rowc, colc, outputDir);
-        loop(il, nlambda){
-          myCuDMalloc(complexFormat, cropped, rowc*colc);
-          myCuDMalloc(Real, angle, rowc*colc);
-          //for (int i = 0; i < nscan ; i++) {
-          //  drawCircle(objectWaves[il], scanposx[i] / lambdas[il]+row/2, scanposy[i]/ lambdas[il]+column/2, (pupilSize/ lambdas[il])/2-1, 3, 0);
-          //}
-          crop(objectWaves[il], cropped, row_O, column_O);
-          //getArg(angle, cropped);
-          applyNorm(angle, 1./(2*M_PI));
-          complexFormat sum = findSum(cropped);
-          sum /= hypot(crealf(sum), cimagf(sum));
-          multiplyConj(cropped, cropped, sum);
-          plt.plotComplexColor(cropped, 0, sqrt(nlambda), ("ptycho_afterIterwave" + to_string(il)).c_str());
+      }
+      resize_cuda_image(row,column);
+      loop(il, nlambda){
+        plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("ptycho_probe_afterIter_" + to_string(il)).c_str(), 1);
+        propagate_pupil.pixelsize = resolution*lambdas[il];
+        propagate_pupil.lambda = lambdas[il]*lambda;
+        propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[il], pupilpatternWaves[il]);
+        plt.plotComplexColor(pupilpatternWaves[il], 0, 0.9/sqrt(probeMax[il]), ("recon_pupil_" + to_string(il)).c_str());
+      }
+      fmt::ostream spectrumfile = fmt::output_file(std::string(outputDir) + "recon_spectrum.txt");
+      loop(il, nlambda){
+        spectrumfile.print("{} {}\n", lambda*lambdas[il], probeMax[il]);
+      }
+      spectrumfile.close();
+      if(verbose>=3){
+        for(int i = 0 ; i < nscan; i++){
+          fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
         }
       }
-      void readPattern(){
-        Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
-        jump = 22;
-        broadBand_constRatio::init_flatspectrum(row, column, 2, true);
-        plt.init(row,column, outputDir);
-        init_fft(row,column);
-        sz = row*column*sizeof(Real);
-        resolution = lambda*d/pixelsize/row;
-        readScan();
-        fmt::println("object size: {} x {}.", row_O, column_O);
-        allocateMem();
-        resize_cuda_image(row,column);
-        if(useBS) {
-          beamstop = createBeamStop(row,column,beamStopSize);
-        }
-        for(int i = 0; i < nscan; i++){
-          if(i!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".bin").c_str(), row, column);
-          if(!patterns[i]) myCuMalloc(Real, patterns[i], row*column);
-          myMemcpyH2D(patterns[i], pattern, sz);
-          myFree(pattern);
-          cudaConvertFO(patterns[i]);
-          applyNorm(patterns[i], 1./exposure);
-          if(i % 10 == 0)
-            verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str(), 1,0,1));
-        }
-        fmt::println("Created pattern data");
+      if(saveVideoEveryIter){
+        plt_O.saveVideo(vidhandle_O);
+        plt.saveVideo(vidhandle_probe);
+        plt.saveVideo(vidhandle_pupil);
       }
-    };
-    Real multi_ptycho::computeErrorSim(){
-      int upsampling = 3;
-      if(!registerFFTHandle){
-        createPlan(&registerFFTHandle, row*upsampling, column*upsampling);
-        myCuMalloc(complexFormat, registerCache, upsampling*upsampling*row*column);
-      } 
-      myCuDMalloc(complexFormat, convoluted, row*column);
-      convolute(convoluted, pupilpatternWave_t, pupilpatternWave, registerCache, upsampling, registerFFTHandle);
-      getMod2((Real*)registerCache, convoluted);
-      int index = findMaxIdx((Real*)registerCache, row*column);
-      Real x = index/column;
-      Real y = index%column;
-      x = (x-row/2)/upsampling+row/2;
-      y = (y-column/2)/upsampling+column/2;
-      shiftWave(pupilpatternWave, -x, -y);
-      shiftWave(objectWave, -x, -y);
-      //getPhaseDiff(registerCache, pupilpatternWave_t, pupilpatternWave);
-      //myFFT
-      return 0;
+      myCuFree(d_norm);
+      myFree(h_norm);
+      myCuFree(Fn);
+      myCuFree(objCache);
+      Real crop_ratio = 1;
+      int rowc = row_O*crop_ratio;
+      int colc = column_O*crop_ratio;
+      resize_cuda_image(rowc, colc);
+      plt.init(rowc, colc, outputDir);
+      loop(il, nlambda){
+        myCuDMalloc(complexFormat, cropped, rowc*colc);
+        myCuDMalloc(Real, angle, rowc*colc);
+        //for (int i = 0; i < nscan ; i++) {
+        //  drawCircle(objectWaves[il], scanposx[i] / lambdas[il]+row/2, scanposy[i]/ lambdas[il]+column/2, (pupilSize/ lambdas[il])/2-1, 3, 0);
+        //}
+        crop(objectWaves[il], cropped, row_O, column_O);
+        //getArg(angle, cropped);
+        applyNorm(angle, 1./(2*M_PI));
+        complexFormat sum = findSum(cropped);
+        sum /= cabsf(sum);
+        multiplyConj(cropped, cropped, sum);
+        plt.plotComplexColor(cropped, 0, sqrt(nlambda), ("ptycho_afterIterwave" + to_string(il)).c_str());
+      }
     }
-    int main(int argc, char** argv )
-    {
-      multi_ptycho setups(argv[1]);
-      if(argc < 2){
-        fmt::println("please feed the object intensity and phase image");
+    void readPattern(){
+      Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
+      jump = 22;
+      broadBand_constRatio::init_flatspectrum(row, column, 2, true);
+      plt.init(row,column, outputDir);
+      init_fft(row,column);
+      sz = row*column*sizeof(Real);
+      resolution = lambda*d/pixelsize/row;
+      readScan();
+      fmt::println("object size: {} x {}.", row_O, column_O);
+      allocateMem();
+      resize_cuda_image(row,column);
+      if(useBS) {
+        beamstop = createBeamStop(row,column,beamStopSize);
       }
-      if(setups.runSim){
-        setups.readPupilAndObject();
-        setups.createPattern();
-      }else{
-        setups.readPattern();
+      for(int i = 0; i < nscan; i++){
+        if(i!=0) pattern = readImage((string(outputDir) + common.Pattern+to_string(i)+".bin").c_str(), row, column);
+        if(!patterns[i]) myCuMalloc(Real, patterns[i], row*column);
+        myMemcpyH2D(patterns[i], pattern, sz);
+        myFree(pattern);
+        cudaConvertFO(patterns[i]);
+        applyNorm(patterns[i], 1./exposure);
+        if(i % 10 == 0)
+          verbose(3, plt.plotFloat(patterns[i], MOD, 1, exposure, ("input"+string(common.Pattern)+to_string(i)).c_str(), 1,0,1));
       }
-      fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
-      fmt::println("Resolution = {:4.2f}um", setups.resolution);
-
-      fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
-      setups.initObject();
-      setups.iterate();
-
-      return 0;
+      fmt::println("Created pattern data");
     }
+};
+Real multi_ptycho::computeErrorSim(){
+  int upsampling = 3;
+  if(!registerFFTHandle){
+    createPlan(&registerFFTHandle, row*upsampling, column*upsampling);
+    myCuMalloc(complexFormat, registerCache, upsampling*upsampling*row*column);
+  } 
+  myCuDMalloc(complexFormat, convoluted, row*column);
+  convolute(convoluted, pupilpatternWave_t, pupilpatternWave, registerCache, upsampling, registerFFTHandle);
+  getMod2((Real*)registerCache, convoluted);
+  int index = findMaxIdx((Real*)registerCache, row*column);
+  Real x = index/column;
+  Real y = index%column;
+  x = (x-row/2)/upsampling+row/2;
+  y = (y-column/2)/upsampling+column/2;
+  shiftWave(pupilpatternWave, -x, -y);
+  shiftWave(objectWave, -x, -y);
+  //getPhaseDiff(registerCache, pupilpatternWave_t, pupilpatternWave);
+  //myFFT
+  return 0;
+}
+int main(int argc, char** argv )
+{
+  multi_ptycho setups(argv[1]);
+  if(argc < 2){
+    fmt::println("please feed the object intensity and phase image");
+  }
+  if(setups.runSim){
+    setups.readPupilAndObject();
+    setups.createPattern();
+  }else{
+    setups.readPattern();
+  }
+  fmt::println("Imaging distance = {:4.2f}cm", setups.d*1e-4);
+  fmt::println("Resolution = {:4.2f}um", setups.resolution);
+
+  fmt::println("pupil Imaging distance = {:4.2f}cm", setups.dpupil*1e-4);
+  setups.initObject();
+  setups.iterate();
+
+  return 0;
+}
 
