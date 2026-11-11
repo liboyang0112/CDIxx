@@ -36,5 +36,8 @@ int FGA(int row, int col, int nlambda, double* lambdas, double* spectra, Real* d
     applyNorm(complexpattern,1./col);
     plt.plotComplex(complexpattern, MOD, 1, 1, "autocsolved", 1);
     mwl.writeSpectra("spectra_new.txt");
+    myCuFree(realb);
+    myCuFree(complexpattern);
+    myCuFree(solved);
     return 0;
 }

@@ -78,6 +78,8 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   for (int i = 0; i < nlambda; i++) {
     myMemcpyH2D(refs[i], d_ref, pixCount*sizeof(complexFormat));
   }
+  myFree(d_ref);
+  myFree(maskMap);
   fmt::println("mask has {} pixels", pixCount);
 }
 void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask){
@@ -130,6 +132,7 @@ void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask
   myCuFree(amp);
   myCuFree(camp);
   myCuFree(d_pattern);
+  myCuFree(masked);
 }
 void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
   myCuDMallocClean(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
@@ -198,6 +201,7 @@ void createACmask(Real* acmask, int row, int imrow, int column, int imcol){
   myMemcpyH2D(cuda_spt, &acdmasks, sizeof(rect));
   resize_cuda_image(row, column);
   createMaskBar(acmask, cuda_spt, 1);
+  myCuFree(cuda_spt);
 }
 void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
   Real stepsize = 0.3/pixCount;
@@ -285,6 +289,10 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
   myCuFree(autocorr);
   myCuFree(step);
   myCuFree(Ritilder);
+  myCuFree(acmask);
+  myCuFree(twist_cache);
+  for (int i = 0; i < nlambda; i++) myCuFree(spectImages_prev[i]);
+  myFree(spectImages_prev);
 }
 void spectImaging::clearRefs(){
   for(int i = 0; i < nlambda; i++) clearCuMem(refs[i],  pixCount*sizeof(complexFormat));
@@ -423,4 +431,5 @@ void spectImaging::reconRefs(void* d_patternSum){
   myCuFree(deltao);
   myCuFree(deltao2);
   myCuFree(reftmp);
+  myCuFree(devstates);
 }

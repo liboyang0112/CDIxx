@@ -210,6 +210,7 @@ void runIter_fast(int n, int niter, double step_lambda, double* bi, double* out,
       }
     }
   }
+  myFree(lambda);
 }
 
 void Fit_fast(double* out, int n, void** vectors, void* right, Real (*innerProd)(void*, void*, void*), void* param){

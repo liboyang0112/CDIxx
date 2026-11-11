@@ -829,54 +829,51 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           plt_O.plotComplex(objectWave, PHASE, 0, 1, "ptycho_b4positionphase", 0);
           resize_cuda_image(row,column);
         }
-      }
-      resize_cuda_image(row,column);
-      loop(il, nlambda){
-        plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("ptycho_probe_afterIter_" + to_string(il)).c_str(), 1);
-        propagate_pupil.pixelsize = resolution*lambdas[il];
-        propagate_pupil.lambda = lambdas[il]*lambda;
-        propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[il], pupilpatternWaves[il]);
-        plt.plotComplexColor(pupilpatternWaves[il], 0, 0.9/sqrt(probeMax[il]), ("recon_pupil_" + to_string(il)).c_str());
-      }
-      fmt::ostream spectrumfile = fmt::output_file(std::string(outputDir) + "recon_spectrum.txt");
-      loop(il, nlambda){
-        spectrumfile.print("{} {}\n", lambda*lambdas[il], probeMax[il]);
-      }
-      spectrumfile.close();
-      if(verbose>=3){
-        for(int i = 0 ; i < nscan; i++){
-          fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
+        }
+        resize_cuda_image(row,column);
+        loop(il, nlambda){
+          plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("ptycho_probe_afterIter_" + to_string(il)).c_str(), 1);
+          propagate_pupil.pixelsize = resolution*lambdas[il];
+          propagate_pupil.lambda = lambdas[il]*lambda;
+          propagate_pupil.angularSpectrumPropagateReverse(pupilpatternWaves[il], pupilpatternWaves[il]);
+          plt.plotComplexColor(pupilpatternWaves[il], 0, sqrt(nlambda), ("recon_pupil_" + to_string(il)).c_str());
+        }
+        if(verbose>=3){
+          for(int i = 0 ; i < nscan; i++){
+            fmt::println("recon shifts {}: ({:f}, {:f})", i, shiftx[i],shifty[i]);
+          }
+        }
+        if(saveVideoEveryIter){
+          plt_O.saveVideo(vidhandle_O);
+          plt.saveVideo(vidhandle_probe);
+          plt.saveVideo(vidhandle_pupil);
+        }
+        myCuFree(d_norm);
+        myFree(h_norm);
+        myCuFree(Fn);
+        myCuFree(objCache);
+        Real crop_ratio = 1;
+        int rowc = row_O*crop_ratio;
+        int colc = column_O*crop_ratio;
+        resize_cuda_image(rowc, colc);
+        plt.init(rowc, colc, outputDir);
+        loop(il, nlambda){
+          myCuDMalloc(complexFormat, cropped, rowc*colc);
+          myCuDMalloc(Real, angle, rowc*colc);
+          //for (int i = 0; i < nscan ; i++) {
+          //  drawCircle(objectWaves[il], scanposx[i] / lambdas[il]+row/2, scanposy[i]/ lambdas[il]+column/2, (pupilSize/ lambdas[il])/2-1, 3, 0);
+          //}
+          crop(objectWaves[il], cropped, row_O, column_O);
+          //getArg(angle, cropped);
+          applyNorm(angle, 1./(2*M_PI));
+          complexFormat sum = findSum(cropped);
+          sum /= hypot(crealf(sum), cimagf(sum));
+          multiplyConj(cropped, cropped, sum);
+          plt.plotComplexColor(cropped, 0, sqrt(nlambda), ("ptycho_afterIterwave" + to_string(il)).c_str());
+          myCuFree(cropped);
+          myCuFree(angle);
         }
       }
-      if(saveVideoEveryIter){
-        plt_O.saveVideo(vidhandle_O);
-        plt.saveVideo(vidhandle_probe);
-        plt.saveVideo(vidhandle_pupil);
-      }
-      myCuFree(d_norm);
-      myFree(h_norm);
-      myCuFree(Fn);
-      myCuFree(objCache);
-      Real crop_ratio = 1;
-      int rowc = row_O*crop_ratio;
-      int colc = column_O*crop_ratio;
-      resize_cuda_image(rowc, colc);
-      plt.init(rowc, colc, outputDir);
-      loop(il, nlambda){
-        myCuDMalloc(complexFormat, cropped, rowc*colc);
-        myCuDMalloc(Real, angle, rowc*colc);
-        //for (int i = 0; i < nscan ; i++) {
-        //  drawCircle(objectWaves[il], scanposx[i] / lambdas[il]+row/2, scanposy[i]/ lambdas[il]+column/2, (pupilSize/ lambdas[il])/2-1, 3, 0);
-        //}
-        crop(objectWaves[il], cropped, row_O, column_O);
-        //getArg(angle, cropped);
-        applyNorm(angle, 1./(2*M_PI));
-        complexFormat sum = findSum(cropped);
-        sum /= cabsf(sum);
-        multiplyConj(cropped, cropped, sum);
-        plt.plotComplexColor(cropped, 0, sqrt(nlambda), ("ptycho_afterIterwave" + to_string(il)).c_str());
-      }
-    }
     void readPattern(){
       Real* pattern = readImage((outputDir + string(common.Pattern)+"0.bin").c_str(), row, column);
       jump = 22;

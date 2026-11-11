@@ -47,7 +47,6 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   if(updateA){
     myCuMalloc(Real, sptimg, row*column);
     createMaskBar(sptimg, cuda_spt, 0);
-    myCuFree(cuda_spt);
     applyMaskBar(sptimg, d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
@@ -243,11 +242,16 @@ void monoChromo::solveMWL(complexFormat* d_input, complexFormat* d_output, int n
   myCuFree(patternstep);
   myCuFree(multiplied);
   myCuFree(momentum);
-  myCuFree(padded);
   myCuFree(fbi);
   myCuFree(fftb);
   myCuFree(deltab);
-
+  myCuFree(cuda_spt);
+  myCuFree(sptimg);
+  if(gs){
+    for(int j = 0; j < nmem+1; j++) myCuFree(gs[j]);
+    myFree(gs);
+    gs = 0;
+  }
 }
 void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_output, int noiseLevel, bool restart, int nIter, bool updateX, bool updateA)
 {
@@ -263,7 +267,6 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   if(updateA){
     myCuMalloc(Real, sptimg, row*column);
     createMaskBar(sptimg, cuda_spt, 0);
-    myCuFree(cuda_spt);
     applyMaskBar(sptimg, d_input, 0.99);
     plt.plotFloat(sptimg, MOD, 0, 1, "innerprodspt", 0);
   }
@@ -451,5 +454,11 @@ void monoChromo_constRatio::solveMWL(complexFormat* d_input, complexFormat* d_ou
   myCuFree(momentum);
   if(!updateA) myCuFree(fbi);
   myCuFree(deltab);
-
+  myCuFree(cuda_spt);
+  myCuFree(sptimg);
+  if(gs){
+    for(int j = 0; j < nmem; j++) myCuFree(gs[j]);
+    myFree(gs);
+    gs = 0;
+  }
 }

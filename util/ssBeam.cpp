@@ -9,7 +9,7 @@
 //#include <cstring>
 int main() {
   int rows = 2048, cols = 2048;
-  int pupilsize = 1024;
+  int pupilsize = 750;
   init_cuda_image();
   resize_cuda_image(rows, cols);
   init_fft(rows, cols);

@@ -110,6 +110,7 @@ void spectPhase::solvecSpectrum(Real* pattern, int niter){
     file1.print("{} {} {} {} {} {}\n", i, Real(rows[i])/row, creal(cspectrum[i]), cimag(cspectrum[i]), cabs(cspectrum[i]), carg(cspectrum[i]));
   }
   file1.close();
+  myFree(cspectrum_step);
   myCuFree(d_pattern);
   myCuFree(single_pattern);
   myCuFree(img0);

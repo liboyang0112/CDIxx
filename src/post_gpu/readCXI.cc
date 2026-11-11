@@ -75,6 +75,7 @@ Real* readCXI (const char* filename, int n, Real **mask)
       applyNorm(*mask, 1./128);
       invert(*mask);
       plt.plotFloat(*mask, MOD, 0, 1., "mask", 0, 0, 0);
+      myCuFree(d_mask);
     }
 
     H5Dread(dataset, complex_id, memspace, dataspace,
@@ -104,6 +105,10 @@ Real* readCXI (const char* filename, int n, Real **mask)
        if(mask) ((char*)(mask)->data)[i] = maskdata[i]*255;
        }
        */
+    myFree(image);
+    myFree(pattern);
+    myFree(intmask);
+    myCuFree(d_cimage);
     H5Tclose(datatype);
     H5Dclose(dataset);
     H5Sclose(dataspace);
