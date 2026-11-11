@@ -292,7 +292,7 @@
                                     <i class="layui-icon layui-icon-template-1"></i> Save As Default
                                 </button>
                                 <button class="layui-btn layui-btn-danger" id="cdi_btn">
-                                    <i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction Reconstruction
+                                    <i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction
                                 </button>
                                 <button class="layui-btn" id="compute_prtf">
                                     <i class="layui-icon layui-icon-chart"></i> Compute PRTF
@@ -322,7 +322,8 @@
                             </span>
                             <span>Latency: <span id="latency">--</span> s</span>
                         </div>
-                        <video id="cdixxVideo" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+                        <img id="cdixxStream" style="width: 100%; display: none; background: #000; min-height: 200px;" alt="Live stream">
+                        <video id="cdixxVideo" style="width: 100%; display: block; background: #000; min-height: 200px;" autoplay loop muted controls></video>
                     </div>
                     
                     <!-- Logs Section -->
@@ -658,12 +659,6 @@
             // === TERMINATE MODE (second click) ===
             if (window.cdiIsRunning) {
                 try {
-                    // Cancel stream poll
-                    if (window.cdiStreamPoll) {
-                        clearInterval(window.cdiStreamPoll);
-                        window.cdiStreamPoll = null;
-                    }
-
                     // Send kill command
                     const response = await fetch(url_cmd, {
                         method: 'POST',
@@ -679,6 +674,7 @@
                     btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
                     btn.className = 'layui-btn layui-btn-danger';
                     window.cdiIsRunning = false;
+                    showFallbackVideo();
                 }
                 return;
             }
@@ -702,17 +698,14 @@
                 btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
                 btn.className = 'layui-btn layui-btn-danger';
 
-                // Cancel poll if still running
-                if (window.cdiStreamPoll) {
-                    clearInterval(window.cdiStreamPoll);
-                    window.cdiStreamPoll = null;
-                }
+                // Show fallback video
+                showFallbackVideo();
 
                 // Refresh result images
                 const timestamp = getTimestamp();
-                document.getElementById('recon').src = path + "recon_intensity_cropped.jpg?t=" + timestamp;
+                document.getElementById('recon').src = path + "recon_intensity_cropped.png?t=" + timestamp;
                 document.getElementById('recon_input').src = path + "init_logpattern.jpg?t=" + timestamp;
-                document.getElementById('recon_phase').src = path + "recon_phase_cropped.jpg?t=" + timestamp;
+                document.getElementById('recon_phase').src = path + "recon_phase_cropped.png?t=" + timestamp;
 
                 showNotification('CDI reconstruction completed', 'success');
             }).catch(err => {
@@ -720,49 +713,47 @@
                 window.cdiIsRunning = false;
                 btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run CDI Reconstruction';
                 btn.className = 'layui-btn layui-btn-danger';
+                showFallbackVideo();
                 showNotification('CDI reconstruction error', 'error');
             });
 
-            showNotification('CDI reconstruction started! Waiting for stream...', 'success');
+            showNotification('CDI reconstruction started! Live stream connecting...', 'success');
 
-            // Poll for stream.m3u8 update
-            if (window.cdiStreamPoll) {
-                clearInterval(window.cdiStreamPoll);
-            }
-
-            const streamUrl = `${repo}${workpath}/recon_intensity/stream.m3u8`;
-            const streamPath = `${repo}${workpath}/recon_intensity/stream.m3u8`;
-            const maxWaitMs = 120000;
-            const pollIntervalMs = 2000;
-            const startEpoch = Math.floor(Date.now() / 1000) - 5;
-
-            window.cdiStreamPoll = setInterval(() => {
-                if (!window.cdiIsRunning) {
-                    clearInterval(window.cdiStreamPoll);
-                    window.cdiStreamPoll = null;
-                    return;
-                }
-                if (Date.now() - startEpoch * 1000 > maxWaitMs) {
-                    clearInterval(window.cdiStreamPoll);
-                    window.cdiStreamPoll = null;
-                    return;
-                }
-
-                fetch(url_cmd, {
-                    method: 'POST',
-                    body: `stat -c %Y ${streamPath} 2>/dev/null`
-                }).then(resp => resp.text()).then(data => {
-                    const mtime = parseInt(data.trim(), 10);
-                    if (!isNaN(mtime) && mtime >= startEpoch) {
-                        clearInterval(window.cdiStreamPoll);
-                        window.cdiStreamPoll = null;
-                        console.log(`[CDI STREAM] m3u8 updated (mtime=${mtime}), loading...`);
-                        setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
-                    }
-                }).catch(() => { /* retry next poll */ });
-            }, pollIntervalMs);
+            // Connect to live MJPEG stream (PHP blocks until socket is ready)
+            const streamImg = document.getElementById('cdixxStream');
+            const pageDir = document.URL.replace(/^https?:\/\/[^/]+/, '').replace(/[^/]*$/, '');
+            const sockPath = pageDir + repo + workpath + '/cdixx_stream.sock';
+            connectStream(streamImg, sockPath);
         });
         
+        // ==================== Live Stream (MJPEG) ====================
+        function connectStream(img, sockPath) {
+            const videoEl = document.getElementById('cdixxVideo');
+            img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+            img.onload = () => {
+                document.getElementById('streamStatus').style.background = '#4caf50';
+                img.style.display = 'block';
+                videoEl.style.display = 'none';
+            };
+            img.onerror = () => {
+                document.getElementById('streamStatus').style.background = '#f44336';
+                img.style.display = 'none';
+                videoEl.style.display = 'block';
+            };
+        }
+
+        function showFallbackVideo() {
+            const img = document.getElementById('cdixxStream');
+            const videoEl = document.getElementById('cdixxVideo');
+            img.onload = null;
+            img.onerror = null;
+            img.src = '';
+            img.style.display = 'none';
+            videoEl.src = repo + workpath + '/recon_object.mp4';
+            videoEl.style.display = 'block';
+            videoEl.play().catch(() => {});
+        }
+
         // ==================== GPU Selection ====================
         document.getElementById("selGPU_btn")?.addEventListener('click', async () => {
             const cmd = `echo export CUDA_VISIBLE_DEVICES=${document.getElementById('iGPU').value} > selectGPU.sh`;
@@ -791,8 +782,8 @@
         // ==================== HLS Stream Setup ====================
         document.addEventListener('DOMContentLoaded', () => {
             if (workpath) {
-                const streamUrl = `${repo}${workpath}/recon_intensity/stream.m3u8`;
-                setupHLSStream('cdixxVideo', streamUrl, 'latency', 'streamStatus');
+                const videoEl = document.getElementById('cdixxVideo');
+                videoEl.src = repo + workpath + '/recon_object.mp4';
             }
         });
         

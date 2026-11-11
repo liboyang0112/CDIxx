@@ -297,7 +297,8 @@
                 </span>
                 <span>Latency: <span id="latency">--</span> s</span>
               </div>
-              <video id="ptychoStream" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+              <img id="ptychoStreamImg" style="width: 100%; display: none; background: #000; min-height: 200px;" alt="Live stream">
+              <video id="ptychoStream" style="width: 100%; display: block; background: #000; min-height: 200px;" autoplay loop muted controls></video>
             </div>
 
             <!-- Reconstruction Results -->
@@ -669,13 +670,7 @@
         // === TERMINATE MODE (second click) ===
         if (window.reconstructionState.isRunning) {
           try {
-            // Cancel pending stream poll
-            if (window.reconstructionState.streamPoll) {
-              clearInterval(window.reconstructionState.streamPoll);
-              window.reconstructionState.streamPoll = null;
-            }
-
-            // Send termination command (BACKEND MUST IMPLEMENT killPtycho.sh)
+            // Send termination command
             const killCmd = `./killPtycho.sh "${path}" "${window.reconstructionState.outputName}"`;
             const response = await fetch(url_cmd, { method: 'POST', body: killCmd });
             if (response.ok) {
@@ -683,17 +678,16 @@
             } else {
               showNotification('Termination failed (process may have already finished)', 'warning');
             }
-
-            showNotification('Termination signal sent', 'warning');
           } catch (err) {
             console.error('Termination failed:', err);
             showNotification('Termination error (check logs)', 'error');
           } finally {
             // Reset UI state
             btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
-            btn.className = 'layui-btn layui-btn-danger'; // Restore original class
+            btn.className = 'layui-btn layui-btn-danger';
             window.reconstructionState.isRunning = false;
             window.reconstructionState.outputName = null;
+            showFallbackVideo();
           }
           return;
         }
@@ -713,63 +707,59 @@
           .then(resp => resp.text())
           .then(data => {
             document.getElementById('ptycholog').innerText = data;
-            showNotification('Reconstruction terminated', 'success');
             window.reconstructionState.isRunning = false;
             btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
             btn.className = 'layui-btn layui-btn-danger';
             btn.disabled = false;
             clearLoading('runPtychoBtn');
-            loadImage(); // Load static images
+            showFallbackVideo();
+            loadImage();
+            showNotification('Reconstruction completed', 'success');
           })
           .catch(err => {
             console.error('Reconstruction start failed:', err);
             showNotification('Failed to start reconstruction', 'error');
+            showFallbackVideo();
             resetReconstructionUI();
           });
 
-        showNotification('Reconstruction started! Waiting for stream...', 'success');
+        showNotification('Reconstruction started! Live stream connecting...', 'success');
 
-        // Poll for stream.m3u8 existence instead of fixed delay
-        if (window.reconstructionState.streamPoll) {
-          clearInterval(window.reconstructionState.streamPoll);
-        }
-
-        if (!outputName) return;
-
-        const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-        const streamPath = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-        const maxWaitMs = 120000; // give up after 2 minutes
-        const pollIntervalMs = 2000; // check every 2 seconds
-        // Use 5s before click as threshold so we catch files written just after start
-        const startEpoch = Math.floor(Date.now() / 1000) - 5;
-
-        window.reconstructionState.streamPoll = setInterval(() => {
-          if (!window.reconstructionState.isRunning) {
-            clearInterval(window.reconstructionState.streamPoll);
-            window.reconstructionState.streamPoll = null;
-            return;
-          }
-          if (Date.now() - startEpoch * 1000 > maxWaitMs) {
-            clearInterval(window.reconstructionState.streamPoll);
-            window.reconstructionState.streamPoll = null;
-            showNotification('Stream not updated within 2 minutes', 'error');
-            return;
-          }
-
-          fetch(url_cmd, {
-            method: 'POST',
-            body: `stat -c %Y ${streamPath} 2>/dev/null`
-          }).then(resp => resp.text()).then(data => {
-            const mtime = parseInt(data.trim(), 10);
-            if (!isNaN(mtime) && mtime >= startEpoch) {
-              clearInterval(window.reconstructionState.streamPoll);
-              window.reconstructionState.streamPoll = null;
-              console.log(`[STREAM] m3u8 updated (mtime=${mtime}), loading...`);
-              setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
-            }
-          }).catch(() => { /* ignore network errors, retry on next poll */ });
-        }, pollIntervalMs);
+        // Connect to live MJPEG stream (PHP blocks until socket is ready)
+        const streamImg = document.getElementById('ptychoStreamImg');
+        const pageDir = document.URL.replace(/^https?:\/\/[^/]+/, '').replace(/[^/]*$/, '');
+        const sockPath = pageDir + repo + workpath + '/cdixx_stream.sock';
+        connectStream(streamImg, sockPath);
       });
+
+      // ==================== Live Stream (MJPEG) ====================
+      function connectStream(img, sockPath) {
+        const videoEl = document.getElementById('ptychoStream');
+        img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+        img.onload = () => {
+          document.getElementById('streamStatus').style.background = '#4caf50';
+          img.style.display = 'block';
+          videoEl.style.display = 'none';
+        };
+        img.onerror = () => {
+          document.getElementById('streamStatus').style.background = '#f44336';
+          img.style.display = 'none';
+          videoEl.style.display = 'block';
+        };
+      }
+
+      function showFallbackVideo() {
+        const img = document.getElementById('ptychoStreamImg');
+        const videoEl = document.getElementById('ptychoStream');
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+        img.style.display = 'none';
+        const outputName = document.getElementById('ptychoOutputName').value || 'out';
+        videoEl.src = repo + workpath + '/' + outputName + '/recon_object.mp4';
+        videoEl.style.display = 'block';
+        videoEl.play().catch(() => {});
+      }
 
       // Helper to reset UI state
       function resetReconstructionUI() {
@@ -825,12 +815,13 @@
         loadImage();
       });
 
-      // ==================== Setup HLS Stream ====================
+      // ==================== Setup fallback video ====================
       document.addEventListener('DOMContentLoaded', () => {
         const outputName = document.getElementById('ptychoOutputName').value;
-        const path = repo + workpath + "/" + outputName + "/recon_object/";
-        const streamUrl = path + 'stream.m3u8';
-        setupHLSStream('ptychoStream', streamUrl, 'latency', 'streamStatus');
+        if (workpath && outputName) {
+          const videoEl = document.getElementById('ptychoStream');
+          videoEl.src = repo + workpath + '/' + outputName + '/recon_object.mp4';
+        }
       });
 
       // ==================== Autocomplete Initialization ====================

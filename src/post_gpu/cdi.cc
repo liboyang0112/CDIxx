@@ -297,7 +297,7 @@ void CDI::saveState(){
 complexFormat* CDI::phaseRetrieve(){
   int vidhandle = 0;
   if(saveVideoEveryIter){
-    vidhandle = plt.initVideo("recon_intensity.mp4",24, 1, online);
+    vidhandle = plt.initVideo("recon_object.mp4",24, 1, online);
   }
 
   complexFormat *cuda_gkp1 = objectWave;
@@ -371,6 +371,7 @@ complexFormat* CDI::phaseRetrieve(){
       edgeReduce(d_prtf, d_polar, column<<1);
       myMemcpyD2H(weights, d_prtf, (row>>1)*sizeof(Real));
       resize_cuda_image(row, column);
+      plt.init(row, column);
     }else if(iter > prtfIter) {
       applySupport(cache, cuda_gkprime, ER, support);
       multiplyConj(cache, cache, gamma0);

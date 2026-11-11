@@ -24,9 +24,16 @@ class cuPlotter
   uint8_t *cv_cache = 0;
   void *videoWriterVec[100];
   void* videoPreview[100];
+  bool isOnline[100];
   int toVideo = -1;
   int writeVideo = -1;
-  cuPlotter():cuCache_data(0),cv_data(0),cv_complex_data(0),cv_cache(0){};
+  cuPlotter():cuCache_data(0),cv_data(0),cv_complex_data(0),cv_cache(0){
+    for(int i = 0; i < 100; i++){
+      videoWriterVec[i] = 0;
+      videoPreview[i] = 0;
+      isOnline[i] = false;
+    }
+  }
   void init(int rows_, int cols_, const char* prefix_ = "./");
   void* getCache(){return cv_cache;}
   int initVideo(const char* filename, int fps = 24, bool preview = 0, bool online = 0);

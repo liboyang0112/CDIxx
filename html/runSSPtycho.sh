@@ -12,6 +12,8 @@ cd "$WORKDIR"
 source "${HOME}/myenv.sh"
 source selectGPU.sh 2>/dev/null
 
+rm -f cdixx_stream.sock
+
 TRACKING_FILE=".ssptycho_run_${USER}_$(date +%s)"
 sh -c "echo \$\$ > '$TRACKING_FILE'; chmod 600 '$TRACKING_FILE'; exec stdbuf -oL -eL ssptycho_run ssptycho.cfg 2>&1" | \
   while IFS= read -r line || [ -n "$line" ]; do

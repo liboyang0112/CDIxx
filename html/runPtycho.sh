@@ -9,7 +9,9 @@ fi
 cd "$WORKDIR"
 
 # Source environment
-source "${HOME}/myenv.sh" 
+source "${HOME}/myenv.sh"
+source selectGPU.sh 2>/dev/null
+rm -f cdixx_stream.sock
 
 # CRITICAL: Follow exact pattern from your example
 TRACKING_FILE=".ptycho_run_${USER}_$(date +%s)"

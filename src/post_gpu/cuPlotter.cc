@@ -72,14 +72,13 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool onlin
     exit(0);
   }
   auto strfname = prefix + std::string(filename);
-  strfname.erase(strfname.size() - 4);
+  isOnline[handle] = online;
+  videoWriterVec[handle] = createVideo(strfname.c_str(), rows, cols, fps, NULL);
   if(online){
-    videoWriterVec[handle] = createVideo((strfname + "/").c_str(), rows, cols, fps, NULL);
-  }else {
-    videoWriterVec[handle] = createVideo(filename, rows, cols, fps, NULL);
-    if(preview) {
-      videoPreview[handle] = createPreview(filename, rows, cols);
-    }
+    std::string sockPath = "cdixx_stream.sock";
+    videoPreview[handle] = createStream(sockPath.c_str(), rows, cols);
+  }else if(preview) {
+    videoPreview[handle] = createPreview(filename, rows, cols);
   }
   toVideo = handle;
   return handle;
@@ -90,6 +89,11 @@ void cuPlotter::saveVideo(int handle){
     vid_thread = 0;
   }
   ::saveVideo(videoWriterVec[handle]);
+  if(isOnline[handle] && videoPreview[handle]) {
+    destroyStream(videoPreview[handle]);
+    videoPreview[handle] = 0;
+    isOnline[handle] = false;
+  }
 }
 bool ensureDirExists(const std::string& path) {
     if (!path.empty()) {
@@ -201,7 +205,16 @@ void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, c
   if(toVideo>=0) {
     writeVideo = toVideo;
     pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
-    if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
+    if(isOnline[toVideo] && videoPreview[toVideo]) {
+      unsigned char* jdata = nullptr;
+      size_t jsize = 0;
+      if (encodeJPEG_GPU_toMem(cuCache_data, rows, cols, 75, &jdata, &jsize) == 0) {
+        updateStream(videoPreview[toVideo], jdata, (int)jsize);
+        free(jdata);
+      }
+    } else if(videoPreview[toVideo]) {
+      updatePreview(videoPreview[toVideo], cv_cache);
+    }
   }else{
     writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
     fmt::println("written to file {}", fname);
@@ -297,9 +310,18 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
     char color[3] = {-1,0,0};
     if(caption) putText(caption, 0, rows-1, rows, cols, cv_cache, 1, color);
     if(toVideo>=0) {
-      //put_formula(label, 0,0,cols, cv_cache, 1, color);
       pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
-      if(videoPreview[toVideo]) updatePreview(videoPreview[toVideo], cv_cache);
+      if(isOnline[toVideo] && videoPreview[toVideo]) {
+        unsigned char* jdata = nullptr;
+        size_t jsize = 0;
+        void* src = cuRGB_data ? cuRGB_data : cuCache_data;
+        if (src && encodeJPEG_GPU_toMem(src, rows, cols, 75, &jdata, &jsize) == 0) {
+          updateStream(videoPreview[toVideo], jdata, (int)jsize);
+          free(jdata);
+        }
+      } else if(videoPreview[toVideo]) {
+        updatePreview(videoPreview[toVideo], cv_cache);
+      }
       return;
     }
     else if(std::string(fname).find(".png")!=std::string::npos)

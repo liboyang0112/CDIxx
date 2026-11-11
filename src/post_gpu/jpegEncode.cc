@@ -94,4 +94,101 @@ extern "C" int writeJPEG_GPU(void* d_rgb, int height, int width, const char* fna
   nvimgcodecImageDestroy(img);
   return 0;
 }
+
+// ── Encode JPEG directly to host memory ──────────────
+struct JpegMemOutput {
+  unsigned char* buffer;
+  size_t size;
+};
+
+static unsigned char* jpegResizeCallback(void* ctx, size_t req_size) {
+  struct JpegMemOutput* out = (struct JpegMemOutput*)ctx;
+  if (out->size != req_size) {
+    free(out->buffer);
+    out->buffer = (unsigned char*)malloc(req_size);
+    if (!out->buffer) return NULL;
+    out->size = req_size;
+  }
+  return out->buffer;
+}
+
+extern "C" int encodeJPEG_GPU_toMem(void* d_rgb, int height, int width, int quality,
+                                    unsigned char** out_data, size_t* out_size) {
+  if (!g_nvc_inst) return -1;
+
+  // Sync all prior GPU work to ensure source buffer is stable
+  cudaDeviceSynchronize();
+
+  nvimgcodecImageInfo_t ii;
+  memset(&ii, 0, sizeof(ii));
+  ii.struct_type = NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO;
+  ii.struct_size = sizeof(ii);
+  ii.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
+  ii.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_RGB;
+  ii.num_planes = 1;
+  ii.plane_info[0].width = width;
+  ii.plane_info[0].height = height;
+  ii.plane_info[0].row_stride = width * 3;
+  ii.plane_info[0].num_channels = 3;
+  ii.plane_info[0].sample_type = NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8;
+  ii.plane_info[0].precision = 8;
+  ii.buffer = d_rgb;
+  ii.buffer_kind = NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE;
+
+  nvimgcodecImage_t img = NULL;
+  nvimgcodecStatus_t st = nvimgcodecImageCreate(g_nvc_inst, &img, &ii);
+  if (st != NVIMGCODEC_STATUS_SUCCESS) return -1;
+
+  nvimgcodecImageInfo_t out_ii = ii;
+  strcpy(out_ii.codec_name, "jpeg");
+
+  struct JpegMemOutput jmo = {NULL, 0};
+  nvimgcodecCodeStream_t stream = NULL;
+  st = nvimgcodecCodeStreamCreateToHostMem(g_nvc_inst, &stream, &jmo,
+                                            jpegResizeCallback, &out_ii);
+  if (st != NVIMGCODEC_STATUS_SUCCESS) {
+    nvimgcodecImageDestroy(img);
+    return -1;
+  }
+
+  nvimgcodecExecutionParams_t xp;
+  memset(&xp, 0, sizeof(xp));
+  xp.struct_type = NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS;
+  xp.struct_size = sizeof(xp);
+  xp.device_id = NVIMGCODEC_DEVICE_CURRENT;
+  nvimgcodecEncoder_t enc = NULL;
+  st = nvimgcodecEncoderCreate(g_nvc_inst, &enc, &xp, NULL);
+  if (st != NVIMGCODEC_STATUS_SUCCESS) {
+    nvimgcodecCodeStreamDestroy(stream);
+    nvimgcodecImageDestroy(img);
+    return -1;
+  }
+
+  nvimgcodecEncodeParams_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.struct_type = NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS;
+  ep.struct_size = sizeof(ep);
+  ep.quality_type = NVIMGCODEC_QUALITY_TYPE_QUALITY;
+  ep.quality_value = quality;
+
+  nvimgcodecFuture_t future = NULL;
+  st = nvimgcodecEncoderEncode(enc, &img, &stream, 1, &ep, &future);
+  if (st != NVIMGCODEC_STATUS_SUCCESS) {
+    nvimgcodecEncoderDestroy(enc);
+    nvimgcodecCodeStreamDestroy(stream);
+    nvimgcodecImageDestroy(img);
+    return -1;
+  }
+  nvimgcodecFutureWaitForAll(future);
+  cudaDeviceSynchronize();
+
+  *out_data = jmo.buffer;
+  *out_size = jmo.size;
+
+  nvimgcodecFutureDestroy(future);
+  nvimgcodecEncoderDestroy(enc);
+  nvimgcodecCodeStreamDestroy(stream);
+  nvimgcodecImageDestroy(img);
+  return 0;
+}
 #endif

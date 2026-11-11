@@ -77,11 +77,6 @@
                 </button>
               </div>
               <div class="layui-input-inline">
-                <button class="layui-btn layui-btn-primary" id="reload">
-                  <i class="layui-icon layui-icon-refresh"></i> Load Images
-                </button>
-              </div>
-              <div class="layui-input-inline">
                 <a href="images" class="layui-btn layui-btn-normal layui-btn-sm">
                   <i class="layui-icon layui-icon-folder"></i> Show Repository
                 </a>
@@ -126,25 +121,53 @@
               Attention: File name starts with letters and only contains letters, numbers, "_" and one "." for extensions.
             </div >
 
-            <!-- File Upload Section -->
-            <div class="section-title">File Upload</div>
-            <div class="file-upload-container">
-              <span>Upload Images (bkg, pattern, gratings, etc.):</span>
-              <div class="layui-input-inline" style="width: 300px;">
-                <input type="file" id="imagestoupload" multiple class="layui-input" accept=".png,.tif,.tiff">
+            <!-- Dataset Upload Section -->
+            <div class="section-title">Dataset Upload</div>
+            <div class="upload-section">
+              <div class="dataset-input">
+                <label>Dataset Name:</label>
+                <input type="text" id="datasetNameInput" placeholder="Enter dataset folder name" class="layui-input">
+                <button class="layui-btn layui-btn-normal" id="createDatasetBtn">
+                  <i class="layui-icon layui-icon-add-1"></i> Create Dataset Folder
+                </button>
               </div>
-              <button class="layui-btn" id="uploadimg">
-                <i class="layui-icon layui-icon-upload"></i> Upload
-              </button>
-            </div>
-            <div class="warning">
-              <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
-              File names are used as-is. Background and pattern names are set in the Data Set Configuration below. Gratings file name is specified in config as <code>pupil.pattern</code>.
+
+              <div class="file-upload-container">
+                <span>Upload Images (bkg, pattern, gratings, etc.):</span>
+                <div class="layui-input-inline" style="width: 280px;">
+                  <input type="file" id="imagestoupload" multiple class="layui-input" accept=".png,.tif,.tiff">
+                </div>
+                <button class="layui-btn" id="uploadimg">
+                  <i class="layui-icon layui-icon-upload"></i> Upload
+                </button>
+              </div>
+
+              <div class="warning">
+                <i class="layui-icon layui-icon-dialogue" style="font-size: 16px; margin-right: 5px;"></i>
+                Dataset structure: datasetName/{bkg.png, pattern.png, gratings.png, ...}
+              </div>
             </div>
 
-            <!-- Data Set Configuration -->
-            <div class="section-title">Data Set Configuration</div>
-            <div class="data-set-section" data-title="Data Set">
+            <!-- Processing Configuration -->
+            <div class="section-title">Processing Configuration</div>
+            <div class="data-set-section" data-title="Processing">
+              <div class="layui-form-item">
+                <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">RawData:</label>
+                <div class="layui-input-inline" style="width: 200px;">
+                  <div class="autocomplete">
+                    <input type="text" autocomplete="off" id="datasetName" placeholder="Select dataset" class="layui-input">
+                  </div>
+                </div>
+                <label class="layui-form-label" style="width: 80px; padding: 9px 5px;">Processed:</label>
+                <div class="layui-input-inline" style="width: 200px;">
+                  <input type="text" id="runimgout" placeholder="Enter output name" class="layui-input">
+                </div>
+                <div class="layui-input-inline">
+                  <button class="layui-btn layui-btn-primary layui-btn-sm" id="reload">
+                    <i class="layui-icon layui-icon-refresh"></i> Load Images
+                  </button>
+                </div>
+              </div>
               <div class="layui-form-item">
                 <label class="layui-form-label">Background</label>
                 <div class="layui-input-inline" style="width: 200px;">
@@ -166,14 +189,6 @@
                 </div>
               </div>
               <div class="layui-form-item">
-                <label class="layui-form-label">Pattern Out</label>
-                <div class="layui-input-inline" style="width: 150px;">
-                  <input type="text" id="runimgout" value="hene_pattern" class="layui-input">
-                </div>
-                <label class="layui-form-label">Gratings Out</label>
-                <div class="layui-input-inline" style="width: 150px;">
-                  <input type="text" id="rungalout" value="gratings" class="layui-input">
-                </div>
                 <label class="layui-form-label">Shift (x, y)</label>
                 <div class="layui-input-inline" style="width: auto; display: inline-flex; align-items: center; gap: 8px;">
                   <input type="text" id="shiftx" class="layui-input shift-input" value="0">
@@ -246,12 +261,12 @@
             <div class="live-stream-container">
               <div class="live-stream-header">
                 <span style="display: flex; align-items: center;">
-                  <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; animation: pulse 1.5s infinite;" id="streamStatus"></span>
-                  Live Reconstruction (1s delay)
+                  <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px;" id="streamStatus"></span>
+                  Live Reconstruction
                 </span>
-                <span>Latency: <span id="latency">--</span> s</span>
               </div>
-              <video id="ssptychoStream" controls autoplay muted playsinline style="width: 100%; display: block; background: #000;"></video>
+              <img id="ssptychoStream" style="width: 100%; display: none; background: #000; min-height: 200px;" alt="Live stream">
+              <video id="ssptychoStreamVideo" style="width: 100%; display: block; background: #000; min-height: 200px;" autoplay loop muted controls></video>
             </div>
 
             <!-- Reconstruction Results -->
@@ -262,7 +277,6 @@
               <img id="recon_intensity" width="220" alt="Recon Intensity">
               <img id="obj_freq" width="220" alt="Object Frequency">
               <img id="recon_probe_wave" width="220" alt="Recon Probe Wave">
-              <img id="recon_lowres" width="220" alt="Recon Low Resolution">
             </div>
 
             <!-- Reconstruction Log -->
@@ -310,7 +324,6 @@
       </div>
     </div>
 
-    <script src="hls.js"></script>
     <script src="/layui/dist/layui.js"></script>
     <script src="main.js"></script>
     <script>
@@ -320,8 +333,7 @@
         'recon_phase',
         'recon_intensity',
         'obj_freq',
-        'recon_probe_wave',
-        'recon_lowres'
+        'recon_probe_wave'
       ];
 
       ssptychoImages.forEach(id => {
@@ -337,9 +349,17 @@
       }
 
       // ==================== Load Images ====================
-      function loadImage() {
+      function loadImage(){
+        const outputName = document.getElementById('runimgout').value?.trim();
+        if (!outputName) {
+          showNotification('Please enter output directory name', 'error');
+          return;
+        }
+
+        setCookie('ssptycho_outputname', outputName);
+        console.log('[loadImage] Saved output name to cookie:', outputName);
+
         const timestamp = getTimestamp();
-        const outputName = document.getElementById('runimgout').value;
         const path = repo + workpath + "/" + outputName + "/";
 
         ssptychoImages.forEach(imgId => {
@@ -349,16 +369,21 @@
           }
         });
         displayDiagnosticImages(outputName);
+        showNotification('Images loaded from output directory', 'success');
       }
 
       // ==================== Event Listeners ====================
       document.getElementById("reload")?.addEventListener('click', async () => {
         loadImage();
-        showNotification('Images reloaded successfully', 'success');
       });
 
       document.getElementById("setpath")?.addEventListener('click', async () => {
-        const pathValue = document.getElementById('path').value;
+        const pathValue = document.getElementById('path').value?.trim();
+        if (!pathValue) {
+          showNotification('Please enter a working folder path', 'error');
+          return;
+        }
+
         workpath = pathValue;
         setCookie('ssptychoworkpath', workpath);
 
@@ -367,20 +392,51 @@
           'ExperimentLog.txt': 'note'
         });
 
-        showNotification('Working folder confirmed', 'success');
+        showNotification('Working folder confirmed: ' + workpath, 'success');
 
-        // Load autocomplete data for .tif/.png files in the working folder
-        await listFiles("cd " + repo + workpath + " ; ls *.tif *.png 2>/dev/null")
+        // Load autocomplete data for dataset folders
+        await listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
           .then(data => {
-            autoFillDictionary["bkg"] = data;
-            autoFillDictionary["pattern"] = data;
-            console.log('Image files:', data);
+            autoFillDictionary["dataset"] = data;
+            console.log('Datasets loaded:', data);
           });
+      });
+
+      // ==================== Dataset Creation ====================
+      document.getElementById("createDatasetBtn")?.addEventListener('click', async () => {
+        const datasetName = document.getElementById('datasetNameInput').value;
+        if (!datasetName) {
+          showNotification('Please enter a dataset name', 'error');
+          return;
+        }
+
+        const path = repo + workpath + "/" + datasetName;
+        const cmd = "mkdir -p " + path;
+
+        try {
+          const response = await fetch(url_cmd, { method: 'POST', body: cmd });
+          const data = await response.text();
+
+          showNotification(`Dataset folder created: ${datasetName}`, 'success');
+
+          await listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
+            .then(data => {
+              autoFillDictionary["dataset"] = data;
+            });
+        } catch (error) {
+          showNotification('Error creating dataset folder: ' + error, 'error');
+        }
       });
 
       // ==================== Upload ====================
       document.getElementById("uploadimg")?.addEventListener('click', async () => {
-        const path = repo + workpath + "/";
+        const datasetName = document.getElementById('datasetNameInput').value;
+        if (!datasetName) {
+          showNotification('Please enter a dataset name first', 'error');
+          return;
+        }
+
+        const path = repo + workpath + "/" + datasetName + "/";
         const url = 'savefile.php';
         const filearray = document.getElementById('imagestoupload').files;
         const formData = new FormData();
@@ -389,6 +445,9 @@
           showNotification('Please select files to upload', 'error');
           return;
         }
+
+        // Ensure dataset directory exists
+        await fetch(url_cmd, { method: 'POST', body: `mkdir -p ${repo}${workpath}/${datasetName}` });
 
         formData.append('path', path);
         Array.from(filearray).forEach(file => {
@@ -403,7 +462,7 @@
           const data = await response.text();
           console.log(data);
 
-          await listFiles("cd " + repo + workpath + " ; ls *.tif *.png 2>/dev/null")
+          await listFiles("cd " + repo + workpath + "/" + datasetName + " ; ls *.tif *.png 2>/dev/null")
             .then(data => {
               autoFillDictionary["bkg"] = data;
               autoFillDictionary["pattern"] = data;
@@ -417,17 +476,20 @@
 
       // ==================== Process Experimental Data ====================
       document.getElementById("prepare")?.addEventListener('click', async () => {
-        const path = repo + workpath + "/";
+        const datasetName = document.getElementById('datasetName').value;
+        const outputName = document.getElementById('runimgout').value;
         const bkg = document.getElementById('runbkgfile').value;
         const pattern = document.getElementById('runimgfile').value;
         const gratings = document.getElementById('rungratingfile').value;
         const nmerge = document.getElementById('nmerge').value;
-        const patternOut = document.getElementById('runimgout').value;
-        const gratingsOut = document.getElementById('rungalout').value;
         const symmetric = document.getElementById('symmetric').checked ? "1" : "0";
         const shiftx = document.getElementById('shiftx').value;
         const shifty = document.getElementById('shifty').value;
 
+        if (!datasetName || !outputName) {
+          showNotification('Please enter both dataset name and output name', 'error');
+          return;
+        }
         if (!bkg || !pattern || !gratings) {
           showNotification('Please fill in Background, Pattern, and Gratings file names', 'error');
           return;
@@ -436,19 +498,22 @@
         try {
           setLoading('prepare');
 
+          const path = repo + workpath + "/";
+          const dsPath = path + datasetName + "/";
+
           // Process pattern - background
-          const cmd1 = `./runStacker.sh ${path} ${bkg} ${pattern} ${nmerge} ${patternOut} ${symmetric} ${shiftx} ${shifty}`;
+          const cmd1 = `./runStacker.sh ${dsPath} ${bkg} ${pattern} ${nmerge} ${outputName} ${symmetric} ${shiftx} ${shifty}`;
           const resp1 = await fetch(url_cmd, { method: 'POST', body: cmd1 });
           const data1 = await resp1.text();
 
           // Process gratings - background
-          const cmd2 = `./runStacker.sh ${path} ${bkg} ${gratings} ${nmerge} ${gratingsOut} ${symmetric} ${shiftx} ${shifty}`;
+          const cmd2 = `./runStacker.sh ${dsPath} ${bkg} ${gratings} ${nmerge} ${outputName} ${symmetric} ${shiftx} ${shifty}`;
           const resp2 = await fetch(url_cmd, { method: 'POST', body: cmd2 });
           const data2 = await resp2.text();
 
           document.getElementById('preparelog').innerText = `[Pattern]\n${data1}\n\n[Gratings]\n${data2}`;
           clearLoading('prepare');
-          displayDiagnosticImages(patternOut);
+          displayDiagnosticImages(outputName);
           showNotification('Data preparation completed', 'success');
         } catch (error) {
           clearLoading('prepare');
@@ -564,11 +629,7 @@
         // === TERMINATE MODE ===
         if (window.reconstructionState.isRunning) {
           try {
-            if (window.reconstructionState.streamPoll) {
-              clearInterval(window.reconstructionState.streamPoll);
-              window.reconstructionState.streamPoll = null;
-            }
-
+            document.getElementById('streamStatus').style.background = '#f44336';
             const killCmd = `pkill -f "ssptycho_run" 2>/dev/null; true`;
             const response = await fetch(url_cmd, { method: 'POST', body: killCmd });
             if (response.ok) {
@@ -600,11 +661,8 @@
             btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
             btn.className = 'layui-btn layui-btn-danger';
 
-            if (window.reconstructionState.streamPoll) {
-              clearInterval(window.reconstructionState.streamPoll);
-              window.reconstructionState.streamPoll = null;
-            }
-
+            document.getElementById('streamStatus').style.background = '#f44336';
+            showFallbackVideo();
             loadImage();
             showNotification('Reconstruction completed', 'success');
           })
@@ -613,50 +671,48 @@
             window.reconstructionState.isRunning = false;
             btn.innerHTML = '<i class="layui-icon layui-icon-play"></i> Run Reconstruction';
             btn.className = 'layui-btn layui-btn-danger';
+            showFallbackVideo();
             showNotification('Reconstruction error', 'error');
           });
 
-        showNotification('Reconstruction started! Waiting for stream...', 'success');
+        showNotification('Reconstruction started! Live stream connecting...', 'success');
 
-        // Poll for stream.m3u8
-        if (window.reconstructionState.streamPoll) {
-          clearInterval(window.reconstructionState.streamPoll);
-        }
-
-        if (!outputName) return;
-
-        const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-        const streamPath = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-        const maxWaitMs = 120000;
-        const pollIntervalMs = 2000;
-        const startEpoch = Math.floor(Date.now() / 1000) - 5;
-
-        window.reconstructionState.streamPoll = setInterval(() => {
-          if (!window.reconstructionState.isRunning) {
-            clearInterval(window.reconstructionState.streamPoll);
-            window.reconstructionState.streamPoll = null;
-            return;
-          }
-          if (Date.now() - startEpoch * 1000 > maxWaitMs) {
-            clearInterval(window.reconstructionState.streamPoll);
-            window.reconstructionState.streamPoll = null;
-            return;
-          }
-
-          fetch(url_cmd, {
-            method: 'POST',
-            body: `stat -c %Y ${streamPath} 2>/dev/null`
-          }).then(resp => resp.text()).then(data => {
-            const mtime = parseInt(data.trim(), 10);
-            if (!isNaN(mtime) && mtime >= startEpoch) {
-              clearInterval(window.reconstructionState.streamPoll);
-              window.reconstructionState.streamPoll = null;
-              console.log(`[STREAM] m3u8 updated (mtime=${mtime}), loading...`);
-              setupHLSStream('ssptychoStream', streamUrl, 'latency', 'streamStatus');
-            }
-          }).catch(() => { });
-        }, pollIntervalMs);
+        // Connect to live MJPEG stream via PHP proxy
+        const streamImg = document.getElementById('ssptychoStream');
+        const pageDir = document.URL.replace(/^https?:\/\/[^/]+/, '').replace(/[^/]*$/, '');
+        const sockPath = pageDir + repo + workpath + '/cdixx_stream.sock';
+        connectStream(streamImg, sockPath);
       });
+
+      // Connect to live MJPEG stream (PHP blocks until socket is ready)
+      function connectStream(img, sockPath) {
+        const videoEl = document.getElementById('ssptychoStreamVideo');
+        img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+        img.onload = () => {
+          document.getElementById('streamStatus').style.background = '#4caf50';
+          img.style.display = 'block';
+          videoEl.style.display = 'none';
+        };
+        img.onerror = () => {
+          document.getElementById('streamStatus').style.background = '#f44336';
+          img.style.display = 'none';
+          videoEl.style.display = 'block';
+        };
+      }
+
+      // Show fallback video (recon_object.mp4) when reconstruction ends
+      function showFallbackVideo() {
+        const img = document.getElementById('ssptychoStream');
+        const videoEl = document.getElementById('ssptychoStreamVideo');
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+        img.style.display = 'none';
+        const outputName = document.getElementById('runimgout').value || 'out';
+        videoEl.src = repo + workpath + '/' + outputName + '/recon_object.mp4';
+        videoEl.style.display = 'block';
+        videoEl.play().catch(() => {});
+      }
 
       // ==================== GPU Selection ====================
       document.getElementById("selGPU_btn")?.addEventListener('click', async () => {
@@ -680,12 +736,6 @@
       saveTextToFile("saveSSPtychoConfigDef", "default/ssptycho.cfg", "ssptychoConfig");
       saveTextToFile("savenote_def", "default/ExperimentLog.txt", "note");
 
-      // ==================== HLS Stream Setup ====================
-      document.addEventListener('DOMContentLoaded', () => {
-        const outputName = document.getElementById('runimgout').value;
-        const streamUrl = `${repo}${workpath}/${outputName}/recon_object/stream.m3u8`;
-        setupHLSStream('ssptychoStream', streamUrl, 'latency', 'streamStatus');
-      });
 
       // ==================== Autocomplete Initialization ====================
       document.addEventListener('DOMContentLoaded', function() {
@@ -715,13 +765,27 @@
             'ssptycho.cfg': 'ssptychoConfig',
             'ExperimentLog.txt': 'note'
           });
-          listFiles("cd " + repo + workpath + " ; ls *.tif *.png 2>/dev/null")
+          listFiles("cd " + repo + workpath + " ; ls -d */ 2>/dev/null | sed 's/\\///g'")
             .then(data => {
-              autoFillDictionary["bkg"] = data;
-              autoFillDictionary["pattern"] = data;
+              autoFillDictionary["dataset"] = data;
             });
           console.log('workpath restored from cookie:', workpath);
         }
+
+        // Restore output name
+        const savedOutput = getCookie('ssptycho_outputname');
+        if (savedOutput) {
+          const outputInput = document.getElementById('runimgout');
+          if (outputInput) {
+            outputInput.value = savedOutput;
+            console.log('output name restored from cookie:', savedOutput);
+          }
+        }
+
+        // Set fallback video (recon_object.mp4) when not streaming
+        const videoEl = document.getElementById('ssptychoStreamVideo');
+        const outputName = document.getElementById('runimgout').value || 'out';
+        videoEl.src = repo + workpath + '/' + outputName + '/recon_object.mp4';
       });
     </script>
   </body>

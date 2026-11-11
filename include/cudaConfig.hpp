@@ -253,5 +253,7 @@ void createPlaneWave(complexFormat* out, Real peakX, Real peakY, Real amp);
 void initTurboLUT();
 void applyColorMapGPU(const pixeltype* input, uint8_t* rgb);
 extern "C" int writeJPEG_GPU(void* d_rgb, int height, int width, const char* fname, int quality);
+extern "C" int encodeJPEG_GPU_toMem(void* d_rgb, int height, int width, int quality,
+                                    unsigned char** out_data, size_t* out_size);
 
 #endif

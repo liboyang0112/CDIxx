@@ -11,6 +11,7 @@ int main(int argc, char** argv )
   CDI setups(argv[1]);
   if(argc < 2){
     fmt::println("please feed the object intensity and phase image");
+    return 1;
   }
   setups.readFiles();
   setups.init();
