@@ -843,6 +843,8 @@ class multi_ptycho : public readConfig, public broadBand_constRatio{
           sum /= hypot(crealf(sum), cimagf(sum));
           multiplyConj(cropped, cropped, sum);
           plt.plotComplexColor(cropped, 0, sqrt(nlambda), ("ptycho_afterIterwave" + to_string(il)).c_str());
+          myCuFree(cropped);
+          myCuFree(angle);
         }
       }
       void readPattern(){

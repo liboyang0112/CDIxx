@@ -259,6 +259,7 @@ struct ZernikeHandle {
   complexFormat* host_coeff;
   int nthread;
   bool initialized;
+  bool shared;
 };
 
 
@@ -295,6 +296,7 @@ void* zernike_init_shared_mem(void* handle_shared, int width, int maxN, int max_
   handle->host_coeff = ((ZernikeHandle*)handle_shared)->host_coeff;
   handle->final_coeff = ((ZernikeHandle*)handle_shared)->final_coeff;
   handle->initialized = true;
+  handle->shared = true;
   return static_cast<void*>(handle);
 }
 
@@ -337,10 +339,10 @@ complexFormat* zernike_coeff(void* handle_ptr) {
 void zernike_destroy(void* handle_ptr) {
   if (!handle_ptr) return;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
-  if (handle->initialized) {
+  if (handle->initialized && !handle->shared) {
     myCuFree(handle->block_coeff);
     myCuFree(handle->final_coeff);
-    free(handle->host_coeff);
+    myFree(handle->host_coeff);
   }
   delete handle;
 }

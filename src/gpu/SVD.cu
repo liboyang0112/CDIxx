@@ -90,6 +90,9 @@ int svd_init(int M, int N) {
     if (cudaMalloc((void**)&ctx->d_U, M * M * sizeof(float)) != cudaSuccess ||
         cudaMalloc((void**)&ctx->d_V, N * N * sizeof(float)) != cudaSuccess ||
         cudaMalloc((void**)&ctx->d_S, N * sizeof(float)) != cudaSuccess) {
+        if (ctx->d_U) cudaFree(ctx->d_U);
+        if (ctx->d_V) cudaFree(ctx->d_V);
+        if (ctx->d_S) cudaFree(ctx->d_S);
         cusolverDnDestroy(ctx->handle);
         free(ctx);
         svd_set_error("Failed to allocate device memory");

@@ -159,6 +159,7 @@ int main(int argc, char** argv) {
         nmerge, mode_str,
         shift_y, shift_x,
         firstSig);  // use_fixed_params = true for non-first
+    myCuFree(d_sig);
 
     if (!firstSig) firstSig = true;
   }

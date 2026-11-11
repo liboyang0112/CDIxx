@@ -340,6 +340,7 @@ void broadBand::generateMWL(Real* d_input, Real* d_patternSum, complexFormat* si
   myCuFree(d_pattern);
   myCuFree(d_intensity);
   myCuFree(d_patternAmp);
+  myCuFree(d_inputWave);
 }
 void broadBand_constRatio::applyAT(complexFormat* src, complexFormat* dest, char zoom){
   if(zoom == 0) {

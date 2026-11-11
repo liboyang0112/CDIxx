@@ -57,6 +57,7 @@ void holo::initXCorrelation(){
   myCuMalloc(rect, cuda_spt, 1);
   myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
   createMask( xcorrelation_support, cuda_spt, 1);
+  myCuFree(cuda_spt);
   applyMaskBar( (complexFormat*)patternWave_holo, xcorrelation_support, 0.5);
   plt.plotComplex(patternWave_holo, MOD, 1, row*exposurepupil, "xcorrelation_init", 1, 0, 1);
   myIFFT((complexFormat*)patternWave_holo,(complexFormat*)patternWave_holo);
@@ -165,6 +166,7 @@ void holo::iterate(){
   bitMap( support_holo, support_holo);
   plt.plotFloat(support_holo, MOD, 0, 1, "support", 0);
   myCuFree(d_gaussianKernel);
+  myCuFree(cuda_objMod);
   plt.plotComplex(objectWave_holo, MOD2, 0, 1, "object");
   plt.plotComplex(objectWave_holo, PHASE, 0, 1, "object_phase");
 }

@@ -139,6 +139,7 @@ void CDI::init(){
       }
       myCuMalloc(Real, beamstop, r*c);
       myMemcpyH2D(beamstop, bs, r*c*sizeof(Real));
+      myFree(bs);
       cudaConvertFO(beamstop);
       invert(beamstop);
       plt.plotFloat(beamstop, MOD, 1, 1, "beamstop");
@@ -280,6 +281,7 @@ void CDI::saveState(){
   resize_cuda_image(row,column);
   plt.init(row,column);
   myCuFree(tmp);
+  myCuFree(tmp1);
   if(isFresnel) {
     propagate.removeFresnelPhase(cuda_gkp1);
     plt.plotComplex(cuda_gkp1, PHASE, 0, 1, ("recon_phase_fresnelRemoved"+save_suffix).c_str(), 0, isFlip);
@@ -443,6 +445,14 @@ complexFormat* CDI::phaseRetrieve(){
 
   myCuFree(cuda_gkprime);
   myCuFree(cuda_objMod);
+  myCuFree(prtf_map);
+  myCuFree(gamma0);
+  myCuFree(cache);
+  myCuFree(cuda_diff);
+  myCuFree(d_polar);
+  myCuFree(d_prtf);
+  myFree(prtf);
+  myFree(weights);
 
   return patternWave;
 }
