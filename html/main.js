@@ -1,5 +1,4 @@
 // ==================== Configuration ====================
-const nodeurl = window.location.origin + ':8080';
 const url_cmd = "runcommand.php";
 const repo = 'images/';
 const _pageName = window.location.pathname.split('/').pop().replace('.html', '');
