@@ -9,6 +9,9 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <poll.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <alloca.h>
 
 // ── SDL local preview (online=false) ─────────────────────────────
 struct PreviewContext {
@@ -78,6 +81,15 @@ static void* streamAcceptLoop(void* arg) {
     int cfd = accept(s->srvSock, NULL, NULL);
     if (cfd < 0) continue;
 
+    // Non-blocking: drop frames if consumer is slow
+    int flags = fcntl(cfd, F_GETFL, 0);
+    fcntl(cfd, F_SETFL, flags | O_NONBLOCK);
+
+    // Buffer large enough for one full frame (2048x2048 JPEG ~1MB)
+    // Prevents partial writes that corrupt the stream
+    int bufsize = 4 * 1024 * 1024;
+    setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+
     // Single client: replace existing
     int old = s->clientFd;
     s->clientFd = cfd;
@@ -129,31 +141,34 @@ void* createStream(const char* sockPath, int row, int col) {
   return s;
 }
 
-// Write all bytes to fd, handling partial writes
-static ssize_t writeAll(int fd, const void* buf, size_t len) {
-  size_t off = 0;
-  while (off < len) {
-    ssize_t n = write(fd, (const char*)buf + off, len - off);
-    if (n <= 0) return -1;
-    off += n;
-  }
-  return (ssize_t)off;
-}
-
-// Send one JPEG frame to the connected client
+// Send one JPEG frame — non-blocking, drops frame if buffer full or too soon
+// Min interval: 100ms (10fps) to let browser decode large frames
 void updateStream(void* ptr, const unsigned char* jpegData, int jpegSize) {
   struct StreamContext* s = (struct StreamContext*)ptr;
   if (!s || !s->active) return;
   int cfd = s->clientFd;
   if (cfd < 0) return;
 
-  char boundary[128];
-  int blen = snprintf(boundary, sizeof(boundary),
+  char frame[128];
+  int flen = snprintf(frame, sizeof(frame),
     "--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", jpegSize);
 
-  if (writeAll(cfd, boundary, blen) != blen) { s->clientFd = -1; return; }
-  if (writeAll(cfd, jpegData, (size_t)jpegSize) != jpegSize) { s->clientFd = -1; return; }
-  if (writeAll(cfd, "\r\n", 2) != 2) { s->clientFd = -1; return; }
+  // Build single buffer: header + jpeg + CRLF
+  size_t total = flen + jpegSize + 2;
+  char* buf = (char*)alloca(total);
+  memcpy(buf, frame, flen);
+  memcpy(buf + flen, jpegData, jpegSize);
+  buf[total - 2] = '\r';
+  buf[total - 1] = '\n';
+
+  ssize_t n = write(cfd, buf, total);
+  if (n < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) return; // slow consumer, drop frame
+    s->clientFd = -1; // real error (EPIPE etc.)
+  } else if (n != (ssize_t)total) {
+    // Partial write corrupted the stream — disconnect to force resync
+    s->clientFd = -1;
+  }
 }
 
 void destroyStream(void* ptr) {

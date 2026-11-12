@@ -2,8 +2,9 @@
 const nodeurl = window.location.origin + ':8080';
 const url_cmd = "runcommand.php";
 const repo = 'images/';
-const isPtychoPage = window.location.pathname.includes('ptycho');
-const cookieName = isPtychoPage ? 'ptychoworkpath' : 'cdiworkpath';
+const _pageName = window.location.pathname.split('/').pop().replace('.html', '');
+const _cookieMap = { 'index': 'cdiworkpath', 'ssptycho': 'ssptychoworkpath', 'ptycho': 'ptychoworkpath', 'multi_ptycho': 'multiptychoworkpath' };
+const cookieName = _cookieMap[_pageName] || 'cdiworkpath';
 
 // Get workpath from the appropriate cookie
 let workpath = document.cookie.split("; ").find((row) => row.startsWith(cookieName + "="))?.split("=")[1];
@@ -491,6 +492,74 @@ function applyTransform() {
     if (img) {
         img.style.transform = `rotate(${degree}deg) scaleX(${flip})`;
     }
+}
+
+// ==================== Shared Polling & Streaming ====================
+let _pollInterval = null;
+
+function startPolling(workdir, type, logElId, onComplete) {
+    stopPolling();
+    const doPoll = async () => {
+        try {
+            const resp = await fetch(`api_status.php?workdir=${encodeURIComponent(workdir)}&type=${type}&_t=${Date.now()}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.error) return;
+
+            const logEl = document.getElementById(logElId);
+            if (logEl && data.log && logEl.innerText !== data.log) {
+                const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 20;
+                logEl.innerText = data.log;
+                if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+            }
+
+            if (data.running === false) {
+                stopPolling();
+                if (onComplete) onComplete();
+            }
+        } catch (e) {
+            console.error('Polling error:', e);
+        }
+    };
+    doPoll();
+    _pollInterval = setInterval(doPoll, 2000);
+}
+
+function stopPolling() {
+    if (_pollInterval) {
+        clearInterval(_pollInterval);
+        _pollInterval = null;
+    }
+}
+
+function connectMJPEGStream(imgId, videoId, sockPath) {
+    const img = document.getElementById(imgId);
+    const videoEl = document.getElementById(videoId);
+    img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+    img.onload = () => {
+        const statusEl = document.getElementById('streamStatus');
+        if (statusEl) statusEl.style.background = '#4caf50';
+        img.style.display = 'block';
+        videoEl.style.display = 'none';
+    };
+    img.onerror = () => {
+        const statusEl = document.getElementById('streamStatus');
+        if (statusEl) statusEl.style.background = '#f44336';
+        img.style.display = 'none';
+        videoEl.style.display = 'block';
+    };
+}
+
+function showFallbackVideoMJPEG(imgId, videoId, videoSrc) {
+    const img = document.getElementById(imgId);
+    const videoEl = document.getElementById(videoId);
+    img.onload = null;
+    img.onerror = null;
+    img.src = '';
+    img.style.display = 'none';
+    videoEl.src = videoSrc;
+    videoEl.style.display = 'block';
+    videoEl.play().catch(() => {});
 }
 
 // ==================== HLS Video Streaming ====================

@@ -18,7 +18,7 @@ TRACKING_FILE=".ssptycho_run_${USER}_$(date +%s)"
 sh -c "echo \$\$ > '$TRACKING_FILE'; chmod 600 '$TRACKING_FILE'; exec stdbuf -oL -eL ssptycho_run ssptycho.cfg 2>&1" | \
   while IFS= read -r line || [ -n "$line" ]; do
     echo "[$(date '+%H:%M:%S')] $line"
-  done | tee -a ssptycho.log &
+  done | tee ssptycho.log >/dev/null 2>&1 &
 
 WRAPPER_PID=$!
 echo "Started reconstruction (tracking: $TRACKING_FILE, background PID: $WRAPPER_PID)"
