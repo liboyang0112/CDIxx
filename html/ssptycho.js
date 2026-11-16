@@ -190,12 +190,12 @@ document.getElementById("prepare")?.addEventListener('click', async () => {
         const dsPath = path + datasetName + "/";
 
         // Process pattern - background
-        const cmd1 = `./runStacker.sh ${dsPath} ${bkg} ${pattern} ${nmerge} ${outputName} ${symmetric} ${shiftx} ${shifty}`;
+        const cmd1 = `./runStacker.sh ${dsPath} ${bkg} ${pattern} ${nmerge} ${outputName}/pattern ${symmetric} ${shiftx} ${shifty}`;
         const resp1 = await fetch(url_cmd, { method: 'POST', body: cmd1 });
         const data1 = await resp1.text();
 
         // Process gratings - background
-        const cmd2 = `./runStacker.sh ${dsPath} ${bkg} ${gratings} ${nmerge} ${outputName} ${symmetric} ${shiftx} ${shifty}`;
+        const cmd2 = `./runStacker.sh ${dsPath} ${bkg} ${gratings} ${nmerge} ${outputName}/gratings ${symmetric} ${shiftx} ${shifty}`;
         const resp2 = await fetch(url_cmd, { method: 'POST', body: cmd2 });
         const data2 = await resp2.text();
 
@@ -215,8 +215,8 @@ function displayDiagnosticImages(outputName) {
 
     container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
 
-    const path = repo + workpath + "/" + outputName;
-    const cmd = `cd ${repo}${workpath} && ls ${path}/*_logimage.jpg ${path}/*_autocorrelation.jpg 2>/dev/null | sort -V`;
+    const baseDir = `${repo}${workpath}/${outputName}`;
+    const cmd = `ls ${baseDir}/pattern/*.jpg ${baseDir}/gratings/*.jpg 2>/dev/null | sort -V`;
 
     fetch(url_cmd, { method: 'POST', body: cmd })
         .then(response => response.text())
@@ -230,7 +230,7 @@ function displayDiagnosticImages(outputName) {
 
             container.innerHTML = files.map(file => {
                 const filename = file.split('/').pop();
-                const fullPath = `${repo}${workpath}/${outputName}/${filename}`;
+                const fullPath = file.trim();
                 return `
                     <div class="diagnostic-image-card">
                         <img src="${fullPath}?t=${Date.now()}"
@@ -396,6 +396,7 @@ saveTextToFile("savenote_def", "default/ExperimentLog.txt", "note");
 document.addEventListener('DOMContentLoaded', function() {
     const autocompleteIds = [
         {id: "path", dict: "path"},
+        {id: "datasetName", dict: "dataset"},
         {id: "runbkgfile", dict: "bkg"},
         {id: "runimgfile", dict: "pattern"},
         {id: "rungratingfile", dict: "pattern"}
@@ -407,6 +408,18 @@ document.addEventListener('DOMContentLoaded', function() {
             autocomplete(element, item.dict);
         }
     });
+
+    // Update bkg/pattern dictionaries when RawData field changes
+    const datasetEl = document.getElementById('datasetName');
+    if (datasetEl) {
+        datasetEl.addEventListener('change', async () => {
+            const val = datasetEl.value.trim();
+            if (!val || !workpath) return;
+            const data = await listFiles("cd " + repo + workpath + "/" + val + " ; ls *.tif *.png 2>/dev/null");
+            autoFillDictionary["bkg"] = data;
+            autoFillDictionary["pattern"] = data;
+        });
+    }
 });
 
 // ==================== Initialize ====================

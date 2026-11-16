@@ -33,11 +33,12 @@ window.reconstructionState = {
 
 
 let autoFillDictionary = {
-    "path": {},
-    "bkg": {},
-    "pattern": {},
-    "spect": {},
-    "ptycho_dataset": {}
+    "path": [],
+    "bkg": [],
+    "pattern": [],
+    "spect": [],
+    "ptycho_dataset": [],
+    "dataset": []
 };
 
 const imageNames = {
@@ -220,6 +221,7 @@ function autocomplete(inp, dictName) {
                 b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
                 b.addEventListener("click", function(e) {
                     inp.value = this.getElementsByTagName("input")[0].value;
+                    inp.dispatchEvent(new Event('change'));
                     closeAllLists();
                 });
                 a.appendChild(b);

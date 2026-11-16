@@ -4,6 +4,7 @@
 #include <cstring>
 #include <fmt/base.h>
 #include <fmt/os.h>
+#include <string>
 #include "fmt/core.h"
 #include "imgio.hpp"
 #include "cudaConfig.hpp"
@@ -239,7 +240,7 @@ class ssptycho : public readConfig{
     }
 
     void gratingCalib(){
-      Real *spots = readImage(pupil.Pattern, row, column);
+      Real *spots = readImage((string(outputDir) + pupil.Pattern).c_str(), row, column);
       myCuDMalloc(Real, pattern, row*column);
       resize_cuda_image(row, column);
       myMemcpyH2D(pattern, spots, row*column*sizeof(Real));
