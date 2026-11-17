@@ -41,7 +41,7 @@ int main() {
     for (int y = 0; y < column; y++) {
       Real Emod = gaussian(x - 0.5 * row, y - 0.5 * column, spotpix);
       Real phase = Emod * Emod * 2 * (1 - cos(2 * k * x)) * phi0;
-      inputField[index] = Emod * sin(phase) + Emod * cos(phase) * _Complex_I;
+      inputField[index] = make_float2(Emod * sin(phase), Emod * cos(phase));
       index++;
     }
   }

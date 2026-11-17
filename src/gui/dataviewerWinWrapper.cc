@@ -15,12 +15,12 @@ void* to_gpu(void* ptr, struct imageFile *f){
   return dptr;
 };
 void processFloat(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip, char isColor){
-  plt.processFloatData(cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
+  plt.processFloatData((Real*)cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
   if(isColor) plt.cvtTurbo(cache);
   else plt.cvt8bit(cache);
 };
 void processComplex(void* cache, void* cudaData, char m, char isFrequency, Real decay, char islog, char isFlip, char isColor){
-  plt.processComplexData(cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
+  plt.processComplexData((complexFormat*)cudaData, (enum mode)m, isFrequency, decay, islog, isFlip);
   if(isColor) plt.cvtTurbo(cache);
   else plt.cvt8bit(cache);
 };

@@ -40,7 +40,7 @@ int main(int argc, char** argv )
   init_fft(row, col); //tell cufft to process the image of this size
   getMod2(d_mod2, d_wave);
   getMod2(d_mod2, d_mod2);
-  std::complex<Real> mid(findMiddle(d_mod2, row*col));
+  complexFormat mid = findMiddle(d_mod2, row*col);
   plt.plotComplex(d_wave, MOD2, 0, 0.1, "bftest", 0, 0, 1);  //save the mod square to a png file
   plt.plotComplex(d_wave, PHASE, 0, 1, "bftest_phase", 0, 0, 0);  //save the mod square to a png file
   myFFT(d_wave, d_wave);  //execute FFT
@@ -58,7 +58,7 @@ int main(int argc, char** argv )
     cudaConvertFO(d_wave, d_propagatedwave);
     myIFFT(d_propagatedwave, d_propagatedwave);  //execute FFT
     resize_cuda_image(rowi, coli);  //tell cuda to process the image of this size
-    crop(d_propagatedwave, d_crop, row, col,mid.real(),mid.imag());
+    crop(d_propagatedwave, d_crop, row, col,mid.x,mid.y);
     //crop(d_propagatedwave, d_crop, row, col);
     plt.plotComplexColor(d_crop, 0, 0.3, ("test_" + to_string(start+(i+1)*stepsize)).c_str(), 0, 0);
   }

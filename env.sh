@@ -24,6 +24,7 @@ else
   if ! [[ $LD_LIBRARY_PATH =~ $CDI_DIR ]] ; then
     export LD_LIBRARY_PATH+=:$CDI_DIR/lib
   fi
+  export LD_LIBRARY_PATH+=:/opt/nvtiff/libnvtiff-linux-x86_64-0.9.0.86_cuda13-archive/lib:/opt/nvjpeg2k/libnvjpeg_2k-linux-x86_64-0.12.0.58_cuda13-archive/lib
 fi
 
 # Print all exported vars so fish can read them

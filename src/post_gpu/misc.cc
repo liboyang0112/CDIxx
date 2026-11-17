@@ -414,7 +414,7 @@ std::vector<Real*> createPeakGauss(const std::vector<int>& peaks, const std::vec
   peakGaussSum(d_peaks, d_energies, d_total, (Real)epsilon, numPeaks);
   for (int i = 0; i < numPeaks; i++) {
     myCuDMalloc(Real, d_ratio, rows*cols);
-    peakGaussRatio(d_peaks, d_energies, d_total, d_ratio, (Real)epsilon, numPeaks, i);
+    peakGaussRatio(d_peaks, d_energies, d_total, d_ratio, (Real)epsilon, i);
     ratios.push_back(d_ratio);
   }
   myCuFree(d_peaks);

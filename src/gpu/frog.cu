@@ -2,7 +2,7 @@
 #include "cuComplex.h"
 #include <curand_kernel.h>
 
-cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay),(cuComplex* gate, cuComplex* E, cuComplex* trace, Real delay), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)trace,delay), {
+cuFunc(dgencTraceSingle,(complexFormat* gate, complexFormat* E, complexFormat* trace, Real delay),(gate, E, trace,delay), {
   cuda1Idx();
   int tidx = index-delay;
   if(tidx >= cuda_row || tidx < 0) {
@@ -12,7 +12,7 @@ cuFuncc(dgencTraceSingle, (complexFormat* gate, complexFormat* E, complexFormat*
     trace[index] = cuCmulf(gate[tidx],E[index]);
 })
 
-cuFuncc(dgencTrace, (complexFormat* gate, complexFormat* E, complexFormat* fulltrace, Real* delay),(cuComplex* gate, cuComplex* E, cuComplex* fulltrace, Real* delay), ((cuComplex*)gate, (cuComplex*)E, (cuComplex*)fulltrace,delay), {
+cuFunc(dgencTrace,(complexFormat* gate, complexFormat* E, complexFormat* fulltrace, Real* delay),(gate, E, fulltrace,delay), {
   cudaIdx();
   int tidx = y-delay[x];
   if(tidx >= cuda_column || tidx < 0) {
@@ -23,7 +23,7 @@ cuFuncc(dgencTrace, (complexFormat* gate, complexFormat* E, complexFormat* fullt
 })
 
 
-cuFuncc(genEComplex,(complexFormat* E),(cuComplex* E),((cuComplex*)E),{
+cuFunc(genEComplex,(complexFormat* E),(E),{
   cuda1Idx();
   int bias = index-cuda_row/2;
   Real sigma = 50;
@@ -43,7 +43,7 @@ cuFunc(setDelay,(Real* delay),(delay),{
   delay[index] = index-cuda_row/2;
 })
 
-cuFuncc(convertFOy, (complexFormat* data),(cuComplex* data), ((cuComplex*)data), {
+cuFunc(convertFOy,(complexFormat* data),(data), {
   cuda1Idx();
   int y = index%cuda_column;
   if(y >= cuda_column/2) return;
@@ -59,7 +59,7 @@ cuFunc(convertFOy, (Real* data),(data), {
   data[index] = data[index+cuda_column/2];
   data[index+cuda_column/2] = tmp;
 })
-cuFuncc(updateGE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real delay, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delay, alpha), {
+cuFunc(updateGE,(complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(E,gate,trace,delay, alpha), {
   cuda1Idx();
   int tidx = index - delay;
   if(tidx >= cuda_row || tidx < 0) return;
@@ -81,7 +81,7 @@ cuFuncc(updateGE, (complexFormat* E, complexFormat* gate, complexFormat* trace, 
   E[index].y += alpha*tmp.y;
 
 })
-cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(cuComplex* E, cuComplex* gate, cuComplex* trace, Real delay, Real alpha), ((cuComplex*)E,(cuComplex*)gate,(cuComplex*)trace,delay, alpha), {
+cuFunc(updateE,(complexFormat* E, complexFormat* gate, complexFormat* trace, Real delay, Real alpha),(E,gate,trace,delay, alpha), {
   cuda1Idx();
   int tidx = index - delay;
   if(tidx >= cuda_row || tidx < 0) return;
@@ -92,7 +92,7 @@ cuFuncc(updateE, (complexFormat* E, complexFormat* gate, complexFormat* trace, R
   E[index].y += alpha*tmp.y;
 })
 
-cuFuncc(initE, (complexFormat* gate),(cuComplex* gate), ((cuComplex*)gate), {
+cuFunc(initE,(complexFormat* gate),(gate), {
   cuda1Idx();
   int window = 32;
   if(index > cuda_row/2-window && index < cuda_row/2+window){
@@ -101,7 +101,7 @@ cuFuncc(initE, (complexFormat* gate),(cuComplex* gate), ((cuComplex*)gate), {
   gate[index].y = 0;
 })
 
-cuFuncc(removeHighFreq, (complexFormat* data),(cuComplex* data), ((cuComplex*)data), {
+cuFunc(removeHighFreq,(complexFormat* data),(data), {
   cuda1Idx();
   if(index >= cuda_row/5*2 && index < cuda_row/5*3){
     data[index].x = 0;
@@ -109,7 +109,7 @@ cuFuncc(removeHighFreq, (complexFormat* data),(cuComplex* data), ((cuComplex*)da
   }
 })
 
-cuFuncc(shiftmid, (complexFormat* Eprime, complexFormat* E, int tx),(cuComplex* Eprime, cuComplex* E, int tx),((cuComplex*)Eprime, (cuComplex*)E, tx),{
+cuFunc(shiftmid,(complexFormat* Eprime, complexFormat* E, int tx),(Eprime, E, tx),{
   cuda1Idx();
   int tidx = index+tx;
   if(tidx < 0 || tidx >= cuda_row) {
@@ -119,12 +119,12 @@ cuFuncc(shiftmid, (complexFormat* Eprime, complexFormat* E, int tx),(cuComplex* 
   else E[index] = Eprime[tidx];
 })
 
-cuFuncc(average, (complexFormat* Eprime, complexFormat* E),(cuComplex* Eprime, cuComplex* E),((cuComplex*)Eprime, (cuComplex*)E),{
+cuFunc(average,(complexFormat* Eprime, complexFormat* E),(Eprime, E),{
   cuda1Idx();
   Eprime[index].x = E[index].x = (Eprime[index].x+E[index].x)/2;
   Eprime[index].y = E[index].y = (Eprime[index].y+E[index].y)/2;
 })
-cuFuncc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int xrange, Real gamma),(cuComplex* source, Real* target, void* state, int xrange, Real gamma),((cuComplex*)source, target, state, xrange, gamma),{
+cuFunc(applyModAbsxrange,(complexFormat* source, Real* target, void* state, int xrange, Real gamma),(source, target, state, xrange, gamma),{
     cuda1Idx();
     Real mod = hypot(source[index].x, source[index].y);
     if(index < xrange+cuda_row/2 && index >= cuda_row/2 - xrange){

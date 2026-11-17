@@ -40,4 +40,4 @@ void applyESWMod(complexFormat* ESW, Real* mod, complexFormat* amp);
 void calcESW(complexFormat* sample, complexFormat* ISW);
 void calcO(complexFormat* ESW, complexFormat* ISW);
 void applyAutoCorrelationMod(complexFormat* source,complexFormat* target, Real *bs = 0);
-void applySupport(void *gkp1, void *gkprime, int algo, Real *spt);
+void applySupport(complexFormat* gkp1, complexFormat* gkprime, int algo, Real *spt);

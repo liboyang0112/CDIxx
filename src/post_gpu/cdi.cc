@@ -24,7 +24,7 @@
 using namespace std;
 
 void applySupport
-    (void *gkp1, void *gkprime, int algo, Real *spt)
+    (complexFormat *gkp1, complexFormat *gkprime, int algo, Real *spt)
 {
     switch (algo) {
       case RAAR:    ApplyRAARSupport  (gkp1, gkprime, spt);break;

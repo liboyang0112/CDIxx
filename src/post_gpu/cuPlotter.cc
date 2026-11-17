@@ -153,21 +153,21 @@ void cuPlotter::freeMem(){
   if(cuRGB_data) { memMngr.returnCache(cuRGB_data); cuRGB_data = 0; }
 }
 
-void* cuPlotter::processFloatData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processFloatData(Real* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
   if(!cuCache_data) myCuMalloc(pixeltype, cuCache_data, rows*cols);
-  process<Real>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+  processFloat(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
   myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
   return cv_data;
 };
-void* cuPlotter::processComplexData(void* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
+void* cuPlotter::processComplexData(complexFormat* cudaData, const mode m, bool isFrequency, Real decay, bool islog, bool isFlip){
   if(!cuCache_data) {
     myCuMalloc(pixeltype, cuCache_data, rows*cols);
   }
-  process<complexFormat>(cudaData, (pixeltype*)cuCache_data, m,isFrequency, decay, islog, isFlip);
+  processComplex(cudaData, (pixeltype*)cuCache_data, m,isFrequency, decay, islog, isFlip);
   myMemcpyD2H(cv_data, cuCache_data,rows*cols*sizeof(pixeltype));
   return cv_data;
 };
-void* cuPlotter::processComplexColor(void* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip, bool phaseOnly){
+void* cuPlotter::processComplexColor(complexFormat* cudaData, bool isFrequency, Real decay, bool islog, bool isFlip, bool phaseOnly){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
@@ -184,7 +184,7 @@ void* flushVideo_thread(void* args){
   flushVideo(_plt->videoWriterVec[_plt->writeVideo], _plt->cv_cache);
   return nullptr;
 }
-void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool phaseOnly){
+void cuPlotter::plotComplexColor(complexFormat* cudaData, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool phaseOnly){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
@@ -220,7 +220,7 @@ void cuPlotter::plotComplexColor(void* cudaData, bool isFrequency, Real decay, c
     fmt::println("written to file {}", fname);
   }
 }
-void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
+void cuPlotter::plotComplex(complexFormat* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
@@ -228,13 +228,13 @@ void cuPlotter::plotComplex(void* cudaData, mode m, bool isFrequency, Real decay
   bool isJPG = std::string(label).find(".jpg")!=std::string::npos;
   if(isJPG) {
     if(!cuCache_data) myCuMalloc(pixeltype, cuCache_data, rows*cols);
-    process<complexFormat>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+    processComplex(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
   } else {
     processComplexData(cudaData,m,isFrequency,decay,islog,isFlip);
   }
   plot(label, isColor, caption);
 }
-void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
+void cuPlotter::plotFloat(Real* cudaData, mode m, bool isFrequency, Real decay, const char* label,bool islog, bool isFlip, bool isColor, const char* caption){
   if(vid_thread) {
     pthread_join(vid_thread, nullptr);
     vid_thread = 0;
@@ -242,13 +242,13 @@ void cuPlotter::plotFloat(void* cudaData, mode m, bool isFrequency, Real decay, 
   bool isJPG = std::string(label).find(".jpg")!=std::string::npos;
   if(isJPG) {
     if(!cuCache_data) myCuMalloc(pixeltype, cuCache_data, rows*cols);
-    process<Real>(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
+    processFloat(cudaData, (pixeltype*)cuCache_data, m, isFrequency, decay, islog, isFlip);
   } else {
     processFloatData(cudaData,m,isFrequency,decay,islog,isFlip);
   }
   plot(label, isColor, caption);
 }
-void cuPlotter::saveComplex(void* cudaData, const char* label){
+void cuPlotter::saveComplex(complexFormat* cudaData, const char* label){
   if(!cv_complex_data){
     myMalloc(Real, cv_complex_data, rows*cols*2);
   }
@@ -257,7 +257,7 @@ void cuPlotter::saveComplex(void* cudaData, const char* label){
   fmt::println("written to file {}", fname.c_str());
   writeComplexImage(fname.c_str(), cv_complex_data, rows, cols);
 }
-void cuPlotter::saveFloat(void* cudaData, const char* label){
+void cuPlotter::saveFloat(Real* cudaData, const char* label){
   if(!cv_float_data){
     myMalloc(Real, cv_float_data, rows*cols);
   }
@@ -266,7 +266,7 @@ void cuPlotter::saveFloat(void* cudaData, const char* label){
   fmt::println("written to file {}", fname.c_str());
   writeFloatImage(fname.c_str(), cv_float_data, rows, cols);
 }
-void cuPlotter::videoFrame(void* cudaData){
+void cuPlotter::videoFrame(Real* cudaData){
   if(!cv_float_data){
     myMalloc(Real, cv_float_data, rows*cols);
   }

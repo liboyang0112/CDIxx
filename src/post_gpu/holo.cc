@@ -67,7 +67,7 @@ void holo::initXCorrelation(){
   clearCuMem(support_holo,  memMngr.getSize(support_holo));
   plt.plotComplex(objectWave, MOD2, 0, 1, "object_ref", 0, 0, 0);
   linearConst( support_holo, support_holo, 0, 1);
-  dillate( (float _Complex*)objectWave, support_holo, row/oversampling-objrow-12, column/oversampling-objcol-18);
+  dillate( (complexFormat*)objectWave, support_holo, row/oversampling-objrow-12, column/oversampling-objcol-18);
   plt.plotFloat(support_holo, MOD, 0, 1, "holospt");
 }
 void holo::simulate(){

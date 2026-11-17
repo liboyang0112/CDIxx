@@ -60,9 +60,9 @@ int main(int argc, char** argv )
   //applyMask(d_bit, d_mask);
   applyThreshold(d_bit, d_sig, findMax(d_bit)/2);
   plt.plotFloat(d_bit, MOD, 0, 1, "bit", 1);
-  std::complex<Real> mid(findMiddle(d_bit, row*col));
-  Real midx = mid.real()*row;
-  Real midy = mid.imag()*col;
+  complexFormat mid = findMiddle(d_bit, row*col);
+  Real midx = mid.x*row;
+  Real midy = mid.y*col;
   myCuFree(d_bit);
   //memMngr.returnCache(d_mask);
   //memMngr.returnCache(cuda_spt);

@@ -7,7 +7,7 @@
 #define BETA 0.5
 #define DELTA 1e-3
 
-cuFuncc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(cuComplex* object, cuComplex* probe, cuComplex* U, int shiftx, int shifty, int objrow, int objcol, cuComplex* window),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,shiftx,shifty,objrow,objcol,(cuComplex*)window),{
+cuFunc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, int shiftx, int shifty, int objrow, int objcol, complexFormat *window = 0),(object,probe,U,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   cuComplex tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -16,7 +16,7 @@ cuFuncc(multiplyProbe,(complexFormat* object, complexFormat* probe, complexForma
   U[index] = cuCmulf(probe[index], tmp);
 })
 
-cuFuncc(getWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(cuComplex* object, int shiftx, int shifty, int objrow, int objcol, cuComplex* window),((cuComplex*)object,shiftx,shifty,objrow,objcol,(cuComplex*)window),{
+cuFunc(getWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(object,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   cuComplex tmp;
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) tmp.x = tmp.y = 0;
@@ -24,13 +24,13 @@ cuFuncc(getWindow,(complexFormat* object, int shiftx, int shifty, int objrow, in
   window[index] = tmp;
 })
 
-cuFuncc(updateWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(cuComplex* object, int shiftx, int shifty, int objrow, int objcol, cuComplex* window),((cuComplex*)object,shiftx,shifty,objrow,objcol,(cuComplex*)window),{
+cuFunc(updateWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window),(object,shiftx,shifty,objrow,objcol,window),{
   cudaIdx();
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
   object[(x+shiftx)*objcol+y+shifty] = window[index];
 })
 
-cuFuncc(addWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window, Real norm),(cuComplex* object, int shiftx, int shifty, int objrow, int objcol, cuComplex* window, Real norm),((cuComplex*)object,shiftx,shifty,objrow,objcol,(cuComplex*)window, norm),{
+cuFunc(addWindow,(complexFormat* object, int shiftx, int shifty, int objrow, int objcol, complexFormat *window, Real norm),(object,shiftx,shifty,objrow,objcol,window, norm),{
   cudaIdx();
   if(x+shiftx >= objrow || y+shifty >= objcol || x+shiftx < 0 || y+shifty < 0) return;
   int idx = (x+shiftx)*objcol+y+shifty;
@@ -68,17 +68,17 @@ __forceinline__ __device__ void rPIE_step(cuComplex &target, cuComplex source, c
   target.y =-(source.x*diff.y - source.y*diff.x)*denom;
 }
 
-cuFuncc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real stepsize = 1),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real stepsize = 1),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe, stepsize),{
+cuFunc(updateObject,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real stepsize = 1),(object,probe,U,mod2maxProbe, stepsize),{
   cuda1Idx()
   rPIE(object[index], probe[index], U[index], mod2maxProbe, ALPHA, stepsize);
 })
 
-cuFuncc(updateObjectStep,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe),{
+cuFunc(updateObjectStep,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe),(object,probe,U,mod2maxProbe),{
   cuda1Idx()
   rPIE_step(object[index], probe[index], U[index], mod2maxProbe, ALPHA);
 })
 
-cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probestepsize),(cuComplex* object, cuComplex* probe, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real probestepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)U,mod2maxProbe,mod2maxObj, probestepsize),{
+cuFunc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probestepsize),(object,probe,U,mod2maxProbe,mod2maxObj, probestepsize),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
@@ -89,7 +89,7 @@ cuFuncc(updateObjectAndProbe,(complexFormat* object, complexFormat* probe, compl
   object[index] = objectdat;
 })
 
-cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, probeStepsize, objectStepsize),{
+cuFunc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real probeStepsize, Real objectStepsize),(object,probe,probeStep,U,mod2maxProbe,mod2maxObj, probeStepsize, objectStepsize),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
@@ -101,7 +101,7 @@ cuFuncc(updateObjectAndProbeStep,(complexFormat* object, complexFormat* probe, c
   object[index] = objectdat;
 })
 
-cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real norm),(cuComplex* object, cuComplex* probe, cuComplex* probeStep, cuComplex* U, Real mod2maxProbe, Real mod2maxObj, Real norm),((cuComplex*)object,(cuComplex*)probe,(cuComplex*)probeStep,(cuComplex*)U,mod2maxProbe,mod2maxObj, norm),{
+cuFunc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* probe, complexFormat* probeStep, complexFormat* U, Real mod2maxProbe, Real mod2maxObj, Real norm),(object,probe,probeStep,U,mod2maxProbe,mod2maxObj, norm),{
   cuda1Idx()
   cuComplex objectdat= object[index];
   cuComplex probedat= probe[index];
@@ -112,19 +112,19 @@ cuFuncc(updateObjectStepAndProbeStep,(complexFormat* object, complexFormat* prob
   probeStep[index].y = probeStep[index].y + probedat.y*norm;
 })
 
-cuFuncc(random,(complexFormat* object, void *state),(cuComplex* object, curandStateMRG32k3a *state),((cuComplex*)object, (curandStateMRG32k3a*)state),{
+cuFunc(random,(complexFormat* object, void* state),(object, state),{
   cuda1Idx()
-  sincosf(curand_uniform(&state[index])*2*M_PI, &object[index].y, &object[index].x);
+  sincosf(curand_uniform(&((curandStateMRG32k3a*)state)[index])*2*M_PI, &object[index].y, &object[index].x);
 })
 
-cuFuncc(randommul,(complexFormat* object, void *state, Real phase),(cuComplex* object, curandStateMRG32k3a *state, Real phase),((cuComplex*)object, (curandStateMRG32k3a*)state, phase),{
+cuFunc(randommul,(complexFormat* object, void* state, Real phase),(object, state, phase),{
   cuda1Idx()
   cuComplex tmp;
-  sincosf(curand_normal(&state[index])*phase, &tmp.y, &tmp.x);
+  sincosf(curand_normal(&((curandStateMRG32k3a*)state)[index])*phase, &tmp.y, &tmp.x);
   object[index] = cuCmulf(tmp, object[index]);
 })
 
-cuFuncc(pupilFuncSS,(complexFormat* object, Real r, Real pupilsize, int period),(cuComplex* object, Real r, Real pupilsize, int period),((cuComplex*)object, r, pupilsize, period),{
+cuFunc(pupilFuncSS,(complexFormat* object, Real r, Real pupilsize, int period),(object, r, pupilsize, period),{
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
@@ -133,7 +133,7 @@ cuFuncc(pupilFuncSS,(complexFormat* object, Real r, Real pupilsize, int period),
   object[index].y = 0;
 })
 
-cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* object, Real r, Real pupilsize),((cuComplex*)object, r, pupilsize),{
+cuFunc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(object, r, pupilsize),{
   cudaIdx()
   int shiftx = x - cuda_row/2;
   int shifty = y - cuda_column/2;
@@ -142,10 +142,8 @@ cuFuncc(pupilFunc,(complexFormat* object, Real r, Real pupilsize),(cuComplex* ob
   object[index].y = 0;
 })
 
-cuFuncc(multiplyx,
-    (complexFormat* object, complexFormat* out),
-    (cuComplex* object, cuComplex* out),
-    ((cuComplex*)object, (cuComplex*)out),
+cuFunc(multiplyx,(complexFormat* object, complexFormat* out),
+    (object, out),
 {
     cuda1Idx();
     Real x = ((unsigned int)index) / (unsigned int)cuda_column;  // Encourage uint div
@@ -155,10 +153,8 @@ cuFuncc(multiplyx,
 })
 
 
-cuFuncc(multiplyy,
-    (complexFormat* object, complexFormat* out),
-    (cuComplex* object, cuComplex* out),
-    ((cuComplex*)object, (cuComplex*)out),
+cuFunc(multiplyy,(complexFormat* object, complexFormat* out),
+    (object, out),
 {
     cuda1Idx();
     Real y = index % cuda_column;
@@ -167,7 +163,7 @@ cuFuncc(multiplyy,
     out[index].y = object[index].y * scale;
 })
 
-cuFuncc(calcPartial,(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(Real* out, cuComplex* object, cuComplex* Fn, Real* pattern, Real* beamstop),(out, (cuComplex*)object,(cuComplex*)Fn,pattern,beamstop),{
+cuFunc(calcPartial,(Real* out, complexFormat* object, complexFormat* Fn, Real* pattern, Real* beamstop),(out, object,Fn,pattern,beamstop),{
   cuda1Idx();
   if(beamstop && beamstop[index] > 0.5){
     object[index].x = 0;
@@ -182,10 +178,8 @@ cuFuncc(calcPartial,(Real* out, complexFormat* object, complexFormat* Fn, Real* 
   out[index] = ret;
 })
 
-cuFuncc(solve_poisson_frequency_domain,
-       (complexFormat* d_fft_data),
-       (cuComplex* d_fft_data),
-       ((cuComplex*)d_fft_data),
+cuFunc(solve_poisson_frequency_domain,(complexFormat* d_fft_data),
+       (d_fft_data),
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;  // x: 0 to cuda_row/2
     int y = blockIdx.y * blockDim.y + threadIdx.y;  // y: 0 to cuda_column-1

@@ -44,9 +44,9 @@ void process_pair(Real* d_bkg, Real* d_sig, int row, int col,
     plt.init(row, col);
     plt.plotFloat(d_bit, MOD, 0, 1, "bit", 1, 0, 1);  // Only needed once
 
-    std::complex<Real> mid(findMiddle(d_bit, row * col));
-    midx = mid.real() * row;
-    midy = mid.imag() * col;
+    complexFormat mid = findMiddle(d_bit, row * col);
+    midx = mid.x * row;
+    midy = mid.y * col;
     myCuFree(d_bit);
 
     // Apply user offset

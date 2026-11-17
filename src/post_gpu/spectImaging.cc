@@ -35,7 +35,7 @@ void spectImaging::saveHSI(const char* name, Real* support){
 void spectImaging::initHSI(int _row, int _col){  //mask file, this is not to init refs, this is for init image coding masks
   imrow = _row;
   imcol = _col;
-  myMalloc(void*, spectImages, nlambda);
+  myMalloc(complexFormat*, spectImages, nlambda);
   for (int i = 0; i < nlambda; i++) {
     myCuMalloc(complexFormat, spectImages[i], _row*_col);
   }
@@ -82,7 +82,7 @@ void spectImaging::pointRefs(int npoints, int *xs, int *ys){  //mask file, this 
   myFree(maskMap);
   fmt::println("mask has {} pixels", pixCount);
 }
-void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask){
+void spectImaging::generateMWLPattern(Real* d_patternSum, bool debug, Real* mask){
   myCuDMallocClean(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
   myCuDMalloc(complexFormat, camp, row*column);
   myCuDMallocClean(Real, d_pattern, row*column);
@@ -134,7 +134,7 @@ void spectImaging::generateMWLPattern(void* d_patternSum, bool debug, Real* mask
   myCuFree(d_pattern);
   myCuFree(masked);
 }
-void spectImaging::generateMWLRefPattern(void* d_patternSum, bool debug){
+void spectImaging::generateMWLRefPattern(Real* d_patternSum, bool debug){
   myCuDMallocClean(complexFormat, amp, rows[nlambda-1]*cols[nlambda-1]);
   myCuDMalloc(complexFormat, camp, row*column);
   myCuDMallocClean(Real, d_pattern, row*column);
@@ -203,7 +203,7 @@ void createACmask(Real* acmask, int row, int imrow, int column, int imcol){
   createMaskBar(acmask, cuda_spt, 1);
   myCuFree(cuda_spt);
 }
-void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
+void spectImaging::reconstructHSI(Real* d_patternSum, Real* mask){
   Real stepsize = 0.3/pixCount;
   Real normf = 1./(row*column);
   //--create mask to block quadratic term--
@@ -241,8 +241,8 @@ void spectImaging::reconstructHSI(void* d_patternSum, Real* mask){
     applyNorm(autocorr, 1./sqrt(row*column));
     if(!runAP){
       tmp = spectImages_prev;
-      spectImages_prev = (complexFormat**)spectImages;
-      spectImages = (void**)tmp;
+      spectImages_prev = spectImages;
+      spectImages = tmp;
     }
     myFFT(autocorr,autocorr);
     for (int i = 0; i < nlambda; i++) {
@@ -298,7 +298,7 @@ void spectImaging::clearRefs(){
   for(int i = 0; i < nlambda; i++) clearCuMem(refs[i],  pixCount*sizeof(complexFormat));
   //for(int i = 0; i < 1; i++) clearCuMem(refs[i],  pixCount*sizeof(complexFormat));
 }
-void spectImaging::reconRefs(void* d_patternSum){
+void spectImaging::reconRefs(Real* d_patternSum){
   void* devstates = newRand(rows[nlambda-1]*cols[nlambda-1]);
   resize_cuda_image(rows[nlambda-1],cols[nlambda-1]);
   initRand(devstates, time(NULL));

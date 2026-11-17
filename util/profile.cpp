@@ -43,22 +43,22 @@ Real* cropToMiddle(Real* img, int row, int col, Real shiftx, Real shifty, int &o
   myCuDMalloc(Real, d_bit, sz);
   resize_cuda_image(row,col);
   bitMap(d_bit, img, 0.2);
-  std::complex<Real> mid(findMiddle(d_bit, row*col));
-  mid += std::complex<Real>(shiftx, -shifty);
-  fmt::println("mid= {:f},{:f}",mid.real(),mid.imag());
+  complexFormat mid = findMiddle(d_bit, row*col);
+  mid.x += shiftx; mid.y -= shifty;
+  fmt::println("mid= {:f},{:f}",mid.x,mid.y);
   myCuFree(d_bit);
   if(!outrow || !outcol){
-    outrow = (row-int(std::abs(mid.real())*row)*2)/4*4;
-    outcol = (col-int(std::abs(mid.imag())*col)*2)/4*4;
+    outrow = (row-int(std::abs(mid.x)*row)*2)/4*4;
+    outcol = (col-int(std::abs(mid.y)*col)*2)/4*4;
     outrow = outcol = std::min(outrow,outcol);
   }
   plt.init(row, col);
   plt.plotFloat(d_bit, MOD, 0, 1, "bitmap");
   myCuDMalloc(Real, imgout, outrow*outcol);
   resize_cuda_image(outrow, outcol);
-  crop(img, imgout, row, col,mid.real(),mid.imag());
-  shiftx = int(mid.real()*row)-mid.real()*row;
-  shifty = int(mid.imag()*col)-mid.imag()*col;
+  crop(img, imgout, row, col,mid.x,mid.y);
+  shiftx = int(mid.x*row)-mid.x*row;
+  shifty = int(mid.y*col)-mid.y*col;
   return imgout;
 }
 

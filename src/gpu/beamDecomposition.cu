@@ -191,7 +191,7 @@ __forceinline__ __device__ cuComplex zernike_complex_polar(Real r, Real theta, i
     return cuComplex();
   return make_polar(zernike_R(z, n, m_abs) * sqrtf(n + 1), m*theta);
 }
-cuFuncc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+cuFunc(multiplyHermit,(complexFormat* store, complexFormat* data, Real pupilsize, int n, int m),(store, data,pupilsize, n, m),{
     cudaIdx()
     Real xp = Real(x - (cuda_row>>1))/pupilsize;
     Real yp = Real(y - (cuda_column>>1))/pupilsize;
@@ -208,7 +208,7 @@ cuFunc(multiplyHermit,(Real* store, Real* data, Real pupilsize, int n, int m),(s
     store[index] = factor*data[index];
     })
 
-cuFuncc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+cuFunc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(store, data,pupilsize, n, m),{
     cudaIdx()
     Real dx = x - Real(cuda_row-1)/2;
     Real dy = y - Real(cuda_column-1)/2;
@@ -224,12 +224,12 @@ cuFuncc(multiplyZernikeConj,(complexFormat* store,complexFormat* data, Real pupi
     store[index].y = out.y;
     })
 
-cuFuncc(multiplyLaguerreConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(cuComplex* store, cuComplex* data, Real pupilsize, int n, int m),((cuComplex*)store, (cuComplex*)data,pupilsize, n, m),{
+cuFunc(multiplyLaguerreConj,(complexFormat* store,complexFormat* data, Real pupilsize, int n, int m),(store, data,pupilsize, n, m),{
     cudaIdx()
     store[index] = cuCmulf(data[index], cuConjf(laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
     })
 
-cuFuncc(addZernike,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
+cuFunc(addZernike,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(store, *&coefficient, pupilsize, n, m),{
     cudaIdx()
     Real dx = x - Real(cuda_row-1)/2;
     Real dy = y - Real(cuda_column-1)/2;
@@ -242,7 +242,7 @@ cuFuncc(addZernike,(complexFormat* store, complexFormat coefficient, Real pupils
     store[index].y += out.y*factor;
     })
 
-cuFuncc(addLaguerre,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(cuComplex* store, cuComplex coefficient, Real pupilsize, int n, int m),((cuComplex*)store, *(cuComplex*)&coefficient, pupilsize, n, m),{
+cuFunc(addLaguerre,(complexFormat* store, complexFormat coefficient, Real pupilsize, int n, int m),(store, *&coefficient, pupilsize, n, m),{
     cudaIdx()
     store[index] = cuCaddf(store[index], cuCmulf(coefficient, laguerre_gaussian(Real(x - (cuda_row>>1))/pupilsize, Real(y - (cuda_column>>1))/pupilsize, n, m)));
     })
@@ -578,7 +578,7 @@ complexFormat* zernike_compute(
     void* handle_ptr,
     complexFormat* phi,
     Real cx, Real cy, Real radius, Real reg_strength,
-    void* coeff
+    cuComplex* coeff
     ) {
   if (!handle_ptr) return nullptr;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
@@ -586,22 +586,22 @@ complexFormat* zernike_compute(
   if (!handle->initialized) return nullptr;
 
   zernike_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
-      (cuComplex*)phi, handle->width, cx, cy, radius, handle->maxN, handle->block_coeff
+      phi, handle->width, cx, cy, radius, handle->maxN, handle->block_coeff
       );
   int reduce_threads = handle->nthread;
   int reduce_blocks = (handle->nmodes + reduce_threads - 1) / reduce_threads;
   reduce_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->block_coeff, handle->nblocks, handle->nmodes, (cuComplex*)coeff, 1./(M_PI*radius*radius)
+      handle->block_coeff, handle->nblocks, handle->nmodes, coeff, 1./(M_PI*radius*radius)
       );
   regularize_zernike_coefficients<<<reduce_blocks, reduce_threads, 0>>>(
-      handle->nmodes, reg_strength, (cuComplex*)coeff
-      //handle->nmodes, 1e-7, 0, (cuComplex*)coeff
+      handle->nmodes, reg_strength, coeff
+      //handle->nmodes, 1e-7, 0, coeff
       );
 
   return (complexFormat*)handle->final_coeff;  // return device pointer
 }
 
-void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius, void* coeff) {
+void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius, cuComplex* coeff) {
   if (!handle_ptr || !phi_out) return;
   ZernikeHandle* handle = static_cast<ZernikeHandle*>(handle_ptr);
   if(coeff == NULL) coeff = handle->final_coeff;
@@ -612,13 +612,13 @@ void zernike_reconstruct(void* handle_ptr, complexFormat* phi_out, Real radius, 
   dim3 gridSize((npixels + blockSize.x - 1) / blockSize.x);
 
   zernike_reconstruct_kernel<<<gridSize, blockSize>>>(
-      (cuComplex*)phi_out,
+      phi_out,
       handle->width,
       Real(handle->width-1)/2,   // cx
       Real(handle->width-1)/2,   // cy
       radius,
       handle->maxN,
-      (cuComplex*)coeff,    // ← internal coefficient cache
+      coeff,    // ← internal coefficient cache
       handle->nmodes
       );
 }
@@ -768,7 +768,7 @@ complexFormat* laguerre_compute(void* handle_ptr, complexFormat* phi, Real cx, R
   if (!handle->initialized) return nullptr;
 
   laguerre_project_mode<<<handle->nblocks, handle->nthread, handle->shared_mem_size>>>(
-      (cuComplex*)phi,
+      phi,
       handle->width, radius,
       cx, cy,
       handle->maxN, handle->maxM,
@@ -891,7 +891,7 @@ void laguerre_reconstruct(
   dim3 gridSize((npixels + blockSize.x - 1) / blockSize.x);
 
   laguerre_reconstruct_kernel<<<gridSize, blockSize>>>(
-      (cuComplex*)phi_out,
+      phi_out,
       handle->width,
       radius,                    // ← passed as argument
       handle->width / 2.0f,      // cx (centered by default)

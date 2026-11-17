@@ -8,6 +8,7 @@
 #include <vector>
 #include "cuPlotter.hpp"
 #include "cudaConfig.hpp"
+#include "fmt/core.h"
 #include "imgio.hpp"
 extern "C" {
 #include "gui/dataviewerWinWrapper.hpp"
@@ -124,8 +125,8 @@ static void reprocess(View* v) {
     if (v->fft_dirty) {
       if (v->img_type == REALIDX) {
         extendToComplex((Real*)v->d_image, (complexFormat*)v->d_fft);
-        myFFT(v->d_fft, v->d_fft);
-      } else myFFT(v->d_image, v->d_fft);
+        myFFT((complexFormat*)v->d_fft, (complexFormat*)v->d_fft);
+      } else myFFT((complexFormat*)v->d_image, (complexFormat*)v->d_fft);
       cudaConvertFO((complexFormat*)v->d_fft);
       applyNorm((complexFormat*)v->d_fft, 1.0f / (v->img_rows * v->img_cols));
       v->fft_dirty = false;
@@ -177,7 +178,7 @@ static void close_view(View* v) {
 static bool open_file(const char* fname, View* v) {
   struct imageFile f;
   void* image = readImage_c(fname, &f, 0);
-  if (!image) { fprintf(stderr, "Failed to load: %s\n", fname); return false; }
+  if (!image) { fmt::println(stderr, "Failed to load: {}", fname); return false; }
   void* d_image = to_gpu(image, &f);
   free(image);
   v->d_image = d_image;
@@ -186,14 +187,14 @@ static bool open_file(const char* fname, View* v) {
   myCuMalloc(complexFormat, v->d_fft, f.rows * f.cols);
   v->rgb.resize((size_t)f.rows * f.cols * 3);
   if (f.type != REALIDX && f.type != COMPLEXIDX) {
-    fprintf(stderr, "Unsupported type %d in '%s'\n", f.type, fname);
+    fmt::println(stderr, "Unsupported type {} in '{}'", static_cast<signed char>(f.type), fname);
     return false;
   }
   int w = f.cols, h = f.rows;
   v->win = SDL_CreateWindow(fname, w, h, SDL_WINDOW_RESIZABLE);
-  if (!v->win) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
+  if (!v->win) { fmt::println(stderr, "SDL_CreateWindow: {}", SDL_GetError()); return false; }
   v->rend = SDL_CreateRenderer(v->win, NULL);
-  if (!v->rend) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); SDL_DestroyWindow(v->win); v->win = NULL; return false; }
+  if (!v->rend) { fmt::println(stderr, "SDL_CreateRenderer: {}", SDL_GetError()); SDL_DestroyWindow(v->win); v->win = NULL; return false; }
   const SDL_DisplayMode* dm = SDL_GetDesktopDisplayMode(0);
   if (dm) {
     if (w > dm->w) w = dm->w;
@@ -202,7 +203,7 @@ static bool open_file(const char* fname, View* v) {
   }
   v->tex = SDL_CreateTexture(v->rend, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, f.cols, f.rows);
   if (!v->tex) {
-    fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError());
+    fmt::println(stderr, "SDL_CreateTexture: {}", SDL_GetError());
     SDL_DestroyRenderer(v->rend); SDL_DestroyWindow(v->win);
     v->rend = NULL; v->win = NULL;
     return false;
@@ -210,16 +211,16 @@ static bool open_file(const char* fname, View* v) {
   reprocess(v);
   render_view(v);
   v->open = true;
-  printf("Loaded %dx%d '%s'\n", f.cols, f.rows, fname);
+  fmt::println("Loaded {}x{} '{}'", f.cols, f.rows, fname);
   return true;
 }
 
 int main(int argc, char** argv) {
-  if (argc < 2) { fprintf(stderr, "usage: %s <image> [...]\ncontrols: q close | drag pan | scroll zoom\n", argv[0]); return 1; }
-  if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
+  if (argc < 2) { fmt::println(stderr, "usage: {} <image> [...]\ncontrols: q close | drag pan | scroll zoom", argv[0]); return 1; }
+  if (!SDL_Init(SDL_INIT_VIDEO)) { fmt::println(stderr, "SDL_Init: {}", SDL_GetError()); return 1; }
   TTF_Init();
   g_font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16);
-  if (!g_font) fprintf(stderr, "Warning: no font\n");
+  if (!g_font) fmt::println(stderr, "Warning: no font");
 
   std::vector<View> views;
   for (int i = 1; i < argc; i++) { View v; if (open_file(argv[i], &v)) views.push_back(std::move(v)); }
