@@ -7,6 +7,7 @@
 
 void multiplyPatternPhase_Device(complexFormat* amp, Real r_d_lambda, Real d_r_lambda); //cuda functions
 void multiplyFresnelPhase_Device(complexFormat* amp, Real phaseFactor); //cuda functions
+void obliqueRotatePhase(complexFormat* input, complexFormat* output, Real a, Real b, Real sinT, Real cosT, int sign); //cuda functions
 
 
 void propagator::multiplyPatternPhase(complexFormat* amp){
@@ -46,5 +47,29 @@ void propagator::angularSpectrumPropagateReverse(complexFormat* input, complexFo
   multiplyPropagatePhase(output, -2*M_PI*distance/lambda, 1./(imagesize_over_lambda*imagesize_over_lambda));
   cudaConvertFO(output);
   myIFFT(output, output);
+}
+
+void propagator::obliquePropagateFwd(complexFormat* input, complexFormat* output, Real thetaRad){
+  myFFT(input, output);
+  applyNorm(output, 1./(row*column));
+  cudaConvertFO(output);
+  Real lambda_over_imagesize = lambda/(pixelsize*row);
+  Real a = 2*M_PI*distance/lambda;
+  Real b = lambda_over_imagesize*lambda_over_imagesize;
+  obliqueRotatePhase(output, input, a, b, sinf(thetaRad), cosf(thetaRad), +1);
+  cudaConvertFO(input);
+  myIFFT(input, output);
+}
+
+void propagator::obliquePropagateBwd(complexFormat* input, complexFormat* output, Real thetaRad){
+  myFFT(input, output);
+  applyNorm(output, 1./(row*column));
+  cudaConvertFO(output);
+  Real lambda_over_imagesize = lambda/(pixelsize*row);
+  Real a = 2*M_PI*distance/lambda;
+  Real b = lambda_over_imagesize*lambda_over_imagesize;
+  obliqueRotatePhase(output, input, a, b, sinf(thetaRad), cosf(thetaRad), -1);
+  cudaConvertFO(input);
+  myIFFT(input, output);
 }
 

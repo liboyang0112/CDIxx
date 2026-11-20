@@ -63,7 +63,6 @@
 #define E2r(o, inp, inp2, ...) EL2(o, inp, inp2, [=]__device__(Real x, Real y){ return (__VA_ARGS__); })
 #define E2c(o, inp, inp2, ...) EL2(o, inp, inp2, [=]__device__(cuComplex x, cuComplex y){ return (__VA_ARGS__); })
 
-
 extern const dim3 threadsPerBlock;
 extern dim3 numBlocks;
 extern dim3 cuda_imgsz;

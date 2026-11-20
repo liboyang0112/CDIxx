@@ -689,6 +689,86 @@ cuFunc(multiplyPropagatePhase,(complexFormat* amp, Real a, Real b),(amp,a,b),{ /
     amp[index] *= phasefactor;
     })
 
+cuFunc(obliqueRotatePhase,(complexFormat* input, complexFormat* output, Real a, Real b, Real sinT, Real cosT, int sign),(input,output,a,b,sinT,cosT,sign),{ // a=2pi*D/lambda, b=(lambda/s)^2, sign=+1 fwd, -1 bwd
+    // x = row (vertical, ky), y = column (horizontal, kx). Tilt around y-axis.
+    // Surface normal: n_hat = (sinT, 0, cosT). Surface x-axis: (cosT, 0, sinT).
+    // FWD: output in surface frame (k_parallel, ky), gather from pupil frame (kx, ky)
+    // BWD: output in pupil frame (kx, ky), gather from surface frame (k_parallel, ky)
+    cudaIdx();
+    Real sqrtb = sqrtf(b);
+    Real kx_out = (y - (cuda_column>>1)) * sqrtb;
+    Real ky_out = (x - (cuda_row>>1)) * sqrtb;
+
+    Real kx_src, kz_out;
+    if(sign > 0){
+      // FWD: inverse rotation (surface -> lab): kx = k_parallel*cosT - kz'*sinT
+      Real disc = 1.0f - kx_out*kx_out - ky_out*ky_out;
+      if(disc < 0){ output[index] = cuComplex(); return; }
+      kz_out = sqrtf(disc);
+      kx_src = kx_out * cosT - kz_out * sinT;
+    } else {
+      // BWD: forward rotation (lab -> surface): k_parallel = kx*cosT + kz*sinT
+      Real kz_sq = 1.0f - kx_out*kx_out - ky_out*ky_out;
+      if(kz_sq < 0){ output[index] = cuComplex(); return; }
+      kz_out = sqrtf(kz_sq);
+      kx_src = kx_out * cosT + kz_out * sinT;
+    }
+    Real ky_src = ky_out;
+
+    // Bilinear interpolation in kx (y-direction only, ky unchanged)
+    Real y_src = kx_src / sqrtb + (cuda_column>>1);
+    int y0 = (int)floorf(y_src);
+    int y1 = y0 + 1;
+    if(y0 < 0 || y1 >= cuda_column){
+      output[index] = cuComplex();
+      return;
+    }
+    Real frac = y_src - y0;
+    cuComplex c0 = input[x*cuda_column + y0];
+    cuComplex c1 = input[x*cuda_column + y1];
+    Real re = (1-frac)*c0.x + frac*c1.x;
+    Real im = (1-frac)*c0.y + frac*c1.y;
+
+    // Source kz (lab frame)
+    Real kz_src_sq = 1.0f - kx_src*kx_src - ky_src*ky_src;
+    if(kz_src_sq < 0){ output[index] = cuComplex(); return; }
+    Real kz_src = sqrtf(kz_src_sq);
+
+    // Propagation phase: D*kz
+    Real phase = sign * a * kz_src;
+
+    // Jacobian: |dkx/dk_parallel| = kz / (kz*cosT - kx*sinT)
+    Real knorm = kz_src * cosT - kx_src * sinT; // k dot n_hat
+    Real weight;
+    if(sign > 0)
+      weight = kz_src / (knorm + 1e-12f);
+    else
+      weight = (knorm + 1e-12f) / (kz_src + 1e-12f);
+
+    cuComplex phasefactor;
+    sincosf(phase, &phasefactor.y, &phasefactor.x);
+    output[index] = cuComplex(re, im) * weight * phasefactor;
+    })
+
+cuFunc(stretchX,(complexFormat* input, complexFormat* output, Real cosT),(input,output,cosT),{
+    // x = row (vertical), y = column (horizontal). Stretch in y (horizontal).
+    cudaIdx();
+    Real cosT_inv = 1.0f / cosT;
+    Real y_src = (y - (cuda_column>>1)) * cosT + (cuda_column>>1);
+    int y0 = (int)floorf(y_src);
+    int y1 = y0 + 1;
+    if(y0 < 0 || y1 >= cuda_column){
+      output[index] = cuComplex();
+    } else {
+      Real frac = y_src - y0;
+      cuComplex c0 = input[x*cuda_column + y0];
+      cuComplex c1 = input[x*cuda_column + y1];
+      Real re = ((1-frac)*c0.x + frac*c1.x) * cosT_inv;
+      Real im = ((1-frac)*c0.y + frac*c1.y) * cosT_inv;
+      output[index] = cuComplex(re, im);
+    }
+    })
+
 void extendToComplex(Real* a, complexFormat* b){
   E1r(b, a, make_float2(x, 0));
 }

@@ -189,17 +189,12 @@ document.getElementById("prepare")?.addEventListener('click', async () => {
         const path = repo + workpath + "/";
         const dsPath = path + datasetName + "/";
 
-        // Process pattern - background
-        const cmd1 = `./runStacker.sh ${dsPath} ${bkg} ${pattern} ${nmerge} ${outputName}/pattern ${symmetric} ${shiftx} ${shifty}`;
-        const resp1 = await fetch(url_cmd, { method: 'POST', body: cmd1 });
-        const data1 = await resp1.text();
+        // Process pattern + gratings with shared alignment
+        const cmd = `./runProcessSSPtycho.sh ${dsPath} ${bkg} ${pattern} ${gratings} ${nmerge} ${outputName} ${shiftx} ${shifty}`;
+        const resp = await fetch(url_cmd, { method: 'POST', body: cmd });
+        const data = await resp.text();
 
-        // Process gratings - background
-        const cmd2 = `./runStacker.sh ${dsPath} ${bkg} ${gratings} ${nmerge} ${outputName}/gratings ${symmetric} ${shiftx} ${shifty}`;
-        const resp2 = await fetch(url_cmd, { method: 'POST', body: cmd2 });
-        const data2 = await resp2.text();
-
-        document.getElementById('preparelog').innerText = `[Pattern]\n${data1}\n\n[Gratings]\n${data2}`;
+        document.getElementById('preparelog').innerText = data;
         clearLoading('prepare');
         displayDiagnosticImages(outputName);
         showNotification('Data preparation completed', 'success');
@@ -216,7 +211,7 @@ function displayDiagnosticImages(outputName) {
     container.innerHTML = '<div class="loading">Loading diagnostic images...</div>';
 
     const baseDir = `${repo}${workpath}/${outputName}`;
-    const cmd = `ls ${baseDir}/pattern/*.jpg ${baseDir}/gratings/*.jpg 2>/dev/null | sort -V`;
+    const cmd = `ls ${baseDir}/*_logimage.jpg ${baseDir}/*_autocorrelation.jpg 2>/dev/null | sort -V`;
 
     fetch(url_cmd, { method: 'POST', body: cmd })
         .then(response => response.text())

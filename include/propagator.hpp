@@ -18,5 +18,7 @@ class propagator{
     void fresnelPropagate(complexFormat* field);
     void angularSpectrumPropagate(complexFormat* input, complexFormat* output);
     void angularSpectrumPropagateReverse(complexFormat* input, complexFormat* output);
+    void obliquePropagateFwd(complexFormat* input, complexFormat* output, Real thetaRad);
+    void obliquePropagateBwd(complexFormat* input, complexFormat* output, Real thetaRad);
 };
 #endif

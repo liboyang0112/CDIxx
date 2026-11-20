@@ -18,6 +18,7 @@
 #include "ptycho.hpp"
 #include "tvFilter.hpp"
 #include "beamDecomposition.hpp"
+#include "patternCorrection.hpp"
 
 #define verbose(i,a) if(verbose>=i){a;}
 #define m_verbose(m,i,a) if(m.verbose>=i){a;}
@@ -368,6 +369,44 @@ class ptycho : public readConfig{
         myFFT(esws_t[i],esw);
         if(!patterns[i]) myCuMalloc(Real, patterns[i], row*column);
         getMod2(patterns[i], esw, 1./(row*column));
+        if(tiltAngle != 0 || (useEwald && !useSineLens)){
+          resize_cuda_image(row, column);
+          plt.plotFloat(patterns[i], MOD, 1, exposure, ("sim_b4distortion"+to_string(i)).c_str(), 1, 0, 1);
+        }
+        if(tiltAngle != 0){
+          resize_cuda_image(row, column);
+          myCuDMalloc(Real, d_center, row*column);
+          myCuDMalloc(Real, d_tilted, row*column);
+          myCuDMalloc(Real, d_corrected, row*column);
+          myMemcpyD2D(d_center, patterns[i], row*column*sizeof(Real));
+          cudaConvertFO(d_center);
+          reflSimulateTilted(d_center, d_tilted, tiltAngle, d, pixelsize, row, column, useSineLens);
+          plt.plotFloat(d_tilted, MOD, 0, exposure, ("sim_afterDistortion"+to_string(i)).c_str(), 1, 0, 1);
+          reflCorrectToRegular(d_tilted, d_corrected, &beamstop, tiltAngle, d, pixelsize, row, column, useSineLens);
+          plt.plotFloat(d_corrected, MOD, 0, exposure, ("sim_afterCorrection"+to_string(i)).c_str(), 1, 0, 1);
+          cudaConvertFO(d_tilted);
+          myMemcpyD2D(patterns[i], d_tilted, row*column*sizeof(Real));
+          myCuFree(d_center);
+          myCuFree(d_tilted);
+          myCuFree(d_corrected);
+        }
+        if(useEwald && tiltAngle == 0 && !useSineLens){
+          resize_cuda_image(row, column);
+          myCuDMalloc(Real, d_center, row*column);
+          myCuDMalloc(Real, d_det, row*column);
+          myCuDMalloc(Real, d_corrected, row*column);
+          myMemcpyD2D(d_center, patterns[i], row*column*sizeof(Real));
+          cudaConvertFO(d_center);
+          ewaldSimulateTilted(d_center, d_det, pixelsize/d, row, column, column/2.0, row/2.0);
+          plt.plotFloat(d_det, MOD, 0, exposure, ("sim_afterDistortion"+to_string(i)).c_str(), 1, 0, 1);
+          ewaldCorrectToRegular(d_det, d_corrected, &beamstop, pixelsize/d, row, column, column/2.0, row/2.0);
+          plt.plotFloat(d_corrected, MOD, 0, exposure, ("sim_afterCorrection"+to_string(i)).c_str(), 1, 0, 1);
+          cudaConvertFO(d_det);
+          myMemcpyD2D(patterns[i], d_det, row*column*sizeof(Real));
+          myCuFree(d_center);
+          myCuFree(d_det);
+          myCuFree(d_corrected);
+        }
         if(useBS) applySupport(patterns[i], beamstop);
         if(simCCDbit) {
           //applyPoissonNoise_WO(patterns[i], noiseLevel, devstates, 1./exposure);
@@ -528,6 +567,33 @@ class ptycho : public readConfig{
       fmt::ostream *residual_file = 0;
       if(computeErrorEveryIter)
         residual_file = new fmt::ostream(fmt::output_file(std::string(outputDir) + "residual.txt"));
+      if(tiltAngle != 0){
+        resize_cuda_image(row, column);
+        myCuDMalloc(Real, corrected, row*column);
+        for(int i = 0; i < nscan; i++){
+          cudaConvertFO(patterns[i]);
+          reflCorrectToRegular(patterns[i], corrected, &beamstop, tiltAngle, d, pixelsize, row, column, useSineLens);
+          myMemcpyD2D(patterns[i], corrected, row*column*sizeof(Real));
+          cudaConvertFO(patterns[i]);
+        }
+        myCuFree(corrected);
+      }
+      if(useEwald && tiltAngle == 0 && !useSineLens){
+        resize_cuda_image(row, column);
+        myCuDMalloc(Real, corrected, row*column);
+        for(int i = 0; i < nscan; i++){
+          cudaConvertFO(patterns[i]);
+          ewaldCorrectToRegular(patterns[i], corrected, &beamstop, pixelsize/d, row, column, column/2.0, row/2.0);
+          myMemcpyD2D(patterns[i], corrected, row*column*sizeof(Real));
+          cudaConvertFO(patterns[i]);
+        }
+        myCuFree(corrected);
+      }
+      if(beamstop){
+        resize_cuda_image(row, column);
+        cudaConvertFO(beamstop);
+        plt.plotFloat(beamstop, MOD, 1, 1, "beamstop_after_correction", 0);
+      }
       for(int iter = 0; iter < nIter; iter++){
         dozernike = iter < zernikeIter && iter%1==0;
         getMod2(maxCache, pupilpatternWave);
@@ -717,7 +783,7 @@ class ptycho : public readConfig{
             //FISTA_step(objectWave, objectWave, 0.025*sqrt(I2), NULL);
           }
           else
-            L2_step(objectWave, objectWave, 0.02*I2, NULL);
+            L2_step(objectWave, objectWave, 0.01*I2, NULL);
         }
         if(mPIE > iter){ //momentum update
           resize_cuda_image(row_O, column_O);

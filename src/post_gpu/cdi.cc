@@ -16,6 +16,7 @@
 #include "cub_wrap.hpp"
 #include "misc.hpp"
 #include "cdi.hpp"
+#include "patternCorrection.hpp"
 #include <complex.h>
 #include <string>
 
@@ -104,6 +105,23 @@ void CDI::readPattern(){
   myFree(pattern);
   //multiplySqy(patternData,patternData);
   cudaConvertFO(patternData);
+  // Apply reflection correction if tilt angle is non-zero
+  if(tiltAngle != 0){
+    myCuDMalloc(Real, corrected, row*column);
+    reflCorrectToRegular(patternData, corrected, &beamstop, tiltAngle, d, pixelsize, row, column, useSineLens);
+    myMemcpyD2D(patternData, corrected, row*column*sizeof(Real));
+    myCuFree(corrected);
+  }
+  // Apply Ewald sphere curvature correction (DC at center after cudaConvertFO)
+  // Sine lens model: no Ewald correction needed (lens already does Fourier transform)
+  // Free-space tilt: Ewald already included in the tilt formula, skip to avoid double application
+  if(useEwald && tiltAngle == 0 && !useSineLens){
+    myCuDMalloc(Real, corrected, row*column);
+    ewaldCorrectToRegular(patternData, corrected, &beamstop, pixelsize/d, row, column, column/2.0, row/2.0);
+    myMemcpyD2D(patternData, corrected, row*column*sizeof(Real));
+    myCuFree(corrected);
+  }
+  if(beamstop) cudaConvertFO(beamstop);
   applyNorm(patternData, 1./exposure);
   fmt::println("Created pattern data");
 }
@@ -181,6 +199,46 @@ void CDI::prepareIter(){
     convertFOPhase( patternWave, 1./sqrt(row*column));
     plt.plotComplex(patternWave, PHASE, 1, 1, "init_pattern_phase", 0);
     getMod2(patternData, patternWave);
+    // Reflection correction: simulate tilt then correct (round-trip test)
+    if(tiltAngle != 0){
+      resize_cuda_image(row, column);
+      myCuDMalloc(Real, d_center, row*column);
+      myCuDMalloc(Real, d_tilted, row*column);
+      myMemcpyD2D(d_center, patternData, row*column*sizeof(Real));
+      cudaConvertFO(d_center);
+      plt.plotFloat(d_center, MOD, 0, exposure, "tilt_b4distortion", 1, 0, 1);
+      reflSimulateTilted(d_center, d_tilted, tiltAngle, d, pixelsize, row, column, useSineLens);
+      plt.plotFloat(d_tilted, MOD, 0, exposure, "tilt_afterDistortion", 1, 0, 1);
+      reflCorrectToRegular(d_tilted, d_center, &beamstop, tiltAngle, d, pixelsize, row, column, useSineLens);
+      plt.plotFloat(d_center, MOD, 0, exposure, "tilt_afterCorrection", 1, 0, 1);
+      cudaConvertFO(d_center);
+      myMemcpyD2D(patternData, d_center, row*column*sizeof(Real));
+      myCuFree(d_center);
+      myCuFree(d_tilted);
+    }
+    // Ewald sphere curvature: round-trip test (free-space model only)
+    // Skip when tilt correction is active — the free-space tilt formula already includes the 1/s Ewald geometry
+    if(useEwald && tiltAngle == 0 && !useSineLens){
+      resize_cuda_image(row, column);
+      myCuDMalloc(Real, d_center, row*column);
+      myCuDMalloc(Real, d_det, row*column);
+      Real a = pixelsize / d;
+      // Convert to DC-at-center for correction functions
+      myMemcpyD2D(d_center, patternData, row*column*sizeof(Real));
+      cudaConvertFO(d_center);
+      plt.plotFloat(d_center, MOD, 0, exposure, "ewald_b4distortion", 1, 0, 1);
+      // Simulate curvature (grid -> detector)
+      ewaldSimulateTilted(d_center, d_det, a, row, column, column/2.0, row/2.0);
+      plt.plotFloat(d_det, MOD, 0, exposure, "ewald_afterDistortion", 1, 0, 1);
+      // Correct (detector -> grid, round-trip)
+      ewaldCorrectToRegular(d_det, d_center, &beamstop, a, row, column, column/2.0, row/2.0);
+      plt.plotFloat(d_center, MOD, 0, exposure, "ewald_afterCorrection", 1, 0, 1);
+      // Convert back to DC-at-corner and restore patternData
+      cudaConvertFO(d_center);
+      myMemcpyD2D(patternData, d_center, row*column*sizeof(Real));
+      myCuFree(d_center);
+      myCuFree(d_det);
+    }
     if(useBS) {
       myCuDMalloc(Real, patterncache, row*column);
       linearConst(patterncache, beamstop, -1, 1);

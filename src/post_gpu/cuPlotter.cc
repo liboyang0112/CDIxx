@@ -190,7 +190,7 @@ void cuPlotter::plotComplexColor(complexFormat* cudaData, bool isFrequency, Real
     vid_thread = 0;
   }
   std::string fname = (prefix + std::string(label));
-  if(fname.find(".")==std::string::npos) fname += ".jpg";
+  if(std::string(label).find(".")==std::string::npos) fname += ".jpg";
   bool isJPG = fname.find(".jpg")!=std::string::npos;
   if(!cuCache_data) myCuMalloc(col_rgb, cuCache_data, rows*cols);
   process_rgb(cudaData, (col_rgb*)cuCache_data, isFrequency, decay, islog, isFlip, phaseOnly);

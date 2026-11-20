@@ -165,6 +165,7 @@ void multiplyy(complexFormat* object, Real* out);
 void multiplyx(Real* object, Real* out);
 void multiplyy(Real* object, Real* out);
 void getArg(Real* angle, complexFormat* amp);
+void resampleBilinear(Real* input, Real* output, Real* mapRow, Real* mapCol);
 void applyThreshold(complexFormat* input, complexFormat *output, Real threshold);
 
 void cart2polar_kernel(Real* d_cart, Real* d_polar,int width, int height);
