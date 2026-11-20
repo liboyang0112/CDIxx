@@ -1,9 +1,9 @@
 // ==================== Page-Specific Initialization ====================
 const ssptychoImages = [
     'recon_object_wave',
-    'recon_phase',
-    'recon_intensity',
-    'obj_freq',
+    'recon_grating',
+    'recon_pattern',
+    'recon_pupil_wave',
     'recon_probe_wave'
 ];
 
@@ -15,7 +15,7 @@ if (document.getElementById('recon_object_wave')) {
     document.getElementById('recon_object_wave').classList.add('selected');
     operateImage = 'recon_object_wave';
     if (document.getElementById('active-image-name')) {
-        document.getElementById('active-image-name').textContent = imageNames['recon_object_wave'];
+        document.getElementById('active-image-name').textContent = 'Object Wave';
     }
 }
 

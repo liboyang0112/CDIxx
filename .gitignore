@@ -16,3 +16,4 @@ layui
 # Ignoring all HERMES cache files
 .hermes/
 hermes.log
+.serena

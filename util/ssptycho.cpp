@@ -286,7 +286,8 @@ class ssptycho : public readConfig{
       myFFT(objectWave, objectWave);
       //plt.plotComplex(objectWave, MOD, 1, sqrt(exposure/(30*row*column)), "obj_freq",1,0,1);
       plt.plotComplex(objectWave, MOD2, 1, exposure/(9*row*column), "obj_freq.jpg",1,0,1);
-      plt.plotComplexColor(probeWave, 0, 1, "recon_probe_wave");
+      plt.plotComplexColor(probeWave, 0, 1, "recon_pupil_wave");
+      plt.plotComplexColor(pupilpatternWave, 0, 1, "recon_probe_wave");
       cudaConvertFO(objectWave);
       myCuDMalloc(complexFormat, lowres, (row/3)*(column/3));
       resize_cuda_image(row/3, column/3);

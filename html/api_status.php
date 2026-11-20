@@ -57,11 +57,14 @@ $pid = (int)$pid;
 // Check process liveness via /proc (Linux, no shell)
 $running = is_dir("/proc/$pid");
 
-// Read full log (no shell)
+// Read last 50 lines of log
 $logContent = '';
 $logPath = $workdir . '/' . $logFile;
 if (is_file($logPath)) {
-    $logContent = (string)@file_get_contents($logPath);
+    $lines = @file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines) {
+        $logContent = implode("\n", array_slice($lines, -50));
+    }
 }
 
 echo json_encode(['running' => $running, 'pid' => $pid, 'log' => $logContent]);

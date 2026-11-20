@@ -75,7 +75,8 @@ int cuPlotter::initVideo(const char* filename, int fps, bool preview, bool onlin
   isOnline[handle] = online;
   videoWriterVec[handle] = createVideo(strfname.c_str(), rows, cols, fps, NULL);
   if(online){
-    std::string sockPath = "cdixx_stream.sock";
+    const char* sockEnv = getenv("LIVE_STREAM_SOCK");
+    std::string sockPath = sockEnv ? sockEnv : "cdixx_stream.sock";
     videoPreview[handle] = createStream(sockPath.c_str(), rows, cols);
   }else if(preview) {
     videoPreview[handle] = createPreview(filename, rows, cols);
@@ -206,11 +207,13 @@ void cuPlotter::plotComplexColor(complexFormat* cudaData, bool isFrequency, Real
     writeVideo = toVideo;
     pthread_create(&vid_thread, nullptr, flushVideo_thread, this);
     if(isOnline[toVideo] && videoPreview[toVideo]) {
-      unsigned char* jdata = nullptr;
-      size_t jsize = 0;
-      if (encodeJPEG_GPU_toMem(cuCache_data, rows, cols, 75, &jdata, &jsize) == 0) {
-        updateStream(videoPreview[toVideo], jdata, (int)jsize);
-        free(jdata);
+      if (!streamThrottled(videoPreview[toVideo])) {
+        unsigned char* jdata = nullptr;
+        size_t jsize = 0;
+        if (encodeJPEG_GPU_toMem(cuCache_data, rows, cols, 75, &jdata, &jsize) == 0) {
+          updateStream(videoPreview[toVideo], jdata, (int)jsize);
+          free(jdata);
+        }
       }
     } else if(videoPreview[toVideo]) {
       updatePreview(videoPreview[toVideo], cv_cache);
@@ -315,7 +318,8 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
         unsigned char* jdata = nullptr;
         size_t jsize = 0;
         void* src = cuRGB_data ? cuRGB_data : cuCache_data;
-        if (src && encodeJPEG_GPU_toMem(src, rows, cols, 75, &jdata, &jsize) == 0) {
+        if (src && !streamThrottled(videoPreview[toVideo]) &&
+            encodeJPEG_GPU_toMem(src, rows, cols, 75, &jdata, &jsize) == 0) {
           updateStream(videoPreview[toVideo], jdata, (int)jsize);
           free(jdata);
         }

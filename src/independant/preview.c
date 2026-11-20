@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <alloca.h>
+#include <time.h>
 
 // ── SDL local preview (online=false) ─────────────────────────────
 struct PreviewContext {
@@ -70,6 +71,7 @@ struct StreamContext {
   char sockPath[108];
   pthread_t acceptThread;
   int active;
+  struct timespec lastSend;
 };
 
 static void* streamAcceptLoop(void* arg) {
@@ -95,13 +97,6 @@ static void* streamAcceptLoop(void* arg) {
     s->clientFd = cfd;
     if (old >= 0) close(old);
 
-    const char* hdr =
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n"
-        "Connection: keep-alive\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
-        "\r\n";
-    write(cfd, hdr, strlen(hdr));
     fprintf(stderr, "[Stream] Client connected on %s\n", s->sockPath);
   }
   return NULL;
@@ -141,13 +136,32 @@ void* createStream(const char* sockPath, int row, int col) {
   return s;
 }
 
-// Send one JPEG frame — non-blocking, drops frame if buffer full or too soon
-// Min interval: 100ms (10fps) to let browser decode large frames
+// Returns 1 if the rate limit would drop a frame (not enough time elapsed)
+int streamThrottled(void* ptr) {
+  struct StreamContext* s = (struct StreamContext*)ptr;
+  if (!s || !s->active) return 1;
+  if (s->clientFd < 0) return 1;
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  long elapsed_us = (now.tv_sec - s->lastSend.tv_sec) * 1000000L +
+                    (now.tv_nsec - s->lastSend.tv_nsec) / 1000;
+  return elapsed_us < 100000;
+}
+
+// Send one JPEG frame — non-blocking, rate-limited to 10fps
 void updateStream(void* ptr, const unsigned char* jpegData, int jpegSize) {
   struct StreamContext* s = (struct StreamContext*)ptr;
   if (!s || !s->active) return;
   int cfd = s->clientFd;
   if (cfd < 0) return;
+
+  // 100ms min interval — browser needs time to decode 2048x2048 JPEGs
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  long elapsed_us = (now.tv_sec - s->lastSend.tv_sec) * 1000000L +
+                    (now.tv_nsec - s->lastSend.tv_nsec) / 1000;
+  if (elapsed_us < 100000) return;
+  s->lastSend = now;
 
   char frame[128];
   int flen = snprintf(frame, sizeof(frame),
