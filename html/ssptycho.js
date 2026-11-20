@@ -360,8 +360,7 @@ document.getElementById("runSSPtychoBtn")?.addEventListener('click', async () =>
 
     showNotification('Reconstruction started! Live stream connecting...', 'success');
 
-    const pageDir = document.URL.replace(/^https?:\/\/[^/]+/, '').replace(/[^/]*$/, '');
-    const sockPath = pageDir + repo + workpath + '/cdixx_stream.sock';
+    const sockPath = repo + workpath + '/cdixx_stream.sock';
     connectMJPEGStream('ssptychoStream', 'ssptychoStreamVideo', sockPath);
 });
 

@@ -544,7 +544,7 @@ function connectMJPEGStream(imgId, videoId, sockPath) {
 
     const tryConnect = () => {
         if (!window.reconstructionState.isRunning) return;
-        img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+        img.src = 'live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
     };
 
     img.onload = () => {
