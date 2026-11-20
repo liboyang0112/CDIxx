@@ -24,11 +24,17 @@ if ($sockPath[0] !== '/') {
     $sockPath = __DIR__ . '/' . $sockPath;
 }
 
+// If absolute path doesn't exist, try relative to web root (symlink)
 if (!file_exists($sockPath)) {
-    http_response_code(502);
-    header('Content-Type: text/plain');
-    echo 'Socket not found';
-    exit;
+    $altPath = __DIR__ . $sockPath;
+    if (file_exists($altPath)) {
+        $sockPath = $altPath;
+    } else {
+        http_response_code(502);
+        header('Content-Type: text/plain');
+        echo 'Socket not found: ' . $sockPath;
+        exit;
+    }
 }
 
 $fp = @stream_socket_client('unix://' . $sockPath, $errno, $errstr, 5);

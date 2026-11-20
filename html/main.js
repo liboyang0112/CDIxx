@@ -536,19 +536,30 @@ function stopPolling() {
 function connectMJPEGStream(imgId, videoId, sockPath) {
     const img = document.getElementById(imgId);
     const videoEl = document.getElementById(videoId);
-    img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+    let connected = false;
+
+    // Show img immediately, hide video
+    img.style.display = 'block';
+    videoEl.style.display = 'none';
+
+    const tryConnect = () => {
+        if (!window.reconstructionState.isRunning) return;
+        img.src = '/live.php?sock=' + encodeURIComponent(sockPath) + '&t=' + Date.now();
+    };
+
     img.onload = () => {
+        connected = true;
         const statusEl = document.getElementById('streamStatus');
         if (statusEl) statusEl.style.background = '#4caf50';
-        img.style.display = 'block';
-        videoEl.style.display = 'none';
     };
     img.onerror = () => {
-        const statusEl = document.getElementById('streamStatus');
-        if (statusEl) statusEl.style.background = '#f44336';
-        img.style.display = 'none';
-        videoEl.style.display = 'block';
+        if (connected) return;
+        if (window.reconstructionState.isRunning) {
+            setTimeout(tryConnect, 2000);
+        }
     };
+
+    tryConnect();
 }
 
 function showFallbackVideoMJPEG(imgId, videoId, videoSrc) {

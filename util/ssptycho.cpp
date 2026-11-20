@@ -434,7 +434,7 @@ class ssptycho : public readConfig{
           myIFFT(objectWave,objectWave);
         }
         if(1){
-          if(iter < 500){
+          if(iter < 1000){
             FISTA(objectWave, objectWave, 0.2*sqrt(I2), 1, NULL);
           }else
             FISTA(objectWave, objectWave, 0.05*sqrt(I2), 1, NULL);
