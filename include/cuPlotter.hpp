@@ -27,6 +27,7 @@ class cuPlotter
   bool isOnline[100];
   int toVideo = -1;
   int writeVideo = -1;
+  void* preview_dPtr = 0; // GPU pointer to preview shared buffer (OPAQUE_FD)
   cuPlotter():cuCache_data(0),cv_data(0),cv_complex_data(0),cv_cache(0){
     for(int i = 0; i < 100; i++){
       videoWriterVec[i] = 0;

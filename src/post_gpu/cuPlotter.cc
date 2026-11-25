@@ -13,6 +13,9 @@ extern "C" {
 #include "freetype.hpp"
 #include "preview.h"
 }
+// CUDA interop (C++ linkage, from vkImport.cu)
+int importVulkanFd(int fd, size_t size, void** dPtr);
+void rgbToRGBA(const uint8_t* rgb, uint8_t* rgba);
 const float TurboData[3][8][3] = {  //color, sector, fit parameterx : a+b*x+c*x*x
   {
     {48.628736, 1.26493952, 0.0179480064},
@@ -216,7 +219,15 @@ void cuPlotter::plotComplexColor(complexFormat* cudaData, bool isFrequency, Real
         }
       }
     } else if(videoPreview[toVideo]) {
-      updatePreview(videoPreview[toVideo], cv_cache);
+      if (!preview_dPtr) {
+        int fd = previewGetFd(videoPreview[toVideo]);
+        size_t sz = previewGetFrameBytes(videoPreview[toVideo]);
+        importVulkanFd(fd, sz, &preview_dPtr);
+      }
+      if (preview_dPtr) {
+        rgbToRGBA((const uint8_t*)cuCache_data, (uint8_t*)preview_dPtr);
+        updatePreview(videoPreview[toVideo], preview_dPtr);
+      }
     }
   }else{
     writePng(fname.c_str(), cv_cache, rows, cols, 8, 1);
@@ -324,7 +335,7 @@ void cuPlotter::plot(const char* label, bool iscolor, const char* caption){
           free(jdata);
         }
       } else if(videoPreview[toVideo]) {
-        updatePreview(videoPreview[toVideo], cv_cache);
+        // TEST: disabled
       }
       return;
     }
