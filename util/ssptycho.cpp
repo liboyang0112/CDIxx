@@ -100,6 +100,7 @@ class ssptycho : public readConfig{
       for(int i = 0; i < nPeaks; i++) totalE += energies[i];
       for(int i = 0; i < nPeaks; i++){
         peakEnergies[i] = sqrt(energies[i]/totalE);
+        fmt::print("peak {} = {:f}", i, energies[i]);
       }
 
       // Zero-init, then sum plane waves for each peak

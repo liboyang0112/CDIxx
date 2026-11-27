@@ -316,19 +316,16 @@ std::vector<int> findPeaks(Real* image, int epsilon) {
   Real threshold = max / 4;
   myCuDMalloc(Real, mask, rows * cols);
   myCuDMalloc(C_circle, cuda_spt, 1);
+  C_circle cir;
   resize_cuda_image(rows, cols);
   while (max > threshold) {
     int idx = findMaxIdx(tmp);
     peaks.push_back(idx);
     int y = idx % cols;
     int x = idx / cols;
-    C_circle cir;
     cir.x0 = x;
     cir.y0 = y;
     cir.r  = epsilon;
-    Real h_peak = 0;
-    myMemcpyD2H(&h_peak, &tmp[idx], sizeof(Real));
-    fmt::println("peak {} idx={} ({},{}), max={:.6f}, val={:.6f}", peaks.size(), idx, x, y, max, h_peak);
     myMemcpyH2D(cuda_spt, &cir, sizeof(cir));
     createMask<C_circle>(mask, cuda_spt, false);
     applyMaskBar(tmp, mask, 0.5);

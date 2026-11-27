@@ -7,8 +7,6 @@
 #include <string>
 using namespace std;
 
-// Host wrapper exported by libcudaLib (defined in src/gpu/cudaConfig.cu)
-void obliqueRotatePhase(complexFormat* input, complexFormat* output, Real a, Real b, Real sinT, Real cosT, int sign);
 
 // FWHM along x (columns) through row, or along y (rows) through column
 static Real fwhmX(Real* h, int N, int row){
@@ -97,32 +95,51 @@ int main(int argc, char* argv[]){
     fclose(f);
     myFree(h_dump);
   }
-  // ---------- Step 3: transformed k-vectors (rotated into oblique surface frame) ----------
+  // ---------- Step 3: de-tilted k-vector rotation into the oblique surface frame ----------
+  // Output grid = de-tilted surface frame: u = k_parallel - sin(theta), so the beam
+  // (kx = 0 in the pupil) maps exactly to the grid center with interpolation weight
+  // 1.0 — same center-aligned design as reflCorrectToRegular (Catmull-Rom in kx).
   myCuDMalloc(complexFormat, d_kvt, N*N);
   Real lambda_over_imagesize = lambda/(pixelsize*N);
   Real a = 2*M_PI*D/lambda;
   Real b = lambda_over_imagesize*lambda_over_imagesize;
-  obliqueRotatePhase(d_kv, d_kvt, a, b, sinf(theta), cosf(theta), +1);
-
-  // cancel the constant k-shift of the gather: the beam lands at kx = sin(theta)
-  // (k0 units) = s_px off the grid center; remove the integer part here (exact),
-  // the residual <1 px is removed as a phase after the IFFT
-  const Real s_px = sinf(theta)*pixelsize*N/lambda;
-  const int s_int = (int)floorf(s_px);
-  const Real s_frac = s_px - (Real)s_int;
-  if(s_int != 0){
-    myDMalloc(complexFormat, h_kvt, N*N);
-    myDMalloc(complexFormat, h_kvt_s, N*N);
-    myMemcpyD2H(h_kvt, d_kvt, N*N*sizeof(complexFormat));
-    for(int i = 0; i < N; i++)
-      for(int j = 0; j < N; j++){
-        int src = (j + s_int) % N;
-        if(src < 0) src += N;
-        h_kvt_s[i*N+j] = h_kvt[i*N+src];
+  {
+    const float st = sinf(theta), ct = cosf(theta);
+    const float sb = sqrtf(b);
+    myDMalloc(complexFormat, h_in, N*N);
+    myDMalloc(complexFormat, h_out, N*N);
+    myMemcpyD2H(h_in, d_kv, N*N*sizeof(complexFormat));
+    for(int r = 0; r < N; r++){
+      const float ky = (r - N/2) * sb;
+      for(int c = 0; c < N; c++){
+        const float kxt = (c - N/2) * sb + st;  // de-tilted surface coord: u + sinT
+        const float disc = 1.0f - kxt*kxt - ky*ky;
+        if(disc < 0){ h_out[r*N+c] = complexFormat(0,0); continue; }
+        const float kzt = sqrtf(disc);
+        const float kxs = kxt*ct - kzt*st;      // lab-frame source kx (= 0 at grid center)
+        const float ysrc = kxs/sb + (float)(N/2);
+        const int c0 = (int)floorf(ysrc) - 1;
+        const float fc = ysrc - (float)(int)floorf(ysrc);
+        if(c0 < 0 || c0+3 >= N){ h_out[r*N+c] = complexFormat(0,0); continue; }
+        const float w0 = 0.5f*(-fc + 2*fc*fc - fc*fc*fc);
+        const float w1 = 0.5f*(2 - 5*fc*fc + 3*fc*fc*fc);
+        const float w2 = 0.5f*(fc + 4*fc*fc - 3*fc*fc*fc);
+        const float w3 = 0.5f*(-fc*fc + fc*fc*fc);
+        const float re = w0*h_in[r*N+c0].x   + w1*h_in[r*N+c0+1].x
+                       + w2*h_in[r*N+c0+2].x + w3*h_in[r*N+c0+3].x;
+        const float im = w0*h_in[r*N+c0].y   + w1*h_in[r*N+c0+1].y
+                       + w2*h_in[r*N+c0+2].y + w3*h_in[r*N+c0+3].y;
+        const float kzs = sqrtf(fmaxf(1.0f - kxs*kxs - ky*ky, 0.0f));
+        const float knorm = kzs*ct - kxs*st;
+        float sr, cr;
+        sincosf(a * kzs, &sr, &cr);
+        const float wj = kzs / (knorm + 1e-12f);
+        h_out[r*N+c] = complexFormat(wj*(re*cr - im*sr), wj*(re*sr + im*cr));
       }
-    myMemcpyH2D(d_kvt, h_kvt_s, N*N*sizeof(complexFormat));
-    myFree(h_kvt_s);
-    myFree(h_kvt);
+    }
+    myMemcpyH2D(d_kvt, h_out, N*N*sizeof(complexFormat));
+    myFree(h_out);
+    myFree(h_in);
   }
 
   plt.plotComplex(d_kvt, MOD, 0, 1, "step3_transformed_kvectors.png", 1, 0, 1);
@@ -141,29 +158,6 @@ int main(int argc, char* argv[]){
   cudaConvertFO(d_kvt);  // uncenter before IFFT
   myCuDMalloc(complexFormat, d_surf, N*N);
   myIFFT(d_kvt, d_surf);
-
-  // remove the residual (<1 px) ramping phase from the fractional part of the k-shift
-  // (kx is the column axis on this grid, per the obliqueRotatePhase kernel)
-  if(fabsf(s_frac) > 1e-6f){
-    myDMalloc(complexFormat, h_surf, N*N);
-    myDMalloc(Real, h_c, N);
-    myDMalloc(Real, h_s, N);
-    for(int j = 0; j < N; j++){
-      float ph = -2*M_PI*s_frac*(j - N/2)/N;
-      h_c[j] = cosf(ph);
-      h_s[j] = sinf(ph);
-    }
-    myMemcpyD2H(h_surf, d_surf, N*N*sizeof(complexFormat));
-    for(int i = 0; i < N; i++)
-      for(int j = 0; j < N; j++){
-        complexFormat v = h_surf[i*N+j];
-        h_surf[i*N+j] = complexFormat(v.x*h_c[j] - v.y*h_s[j], v.x*h_s[j] + v.y*h_c[j]);
-      }
-    myMemcpyH2D(d_surf, h_surf, N*N*sizeof(complexFormat));
-    myFree(h_surf);
-    myFree(h_c);
-    myFree(h_s);
-  }
 
   plt.plotComplex(d_surf, MOD, 0, 1, "step4_oblique_surface.png", 1, 0, 1);
   plt.plotComplexColor(d_surf, 0, 1, "step4_oblique_surface");
